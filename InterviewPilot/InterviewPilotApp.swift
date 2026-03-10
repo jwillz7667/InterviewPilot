@@ -1,10 +1,3 @@
-//
-//  InterviewPilotApp.swift
-//  InterviewPilot
-//
-//  Created by Justin Williams on 3/9/26.
-//
-
 import SwiftUI
 import SwiftData
 
@@ -12,7 +5,7 @@ import SwiftData
 struct InterviewPilotApp: App {
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
-            Item.self,
+            InterviewSession.self,
         ])
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
 

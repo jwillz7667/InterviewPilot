@@ -1,0 +1,170 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  passwordHash  String
+  displayName   String?
+  avatarUrl     String?
+
+  // OAuth (future)
+  appleId       String?   @unique
+  googleId      String?   @unique
+
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  lastLoginAt   DateTime?
+  emailVerified Boolean   @default(false)
+
+  sessions      InterviewSession[]
+  settings      UserSettings?
+  apiKeys       UserApiKey[]
+  answerBanks   AnswerBank[]
+  refreshTokens RefreshToken[]
+
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String    @id @default(cuid())
+  token     String    @unique
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deviceId  String?
+  expiresAt DateTime
+  createdAt DateTime  @default(now())
+  revokedAt DateTime?
+
+  @@index([userId])
+  @@index([token])
+  @@map("refresh_tokens")
+}
+
+model UserSettings {
+  id                     String  @id @default(cuid())
+  userId                 String  @unique
+  user                   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  defaultInterviewType   String  @default("general")
+  defaultResponseFormat  String  @default("hybrid")
+  defaultModel           String  @default("gpt-4.1-nano")
+  shouldPreGenerate      Boolean @default(true)
+
+  responseTemperature    Float   @default(0.7)
+  maxResponseTokens      Int     @default(800)
+  maxPreComputedQs       Int     @default(25)
+
+  utteranceEndMs         Int     @default(1500)
+  endpointingMs          Int     @default(500)
+  predictiveFireMinWords Int     @default(8)
+
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  @@map("user_settings")
+}
+
+model UserApiKey {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  provider     String   // "deepgram" | "openai"
+  encryptedKey String
+  keyIv        String
+  keyTag       String
+  keyPrefix    String   // First 4 chars for display
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([userId, provider])
+  @@index([userId])
+  @@map("user_api_keys")
+}
+
+model InterviewSession {
+  id              String     @id @default(cuid())
+  clientId        String     @unique
+  userId          String
+  user            User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  startedAt       DateTime
+  endedAt         DateTime?
+  resumeText      String
+  jobDescription  String
+  interviewType   String
+  responseFormat  String
+  modelUsed       String
+  totalTokensUsed Int        @default(0)
+  estimatedCost   Float      @default(0)
+
+  exchanges       Exchange[]
+
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  @@index([userId, startedAt(sort: Desc)])
+  @@map("interview_sessions")
+}
+
+model Exchange {
+  id                 String           @id @default(cuid())
+  clientId           String           @unique
+  sessionId          String
+  session            InterviewSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  timestamp          DateTime
+  questionTranscript String
+  questionType       String
+  generatedResponse  String
+  responseLatencyMs  Int
+  wasPreComputed     Boolean          @default(false)
+  sequenceOrder      Int
+
+  createdAt          DateTime         @default(now())
+
+  @@index([sessionId, sequenceOrder])
+  @@map("exchanges")
+}
+
+model AnswerBank {
+  id             String              @id @default(cuid())
+  userId         String
+  user           User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  name           String
+  resumeText     String
+  jobDescription String
+  interviewType  String
+
+  answers        PreComputedAnswer[]
+
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+
+  @@index([userId])
+  @@map("answer_banks")
+}
+
+model PreComputedAnswer {
+  id           String     @id @default(cuid())
+  bankId       String
+  bank         AnswerBank @relation(fields: [bankId], references: [id], onDelete: Cascade)
+
+  question     String
+  response     String
+  questionType String
+
+  createdAt    DateTime   @default(now())
+
+  @@index([bankId])
+  @@map("pre_computed_answers")
+}

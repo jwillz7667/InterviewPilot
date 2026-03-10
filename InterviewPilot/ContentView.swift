@@ -1,61 +1,43 @@
-//
-//  ContentView.swift
-//  InterviewPilot
-//
-//  Created by Justin Williams on 3/9/26.
-//
-
 import SwiftUI
-import SwiftData
 
 struct ContentView: View {
-    @Environment(\.modelContext) private var modelContext
-    @Query private var items: [Item]
+    @State private var authService = AuthService.shared
+    @State private var showSettings = false
+    @State private var selectedTab = 0
 
     var body: some View {
-        NavigationSplitView {
-            List {
-                ForEach(items) { item in
-                    NavigationLink {
-                        Text("Item at \(item.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))")
-                    } label: {
-                        Text(item.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))
+        if !authService.isAuthenticated {
+            LoginView()
+        } else {
+            TabView(selection: $selectedTab) {
+                Tab("Interview", systemImage: "mic.fill", value: 0) {
+                    SessionSetupView()
+                }
+
+                Tab("History", systemImage: "clock.arrow.circlepath", value: 1) {
+                    NavigationStack {
+                        SessionHistoryView()
+                            .navigationTitle("History")
+                            .toolbar {
+                                ToolbarItem(placement: .topBarTrailing) {
+                                    Button(action: { showSettings = true }) {
+                                        Image(systemName: "gearshape.fill")
+                                            .foregroundStyle(.white.opacity(0.6))
+                                    }
+                                }
+                            }
                     }
                 }
-                .onDelete(perform: deleteItems)
-            }
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    EditButton()
-                }
-                ToolbarItem {
-                    Button(action: addItem) {
-                        Label("Add Item", systemImage: "plus")
-                    }
+
+                Tab("Settings", systemImage: "gearshape.fill", value: 2) {
+                    SettingsView()
                 }
             }
-        } detail: {
-            Text("Select an item")
-        }
-    }
-
-    private func addItem() {
-        withAnimation {
-            let newItem = Item(timestamp: Date())
-            modelContext.insert(newItem)
-        }
-    }
-
-    private func deleteItems(offsets: IndexSet) {
-        withAnimation {
-            for index in offsets {
-                modelContext.delete(items[index])
+            .preferredColorScheme(.dark)
+            .tint(IPTheme.brand)
+            .sheet(isPresented: $showSettings) {
+                SettingsView()
             }
         }
     }
-}
-
-#Preview {
-    ContentView()
-        .modelContainer(for: Item.self, inMemory: true)
 }
