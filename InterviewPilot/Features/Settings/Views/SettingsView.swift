@@ -98,8 +98,8 @@ struct SettingsView: View {
                                     .foregroundStyle(IPTheme.textPrimary)
 
                                 infoRow(icon: "lock.shield.fill", title: "Security", detail: "Authentication tokens are stored in the iOS Keychain.")
-                                infoRow(icon: "antenna.radiowaves.left.and.right", title: "Connectivity", detail: "Live interview and voice prep need network access.")
-                                infoRow(icon: "waveform.badge.magnifyingglass", title: "Speech stack", detail: "Live mode keeps the current interview configuration. Voice Prep uses realtime speech-to-speech.")
+                                infoRow(icon: "antenna.radiowaves.left.and.right", title: "Connectivity", detail: "Live interview mode needs network access for transcription and response generation.")
+                                infoRow(icon: "waveform.badge.magnifyingglass", title: "Speech stack", detail: "Live mode keeps the current interview audio pipeline and on-screen answer workflow.")
                             }
                         }
 

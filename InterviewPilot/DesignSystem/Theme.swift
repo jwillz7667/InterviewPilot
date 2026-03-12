@@ -2,7 +2,7 @@ import SwiftUI
 
 enum IPTheme {
     static let accent = Color(red: 0.157, green: 0.482, blue: 0.973)
-    static let accentSecondary = Color(red: 0.220, green: 0.796, blue: 0.925)
+    static let accentSecondary = Color(red: 0.114, green: 0.357, blue: 0.804)
     static let accentWarm = Color(red: 0.984, green: 0.706, blue: 0.349)
 
     static let brand = accent
@@ -30,16 +30,16 @@ enum IPTheme {
     static let backgroundTop = Color(
         uiColor: UIColor { traits in
             traits.userInterfaceStyle == .dark
-                ? UIColor(red: 0.035, green: 0.055, blue: 0.102, alpha: 1)
-                : UIColor(red: 0.953, green: 0.969, blue: 0.992, alpha: 1)
+                ? UIColor(red: 0.041, green: 0.047, blue: 0.067, alpha: 1)
+                : UIColor(red: 0.959, green: 0.969, blue: 0.984, alpha: 1)
         }
     )
 
     static let backgroundBottom = Color(
         uiColor: UIColor { traits in
             traits.userInterfaceStyle == .dark
-                ? UIColor(red: 0.071, green: 0.102, blue: 0.180, alpha: 1)
-                : UIColor(red: 0.902, green: 0.945, blue: 0.996, alpha: 1)
+                ? UIColor(red: 0.067, green: 0.078, blue: 0.110, alpha: 1)
+                : UIColor(red: 0.923, green: 0.941, blue: 0.969, alpha: 1)
         }
     )
 
@@ -76,8 +76,29 @@ enum IPTheme {
     }
 
     static func panelFill(for colorScheme: ColorScheme, emphasis: Double = 0) -> AnyShapeStyle {
-        let opacity = colorScheme == .dark ? 0.11 + emphasis : 0.74 + emphasis
-        return AnyShapeStyle(Color.white.opacity(opacity))
+        if colorScheme == .dark {
+            return AnyShapeStyle(
+                LinearGradient(
+                    colors: [
+                        Color(red: 0.112, green: 0.123, blue: 0.156).opacity(0.96 + emphasis),
+                        Color(red: 0.086, green: 0.094, blue: 0.123).opacity(0.98 + emphasis)
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            )
+        }
+
+        return AnyShapeStyle(
+            LinearGradient(
+                colors: [
+                    Color.white.opacity(0.94 + emphasis),
+                    Color(red: 0.944, green: 0.956, blue: 0.977).opacity(0.98)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        )
     }
 
     static func elevatedFill(for colorScheme: ColorScheme, tint: Color? = nil) -> AnyShapeStyle {
@@ -85,8 +106,8 @@ enum IPTheme {
             return AnyShapeStyle(
                 LinearGradient(
                     colors: [
-                        tint.opacity(colorScheme == .dark ? 0.30 : 0.14),
-                        Color.white.opacity(colorScheme == .dark ? 0.07 : 0.78)
+                        tint.opacity(colorScheme == .dark ? 0.22 : 0.12),
+                        tint.opacity(colorScheme == .dark ? 0.10 : 0.05)
                     ],
                     startPoint: .topLeading,
                     endPoint: .bottomTrailing

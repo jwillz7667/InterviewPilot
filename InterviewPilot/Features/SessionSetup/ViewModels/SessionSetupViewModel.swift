@@ -8,12 +8,8 @@ final class SessionSetupViewModel {
     var sessionMode: SessionMode = .liveInterview
     var interviewType: InterviewType = .general
     var responseFormat: ResponseFormat = .hybrid
-    var shouldPreGenerate: Bool = true
     var showResumeInput: Bool = false
 
-    var preComputedAnswers: [PreComputedAnswer] = []
-    var isPreGenerating: Bool = false
-    var preGenProgress: (current: Int, total: Int) = (0, 0)
     var errorMessage: String?
 
     var hasResume: Bool { !resumeText.isEmpty }
@@ -46,27 +42,6 @@ final class SessionSetupViewModel {
         guard sessionMode == .liveInterview else {
             return
         }
-
-        if shouldPreGenerate {
-            let apiKey = KeychainService.load(key: .openAIAPIKey) ?? ""
-
-            isPreGenerating = true
-            do {
-                let bank = AnswerBankService()
-                try await bank.generateAnswerBank(
-                    resume: resumeText,
-                    jobDescription: jobDescription,
-                    interviewType: interviewType,
-                    apiKey: apiKey
-                ) { [weak self] current, total in
-                    self?.preGenProgress = (current, total)
-                }
-                preComputedAnswers = bank.answers
-            } catch {
-                errorMessage = "Failed to pre-generate answers: \(error.localizedDescription)"
-            }
-            isPreGenerating = false
-        }
     }
 
     func createLiveViewModel() -> LiveSessionViewModel {
@@ -78,7 +53,7 @@ final class SessionSetupViewModel {
             jobDescription: jobDescription,
             interviewType: interviewType,
             responseFormat: responseFormat,
-            preComputedAnswers: preComputedAnswers,
+            preComputedAnswers: [],
             deepgramKey: deepgramKey,
             openAIKey: openAIKey
         )

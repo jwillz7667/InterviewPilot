@@ -12,22 +12,22 @@ struct OnboardingView: View {
             IPTheme.accent
         ),
         (
-            "person.wave.2.fill",
-            "Practice with a spoken mock interviewer",
-            "Voice Prep mode uses realtime speech-to-speech so the app can ask follow-ups naturally from the job post and your resume.",
-            IPTheme.accentWarm
+            "briefcase.fill",
+            "Anchor the session to the role",
+            "Paste the full job posting so the app can surface tighter answers, stronger terminology, and more accurate framing during the interview.",
+            IPTheme.accent
         ),
         (
             "bolt.badge.checkmark.fill",
             "Prepare likely answers before the call",
             "Upload your resume and job description to generate likely questions and keep fast answers ready for the live interview.",
-            IPTheme.accentSecondary
+            IPTheme.accent
         ),
         (
             "lock.shield.fill",
             "Stay private and in control",
             "Authentication is handled securely, and appearance can now follow system, light, or dark mode based on your interview setup.",
-            IPTheme.success
+            IPTheme.accent
         )
     ]
 

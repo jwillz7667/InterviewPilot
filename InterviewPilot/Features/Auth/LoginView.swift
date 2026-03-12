@@ -107,7 +107,7 @@ struct LoginView: View {
                 HStack {
                     IPStatusPill(title: isRegistering ? "Create workspace" : "Secure sign in", symbol: "lock.fill")
                     Spacer()
-                    IPStatusPill(title: "Live + Prep", symbol: "sparkles", tint: IPTheme.accentWarm)
+                    IPStatusPill(title: "Live Interview", symbol: "waveform.and.mic", tint: IPTheme.accent)
                 }
 
                 HStack(alignment: .top, spacing: 16) {
@@ -133,7 +133,7 @@ struct LoginView: View {
                             .font(IPTypography.displayMedium)
                             .foregroundStyle(IPTheme.textPrimary)
 
-                        Text("Real-time interview assistance with a clean voice prep workflow and live in-call support.")
+                        Text("Real-time interview assistance built for live in-call support with resume-aware answer guidance.")
                             .font(IPTypography.bodyLarge)
                             .foregroundStyle(IPTheme.textSecondary)
                             .fixedSize(horizontal: false, vertical: true)
@@ -142,7 +142,7 @@ struct LoginView: View {
 
                 HStack(spacing: 10) {
                     featurePill("Resume aware", symbol: "doc.text.fill")
-                    featurePill("Realtime prep", symbol: "person.wave.2.fill")
+                    featurePill("Live guidance", symbol: "waveform.and.mic")
                     featurePill("Low latency", symbol: "bolt.fill")
                 }
             }

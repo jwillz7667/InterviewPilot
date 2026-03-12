@@ -56,7 +56,7 @@ struct PrepSessionView: View {
                 }
                 .buttonStyle(.plain)
 
-                AnimatedStatusBadge(text: "Voice Prep", color: IPTheme.accentWarm, isActive: true)
+                AnimatedStatusBadge(text: "Voice Prep", color: IPTheme.accent, isActive: true)
                 IPStatusPill(title: viewModel.statusText, symbol: prepStateSymbol, tint: IPTheme.accent)
 
                 Spacer()
@@ -74,14 +74,14 @@ struct PrepSessionView: View {
     }
 
     private var interviewerSection: some View {
-        IPPanel(tone: .accent(IPTheme.accentWarm)) {
+        IPPanel(tone: .primary) {
             VStack(alignment: .leading, spacing: 14) {
                 laneHeader(
                     title: "AI interviewer",
                     subtitle: "Realtime spoken question",
                     symbol: "person.wave.2.fill",
-                    tint: IPTheme.accentWarm,
-                    trailing: AnyView(IPStatusPill(title: viewModel.statusText, symbol: prepStateSymbol, tint: IPTheme.accentWarm))
+                    tint: IPTheme.accent,
+                    trailing: AnyView(IPStatusPill(title: viewModel.statusText, symbol: prepStateSymbol, tint: IPTheme.accent))
                 )
 
                 ScrollView {
@@ -169,7 +169,7 @@ struct PrepSessionView: View {
                     icon: "forward.fill",
                     label: "Next",
                     isActive: true,
-                    tint: IPTheme.accentWarm
+                    tint: IPTheme.accent
                 ) {
                     viewModel.requestNextQuestion()
                 }

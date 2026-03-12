@@ -10,66 +10,36 @@ struct IPAppBackground: View {
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1.4)) { context in
-            let time = context.date.timeIntervalSinceReferenceDate
+        ZStack {
+            LinearGradient(
+                colors: [IPTheme.backgroundTop, IPTheme.backgroundBottom],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .ignoresSafeArea()
 
-            ZStack {
-                IPTheme.pageBackground(for: colorScheme)
-                    .ignoresSafeArea()
+            RadialGradient(
+                colors: [
+                    IPTheme.accent.opacity(colorScheme == .dark ? 0.18 : 0.08),
+                    Color.clear
+                ],
+                center: .topTrailing,
+                startRadius: 20,
+                endRadius: 320
+            )
+            .ignoresSafeArea()
 
-                MeshGradient(
-                    width: 3,
-                    height: 3,
-                    points: meshPoints(time: time),
-                    colors: IPTheme.meshColors(for: colorScheme)
-                )
-                .opacity(colorScheme == .dark ? 0.96 : 0.86)
-                .blur(radius: colorScheme == .dark ? 56 : 74)
-                .saturation(colorScheme == .dark ? 1.08 : 0.95)
-                .ignoresSafeArea()
-
-                LinearGradient(
-                    colors: [
-                        Color.white.opacity(colorScheme == .dark ? 0.03 : 0.22),
-                        Color.clear,
-                        Color.black.opacity(colorScheme == .dark ? 0.22 : 0.03)
-                    ],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-                .ignoresSafeArea()
-
-                Circle()
-                    .fill(IPTheme.accent.opacity(colorScheme == .dark ? 0.18 : 0.08))
-                    .frame(width: 340, height: 340)
-                    .blur(radius: 60)
-                    .offset(x: 150, y: -260)
-
-                Circle()
-                    .fill(IPTheme.accentWarm.opacity(colorScheme == .dark ? 0.12 : 0.06))
-                    .frame(width: 260, height: 260)
-                    .blur(radius: 55)
-                    .offset(x: -140, y: 320)
-            }
+            LinearGradient(
+                colors: [
+                    Color.white.opacity(colorScheme == .dark ? 0.02 : 0.12),
+                    Color.clear,
+                    Color.black.opacity(colorScheme == .dark ? 0.18 : 0.02)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .ignoresSafeArea()
         }
-    }
-
-    private func meshPoints(time: TimeInterval) -> [SIMD2<Float>] {
-        [
-            point(0.00, 0.00),
-            point(0.52 + 0.05 * sin(time * 0.28), 0.02),
-            point(1.00, 0.00),
-            point(0.03, 0.48 + 0.05 * cos(time * 0.24)),
-            point(0.50 + 0.04 * cos(time * 0.17), 0.52 + 0.05 * sin(time * 0.21)),
-            point(0.98, 0.47 + 0.06 * sin(time * 0.23)),
-            point(0.00, 1.00),
-            point(0.50 + 0.03 * sin(time * 0.18), 0.98),
-            point(1.00, 1.00)
-        ]
-    }
-
-    private func point(_ x: Double, _ y: Double) -> SIMD2<Float> {
-        SIMD2<Float>(Float(max(0, min(1, x))), Float(max(0, min(1, y))))
     }
 }
 
@@ -266,10 +236,10 @@ struct IPPrimaryButtonStyle: ButtonStyle {
             .background(
                 LinearGradient(
                     colors: isEnabled
-                        ? [tint, IPTheme.accentSecondary]
+                        ? [tint.opacity(0.98), tint.opacity(0.82)]
                         : [Color(uiColor: .systemGray3), Color(uiColor: .systemGray4)],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
+                    startPoint: .top,
+                    endPoint: .bottom
                 ),
                 in: RoundedRectangle(cornerRadius: IPTheme.radiusMedium, style: .continuous)
             )
@@ -386,10 +356,6 @@ struct IPTabAccessory: View {
     }
 
     private var tint: Color {
-        switch selectedTab {
-        case 0: return IPTheme.accent
-        case 1: return IPTheme.accentWarm
-        default: return IPTheme.accentSecondary
-        }
+        IPTheme.accent
     }
 }

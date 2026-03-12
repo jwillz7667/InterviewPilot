@@ -15,7 +15,7 @@ struct LiveSessionView: View {
                     .padding(.top, IPTheme.spacing12)
 
                 transcriptSection
-                    .frame(maxHeight: .infinity)
+                    .frame(minHeight: 210, maxHeight: 260)
 
                 responseSection
                     .frame(maxHeight: .infinity)
@@ -121,7 +121,7 @@ struct LiveSessionView: View {
     }
 
     private var responseSection: some View {
-        IPPanel(tone: .accent(IPTheme.accent)) {
+        IPPanel(tone: .primary) {
             VStack(alignment: .leading, spacing: 14) {
                 laneHeader(
                     title: "Suggested answer",
@@ -151,39 +151,33 @@ struct LiveSessionView: View {
                         .background(IPTheme.error.opacity(0.10), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
                 }
 
-                ScrollViewReader { proxy in
-                    ScrollView {
-                        if viewModel.currentResponse.isEmpty && viewModel.sessionState != .generating {
-                            Text("The response will appear here when the app has enough of the question to answer.")
-                                .font(IPTypography.responseText)
-                                .foregroundStyle(IPTheme.textSecondary)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                        } else if viewModel.currentResponse.isEmpty && viewModel.sessionState == .generating {
-                            VStack(alignment: .leading, spacing: 10) {
-                                ForEach(0..<3, id: \.self) { index in
-                                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                        .fill(Color.white.opacity(0.14))
-                                        .frame(height: 16)
-                                        .frame(maxWidth: index == 2 ? 220 : .infinity)
-                                        .shimmer()
-                                }
+                ScrollView {
+                    if viewModel.currentResponse.isEmpty && viewModel.sessionState != .generating {
+                        Text("The response will appear here when the app has enough of the question to answer.")
+                            .font(IPTypography.responseText)
+                            .foregroundStyle(IPTheme.textSecondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    } else if viewModel.currentResponse.isEmpty && viewModel.sessionState == .generating {
+                        VStack(alignment: .leading, spacing: 10) {
+                            ForEach(0..<3, id: \.self) { index in
+                                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                    .fill(Color.white.opacity(0.14))
+                                    .frame(height: 16)
+                                    .frame(maxWidth: index == 2 ? 220 : .infinity)
+                                    .shimmer()
                             }
-                        } else {
-                            Text(viewModel.currentResponse)
-                                .font(IPTypography.responseText)
-                                .foregroundStyle(IPTheme.textPrimary)
-                                .lineSpacing(6)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .id("response-bottom")
                         }
-                    }
-                    .ipScrollablePage()
-                    .onChange(of: viewModel.currentResponse) {
-                        withAnimation(IPAnimations.gentle) {
-                            proxy.scrollTo("response-bottom", anchor: .bottom)
-                        }
+                    } else {
+                        Text(viewModel.currentResponse)
+                            .font(IPTypography.responseText)
+                            .foregroundStyle(IPTheme.textPrimary)
+                            .lineSpacing(6)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 }
+                .defaultScrollAnchor(.top)
+                .id(viewModel.exchangeCount)
+                .ipScrollablePage()
             }
         }
         .padding(.horizontal, IPTheme.spacing16)
@@ -223,7 +217,7 @@ struct LiveSessionView: View {
                     icon: "forward.fill",
                     label: "Next",
                     isActive: true,
-                    tint: IPTheme.accentWarm
+                    tint: IPTheme.accent
                 ) {
                     withAnimation(IPAnimations.standard) {
                         viewModel.resumeListeningForNextQuestion()

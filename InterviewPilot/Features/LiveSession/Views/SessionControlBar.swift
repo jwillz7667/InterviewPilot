@@ -35,7 +35,7 @@ struct SessionControlBar: View {
                     icon: "forward.fill",
                     label: "Next",
                     isActive: true,
-                    tint: IPTheme.accentWarm,
+                    tint: IPTheme.accent,
                     action: onSkip
                 )
             }

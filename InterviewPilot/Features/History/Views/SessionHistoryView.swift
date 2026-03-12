@@ -15,7 +15,7 @@ struct SessionHistoryView: View {
                     Spacer()
                     IPEmptyState(
                         title: "No sessions yet",
-                        subtitle: "Run a live interview or voice prep session and your recap will appear here with duration, latency, and question breakdowns.",
+                        subtitle: "Run a live interview session and your recap will appear here with duration, latency, and question breakdowns.",
                         symbol: "clock.arrow.trianglehead.counterclockwise.rotate.90"
                     )
                     .padding(.horizontal, IPTheme.spacing20)

@@ -11,7 +11,7 @@ struct JobDescriptionInputView: View {
 
                 ScrollView {
                     VStack(spacing: IPTheme.spacing20) {
-                        IPPanel(tone: .accent(IPTheme.accentWarm)) {
+                        IPPanel(tone: .accent(IPTheme.accent)) {
                             VStack(alignment: .leading, spacing: 14) {
                                 IPSectionHeader(
                                     eyebrow: "Job Post",

@@ -3,7 +3,7 @@ import UniformTypeIdentifiers
 
 struct SessionSetupView: View {
     @State private var viewModel = SessionSetupViewModel()
-    @State private var activeSessionMode: SessionMode?
+    @State private var showLiveSession = false
     @State private var showFilePicker = false
 
     var body: some View {
@@ -14,18 +14,10 @@ struct SessionSetupView: View {
                 ScrollView {
                     VStack(spacing: IPTheme.spacing20) {
                         heroSection
-                        modeSection
                         resumeSection
                         jobSection
                         interviewTypeSection
-
-                        if viewModel.sessionMode == .liveInterview {
-                            responseFormatSection
-                        }
-
-                        if viewModel.isReady && viewModel.sessionMode == .liveInterview {
-                            preGenerationSection
-                        }
+                        responseFormatSection
 
                         if let error = viewModel.errorMessage {
                             Label(error, systemImage: "exclamationmark.triangle.fill")
@@ -42,20 +34,15 @@ struct SessionSetupView: View {
                 }
                 .ipScrollablePage()
             }
-            .navigationTitle("Prepare")
+            .navigationTitle("Interview Pilot")
             .navigationBarTitleDisplayMode(.large)
             .safeAreaInset(edge: .bottom) {
                 startDock
                     .padding(.horizontal, IPTheme.spacing16)
                     .padding(.bottom, IPTheme.spacing8)
             }
-            .fullScreenCover(item: $activeSessionMode) { mode in
-                switch mode {
-                case .liveInterview:
-                    LiveSessionView(viewModel: viewModel.createLiveViewModel())
-                case .voicePrep:
-                    PrepSessionView(viewModel: viewModel.createPrepViewModel())
-                }
+            .fullScreenCover(isPresented: $showLiveSession) {
+                LiveSessionView(viewModel: viewModel.createLiveViewModel())
             }
             .fileImporter(
                 isPresented: $showFilePicker,
@@ -78,7 +65,7 @@ struct SessionSetupView: View {
         IPPanel(tone: .accent(IPTheme.accent)) {
             VStack(alignment: .leading, spacing: 16) {
                 HStack {
-                    IPStatusPill(title: viewModel.sessionMode.displayName, symbol: viewModel.sessionMode.icon)
+                    IPStatusPill(title: "Live Interview", symbol: "waveform.and.mic")
                     Spacer()
                     if viewModel.hasResume && viewModel.hasJobDescription {
                         IPStatusPill(title: "Ready", symbol: "checkmark.circle.fill", tint: IPTheme.success)
@@ -89,70 +76,14 @@ struct SessionSetupView: View {
                     .font(IPTypography.headlineLarge)
                     .foregroundStyle(IPTheme.textPrimary)
 
-                Text("Choose between live assistance for a real interview or a voice-first mock interview, then anchor it to your resume and the job posting.")
+                Text("Set up the live interview workspace with your resume, the job posting, and the response style you want on screen during the call.")
                     .font(IPTypography.bodyLarge)
                     .foregroundStyle(IPTheme.textSecondary)
 
                 HStack(spacing: 10) {
                     summaryPill("Resume", isReady: viewModel.hasResume)
                     summaryPill("Job post", isReady: viewModel.hasJobDescription)
-                    summaryPill(viewModel.interviewType.displayName, isReady: true, tint: IPTheme.accentWarm)
-                }
-            }
-        }
-    }
-
-    private var modeSection: some View {
-        IPPanel {
-            VStack(alignment: .leading, spacing: 14) {
-                IPSectionHeader(
-                    eyebrow: "Step 1",
-                    title: "Choose the session style",
-                    subtitle: "Use live mode during a real interview, or voice prep when you want the app to act as the interviewer.",
-                    symbol: "switch.2"
-                )
-
-                HStack(spacing: 12) {
-                    ForEach(SessionMode.allCases) { mode in
-                        Button(action: {
-                            withAnimation(IPAnimations.standard) {
-                                viewModel.sessionMode = mode
-                            }
-                        }) {
-                            VStack(alignment: .leading, spacing: 12) {
-                                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                    .fill((viewModel.sessionMode == mode ? IPTheme.accent : IPTheme.surfaceTertiary).opacity(0.15))
-                                    .frame(width: 46, height: 46)
-                                    .overlay {
-                                        Image(systemName: mode.icon)
-                                            .font(.system(size: 18, weight: .semibold))
-                                            .foregroundStyle(viewModel.sessionMode == mode ? IPTheme.accent : IPTheme.textSecondary)
-                                    }
-
-                                Text(mode.displayName)
-                                    .font(IPTypography.bodyLarge)
-                                    .foregroundStyle(IPTheme.textPrimary)
-
-                                Text(mode.subtitle)
-                                    .font(IPTypography.bodySmall)
-                                    .foregroundStyle(IPTheme.textSecondary)
-                                    .fixedSize(horizontal: false, vertical: true)
-
-                                Spacer()
-
-                                Image(systemName: viewModel.sessionMode == mode ? "checkmark.circle.fill" : "circle")
-                                    .font(.system(size: 18, weight: .semibold))
-                                    .foregroundStyle(viewModel.sessionMode == mode ? IPTheme.accent : IPTheme.textTertiary)
-                            }
-                            .frame(maxWidth: .infinity, minHeight: 190, alignment: .topLeading)
-                            .padding(16)
-                            .background(
-                                (viewModel.sessionMode == mode ? IPTheme.accent.opacity(0.10) : Color.white.opacity(0.08)),
-                                in: RoundedRectangle(cornerRadius: 22, style: .continuous)
-                            )
-                        }
-                        .buttonStyle(.plain)
-                    }
+                    summaryPill(viewModel.interviewType.displayName, isReady: true, tint: IPTheme.accent)
                 }
             }
         }
@@ -162,9 +93,9 @@ struct SessionSetupView: View {
         IPPanel {
             VStack(alignment: .leading, spacing: 14) {
                 IPSectionHeader(
-                    eyebrow: "Step 2",
+                    eyebrow: "Step 1",
                     title: "Add your resume",
-                    subtitle: "Upload a PDF or paste text so the app can tailor both answer suggestions and mock questions.",
+                    subtitle: "Upload a PDF or paste text so the app can tailor live answer suggestions to your background.",
                     symbol: "doc.text.fill"
                 )
 
@@ -194,7 +125,7 @@ struct SessionSetupView: View {
         IPPanel {
             VStack(alignment: .leading, spacing: 14) {
                 IPSectionHeader(
-                    eyebrow: "Step 3",
+                    eyebrow: "Step 2",
                     title: "Paste the job description",
                     subtitle: "The full posting gives the app stronger signals for likely questions, technical areas, and framing.",
                     symbol: "briefcase.fill"
@@ -231,9 +162,9 @@ struct SessionSetupView: View {
         IPPanel {
             VStack(alignment: .leading, spacing: 14) {
                 IPSectionHeader(
-                    eyebrow: "Step 4",
+                    eyebrow: "Step 3",
                     title: "Set the interview focus",
-                    subtitle: "Bias the app toward the style of interview you expect so the generated answers and prep questions stay relevant.",
+                    subtitle: "Bias the app toward the style of interview you expect so the generated answers stay relevant.",
                     symbol: "target"
                 )
 
@@ -271,7 +202,7 @@ struct SessionSetupView: View {
         IPPanel {
             VStack(alignment: .leading, spacing: 14) {
                 IPSectionHeader(
-                    eyebrow: "Step 5",
+                    eyebrow: "Step 4",
                     title: "Choose how answers are shown",
                     subtitle: "Live mode can render complete scripts, compact bullets, or a hybrid blend.",
                     symbol: "text.alignleft"
@@ -313,38 +244,6 @@ struct SessionSetupView: View {
         }
     }
 
-    private var preGenerationSection: some View {
-        IPPanel {
-            VStack(alignment: .leading, spacing: 14) {
-                HStack {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Pre-generate likely questions")
-                            .font(IPTypography.bodyLarge)
-                            .foregroundStyle(IPTheme.textPrimary)
-
-                        Text("Turn this on to build a fast response bank before the interview starts.")
-                            .font(IPTypography.bodySmall)
-                            .foregroundStyle(IPTheme.textSecondary)
-                    }
-
-                    Spacer()
-
-                    Toggle("", isOn: $viewModel.shouldPreGenerate)
-                        .labelsHidden()
-                        .tint(IPTheme.accent)
-                }
-
-                if viewModel.isPreGenerating || !viewModel.preComputedAnswers.isEmpty {
-                    PreGenerationView(
-                        progress: viewModel.preGenProgress,
-                        answers: viewModel.preComputedAnswers,
-                        isGenerating: viewModel.isPreGenerating
-                    )
-                }
-            }
-        }
-    }
-
     private var startDock: some View {
         IPPanel(tone: .accent(IPTheme.accent), padding: IPTheme.spacing16, cornerRadius: IPTheme.radiusXL) {
             VStack(alignment: .leading, spacing: 12) {
@@ -354,19 +253,14 @@ struct SessionSetupView: View {
 
                 Button(action: startSession) {
                     HStack(spacing: 10) {
-                        if viewModel.isPreGenerating {
-                            ProgressView()
-                                .tint(.white)
-                        } else {
-                            Image(systemName: viewModel.sessionMode == .voicePrep ? "person.wave.2.fill" : "mic.fill")
-                                .symbolEffect(.pulse, isActive: viewModel.isReady)
-                        }
+                        Image(systemName: "mic.fill")
+                            .symbolEffect(.pulse, isActive: viewModel.isReady)
 
-                        Text(viewModel.isPreGenerating ? "Preparing..." : viewModel.sessionMode.startButtonTitle)
+                        Text("Start Interview Session")
                     }
                 }
-                .buttonStyle(IPPrimaryButtonStyle(isEnabled: viewModel.isReady && !viewModel.isPreGenerating))
-                .disabled(!viewModel.isReady || viewModel.isPreGenerating)
+                .buttonStyle(IPPrimaryButtonStyle(isEnabled: viewModel.isReady))
+                .disabled(!viewModel.isReady)
             }
         }
     }
@@ -375,7 +269,7 @@ struct SessionSetupView: View {
         Task {
             await viewModel.prepareSession()
             guard viewModel.errorMessage == nil else { return }
-            activeSessionMode = viewModel.sessionMode
+            showLiveSession = true
         }
     }
 
