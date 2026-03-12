@@ -1,3 +1,5 @@
+import AuthenticationServices
+import CryptoKit
 import SwiftUI
 
 struct LoginView: View {
@@ -7,6 +9,7 @@ struct LoginView: View {
     @State private var displayName = ""
     @State private var isRegistering = false
     @State private var authService = AuthService.shared
+    @State private var currentNonce = ""
 
     var body: some View {
         if !hasSeenOnboarding {
@@ -80,6 +83,8 @@ struct LoginView: View {
                                 }
                                 .buttonStyle(IPPrimaryButtonStyle(isEnabled: canSubmit && !authService.isLoading))
                                 .disabled(!canSubmit || authService.isLoading)
+
+                                appleSignInButton
 
                                 Button(action: {
                                     withAnimation(IPAnimations.standard) {
@@ -163,6 +168,21 @@ struct LoginView: View {
         password.count >= 8
     }
 
+    private var appleSignInButton: some View {
+        SignInWithAppleButton(.signIn) { request in
+            let nonce = randomNonce()
+            currentNonce = nonce
+            request.requestedScopes = [.fullName, .email]
+            request.nonce = sha256(nonce)
+        } onCompletion: { result in
+            handleAppleSignIn(result)
+        }
+        .signInWithAppleButtonStyle(.white)
+        .frame(height: 54)
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .disabled(authService.isLoading)
+    }
+
     private func submit() {
         Task {
             if isRegistering {
@@ -178,6 +198,57 @@ struct LoginView: View {
                 )
             }
         }
+    }
+
+    private func handleAppleSignIn(_ result: Result<ASAuthorization, Error>) {
+        switch result {
+        case .success(let authorization):
+            guard let credential = authorization.credential as? ASAuthorizationAppleIDCredential,
+                  let tokenData = credential.identityToken,
+                  let identityToken = String(data: tokenData, encoding: .utf8) else {
+                authService.errorMessage = "Apple did not return a valid identity token."
+                return
+            }
+
+            let formatter = PersonNameComponentsFormatter()
+            let displayName = credential.fullName.flatMap { components -> String? in
+                let value = formatter.string(from: components).trimmingCharacters(in: .whitespacesAndNewlines)
+                return value.isEmpty ? nil : value
+            }
+
+            Task {
+                await authService.signInWithApple(
+                    identityToken: identityToken,
+                    nonce: currentNonce,
+                    displayName: displayName
+                )
+            }
+        case .failure(let error):
+            authService.errorMessage = error.localizedDescription
+        }
+    }
+
+    private func randomNonce(length: Int = 32) -> String {
+        let charset = Array("0123456789ABCDEFGHIJKLMNOPQRSTUVXYZabcdefghijklmnopqrstuvwxyz-._")
+        var nonce = ""
+        var remainingLength = length
+
+        while remainingLength > 0 {
+            let randoms = (0..<16).map { _ in UInt8.random(in: 0...255) }
+            randoms.forEach { random in
+                if remainingLength > 0 && random < charset.count {
+                    nonce.append(charset[Int(random)])
+                    remainingLength -= 1
+                }
+            }
+        }
+
+        return nonce
+    }
+
+    private func sha256(_ input: String) -> String {
+        let hashed = SHA256.hash(data: Data(input.utf8))
+        return hashed.compactMap { String(format: "%02x", $0) }.joined()
     }
 
     private func authField(

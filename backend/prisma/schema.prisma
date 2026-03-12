@@ -7,16 +7,64 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum SubscriptionTier {
+  TRIAL
+  PLUS
+  PRO
+  SANDBOX
+}
+
+enum SubscriptionStatus {
+  TRIALING
+  ACTIVE
+  IN_GRACE_PERIOD
+  EXPIRED
+  CANCELED
+  REVOKED
+  SANDBOX
+}
+
+enum BillingProvider {
+  INTERNAL
+  APP_STORE
+}
+
+enum SubscriptionProduct {
+  NONE
+  PLUS_MONTHLY
+  PLUS_YEARLY
+  PRO_MONTHLY
+  PRO_YEARLY
+  SANDBOX_FULL_ACCESS
+}
+
+enum AppStoreEnvironment {
+  SANDBOX
+  PRODUCTION
+}
+
+enum AccessSource {
+  TRIAL
+  SUBSCRIPTION
+  SANDBOX
+}
+
+enum SessionMode {
+  LIVE_INTERVIEW
+  VOICE_PREP
+}
+
 model User {
   id            String    @id @default(cuid())
   email         String    @unique
-  passwordHash  String
+  passwordHash  String?
   displayName   String?
   avatarUrl     String?
+  appAccountToken String  @unique @default(uuid())
 
-  // OAuth (future)
   appleId       String?   @unique
   googleId      String?   @unique
+  isSandboxTester Boolean @default(false)
 
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
@@ -28,13 +76,16 @@ model User {
   apiKeys       UserApiKey[]
   answerBanks   AnswerBank[]
   refreshTokens RefreshToken[]
+  entitlement   UserEntitlement?
+  billingEvents BillingEvent[]
+  sessionAccessGrants SessionAccessGrant[]
 
   @@map("users")
 }
 
 model RefreshToken {
   id        String    @id @default(cuid())
-  token     String    @unique
+  tokenHash String    @unique
   userId    String
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   deviceId  String?
@@ -43,8 +94,80 @@ model RefreshToken {
   revokedAt DateTime?
 
   @@index([userId])
-  @@index([token])
+  @@index([tokenHash])
   @@map("refresh_tokens")
+}
+
+model UserEntitlement {
+  id                           String              @id @default(cuid())
+  userId                       String              @unique
+  user                         User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tier                         SubscriptionTier    @default(TRIAL)
+  status                       SubscriptionStatus  @default(TRIALING)
+  provider                     BillingProvider     @default(INTERNAL)
+  product                      SubscriptionProduct @default(NONE)
+  productId                    String?
+  featuresOverride             Json?
+  trialInterviewLimit          Int                 @default(5)
+  trialInterviewsUsed          Int                 @default(0)
+  currentPeriodStartedAt       DateTime            @default(now())
+  currentPeriodEndsAt          DateTime?
+  gracePeriodEndsAt            DateTime?
+  lastPurchasedAt              DateTime?
+  lastVerifiedAt               DateTime?
+  appStoreEnvironment          AppStoreEnvironment?
+  appStoreOriginalTransactionId String?            @unique
+  appStoreLatestTransactionId  String?             @unique
+  sandboxFullAccess            Boolean             @default(false)
+  createdAt                    DateTime            @default(now())
+  updatedAt                    DateTime            @updatedAt
+
+  billingEvents                BillingEvent[]
+
+  @@index([status, tier])
+  @@map("user_entitlements")
+}
+
+model BillingEvent {
+  id                           String              @id @default(cuid())
+  userId                       String
+  user                         User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  entitlementId                String?
+  entitlement                  UserEntitlement?    @relation(fields: [entitlementId], references: [id], onDelete: SetNull)
+  provider                     BillingProvider
+  eventType                    String
+  product                      SubscriptionProduct?
+  productId                    String?
+  appStoreTransactionId        String?
+  appStoreOriginalTransactionId String?
+  appStoreEnvironment          AppStoreEnvironment?
+  effectiveAt                  DateTime?
+  expiresAt                    DateTime?
+  payload                      Json?
+  payloadDigest                String?
+  createdAt                    DateTime            @default(now())
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([appStoreTransactionId])
+  @@index([appStoreOriginalTransactionId])
+  @@map("billing_events")
+}
+
+model SessionAccessGrant {
+  id                 String           @id @default(cuid())
+  userId             String
+  user               User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sessionClientId    String           @unique
+  sessionMode        SessionMode      @default(LIVE_INTERVIEW)
+  accessSource       AccessSource
+  accessTier         SubscriptionTier
+  featureSnapshot    Json?
+  consumedTrial      Boolean          @default(false)
+  trialInterviewNumber Int?
+  createdAt          DateTime         @default(now())
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@map("session_access_grants")
 }
 
 model UserSettings {
@@ -95,6 +218,10 @@ model InterviewSession {
   clientId        String     @unique
   userId          String
   user            User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sessionMode     SessionMode @default(LIVE_INTERVIEW)
+  accessSource    AccessSource @default(TRIAL)
+  accessTier      SubscriptionTier @default(TRIAL)
+  trialInterviewNumber Int?
 
   startedAt       DateTime
   endedAt         DateTime?

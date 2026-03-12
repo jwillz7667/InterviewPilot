@@ -20,11 +20,11 @@ export async function usersRoutes(app: FastifyInstance) {
           email: true,
           displayName: true,
           avatarUrl: true,
+          appAccountToken: true,
+          isSandboxTester: true,
           createdAt: true,
           lastLoginAt: true,
           emailVerified: true,
-          appleId: true,
-          googleId: true,
         },
       })
     );

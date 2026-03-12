@@ -2,7 +2,9 @@ import SwiftUI
 
 struct SettingsView: View {
     @State private var authService = AuthService.shared
+    @State private var subscriptionService = SubscriptionService.shared
     @State private var showSignOutConfirm = false
+    @State private var showPaywall = false
     @AppStorage("appAppearance") private var appearanceRawValue = AppAppearance.system.rawValue
     @Environment(\.dismiss) private var dismiss
 
@@ -44,6 +46,29 @@ struct SettingsView: View {
                                         }
                                     }
                                 }
+                            }
+                        }
+
+                        IPPanel {
+                            VStack(alignment: .leading, spacing: 14) {
+                                Text("Subscription")
+                                    .font(IPTypography.headlineSmall)
+                                    .foregroundStyle(IPTheme.textPrimary)
+
+                                infoRow(
+                                    icon: "creditcard.fill",
+                                    title: subscriptionService.entitlement?.planTitle ?? "Trial",
+                                    detail: subscriptionService.entitlement?.statusDetail ?? "5 free live interviews are included for new accounts."
+                                )
+
+                                Button(action: { showPaywall = true }) {
+                                    Label(
+                                        subscriptionService.entitlement?.hasActiveSubscription == true ? "Manage Subscription" : "Upgrade to Continue",
+                                        systemImage: "sparkles"
+                                    )
+                                    .frame(maxWidth: .infinity)
+                                }
+                                .buttonStyle(IPSecondaryButtonStyle())
                             }
                         }
 
@@ -129,6 +154,12 @@ struct SettingsView: View {
                 }
             } message: {
                 Text("You will need to sign in again to use the app.")
+            }
+            .sheet(isPresented: $showPaywall) {
+                SubscriptionPaywallView()
+            }
+            .task {
+                await subscriptionService.refresh(forceStoreKitSync: true)
             }
         }
     }

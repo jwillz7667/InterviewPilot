@@ -4,7 +4,11 @@ import UniformTypeIdentifiers
 struct SessionSetupView: View {
     @State private var viewModel = SessionSetupViewModel()
     @State private var showLiveSession = false
+    @State private var showPrepSession = false
     @State private var showFilePicker = false
+    @State private var showPaywall = false
+    @State private var preparedSessionId: UUID?
+    @State private var subscriptionService = SubscriptionService.shared
 
     var body: some View {
         NavigationStack {
@@ -16,6 +20,7 @@ struct SessionSetupView: View {
                         heroSection
                         resumeSection
                         jobSection
+                        sessionModeSection
                         interviewTypeSection
                         responseFormatSection
 
@@ -42,7 +47,17 @@ struct SessionSetupView: View {
                     .padding(.bottom, IPTheme.spacing8)
             }
             .fullScreenCover(isPresented: $showLiveSession) {
-                LiveSessionView(viewModel: viewModel.createLiveViewModel())
+                if let preparedSessionId {
+                    LiveSessionView(viewModel: viewModel.createLiveViewModel(sessionId: preparedSessionId))
+                }
+            }
+            .fullScreenCover(isPresented: $showPrepSession) {
+                if let preparedSessionId {
+                    PrepSessionView(viewModel: viewModel.createPrepViewModel(sessionId: preparedSessionId))
+                }
+            }
+            .sheet(isPresented: $showPaywall) {
+                SubscriptionPaywallView()
             }
             .fileImporter(
                 isPresented: $showFilePicker,
@@ -66,6 +81,14 @@ struct SessionSetupView: View {
             VStack(alignment: .leading, spacing: 16) {
                 HStack {
                     IPStatusPill(title: "Live Interview", symbol: "waveform.and.mic")
+                    Spacer()
+                    if let entitlement = subscriptionService.entitlement {
+                        IPStatusPill(
+                            title: entitlement.planTitle,
+                            symbol: entitlement.sandboxFullAccess ? "checkmark.seal.fill" : "creditcard.fill",
+                            tint: entitlement.sandboxFullAccess ? IPTheme.success : IPTheme.accent
+                        )
+                    }
                     Spacer()
                     if viewModel.hasResume && viewModel.hasJobDescription {
                         IPStatusPill(title: "Ready", symbol: "checkmark.circle.fill", tint: IPTheme.success)
@@ -158,11 +181,62 @@ struct SessionSetupView: View {
         }
     }
 
-    private var interviewTypeSection: some View {
+    private var sessionModeSection: some View {
         IPPanel {
             VStack(alignment: .leading, spacing: 14) {
                 IPSectionHeader(
                     eyebrow: "Step 3",
+                    title: "Choose the session mode",
+                    subtitle: "Live Interview uses the inline answer overlay. Voice Prep runs a spoken mock interview and is unlocked on Pro.",
+                    symbol: "waveform.path.ecg"
+                )
+
+                VStack(spacing: 10) {
+                    ForEach(SessionMode.allCases) { mode in
+                        let isLocked = mode == .voicePrep && !(subscriptionService.entitlement?.hasVoicePrep ?? false)
+
+                        Button(action: { selectSessionMode(mode, isLocked: isLocked) }) {
+                            HStack(spacing: 12) {
+                                Image(systemName: viewModel.sessionMode == mode ? "checkmark.circle.fill" : (isLocked ? "lock.circle" : "circle"))
+                                    .font(.system(size: 18, weight: .semibold))
+                                    .foregroundStyle(viewModel.sessionMode == mode ? IPTheme.accent : IPTheme.textTertiary)
+
+                                VStack(alignment: .leading, spacing: 3) {
+                                    HStack(spacing: 8) {
+                                        Text(mode.displayName)
+                                            .font(IPTypography.bodyLarge)
+                                            .foregroundStyle(IPTheme.textPrimary)
+
+                                        if isLocked {
+                                            IPStatusPill(title: "Pro", symbol: "sparkles", tint: IPTheme.accent)
+                                        }
+                                    }
+
+                                    Text(mode.subtitle)
+                                        .font(IPTypography.bodySmall)
+                                        .foregroundStyle(IPTheme.textSecondary)
+                                }
+
+                                Spacer()
+                            }
+                            .padding(14)
+                            .background(
+                                (viewModel.sessionMode == mode ? IPTheme.accent.opacity(0.10) : Color.white.opacity(0.08)),
+                                in: RoundedRectangle(cornerRadius: 18, style: .continuous)
+                            )
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+        }
+    }
+
+    private var interviewTypeSection: some View {
+        IPPanel {
+            VStack(alignment: .leading, spacing: 14) {
+                IPSectionHeader(
+                    eyebrow: "Step 4",
                     title: "Set the interview focus",
                     subtitle: "Bias the app toward the style of interview you expect so the generated answers stay relevant.",
                     symbol: "target"
@@ -202,7 +276,7 @@ struct SessionSetupView: View {
         IPPanel {
             VStack(alignment: .leading, spacing: 14) {
                 IPSectionHeader(
-                    eyebrow: "Step 4",
+                    eyebrow: "Step 5",
                     title: "Choose how answers are shown",
                     subtitle: "Live mode can render complete scripts, compact bullets, or a hybrid blend.",
                     symbol: "text.alignleft"
@@ -247,7 +321,7 @@ struct SessionSetupView: View {
     private var startDock: some View {
         IPPanel(tone: .accent(IPTheme.accent), padding: IPTheme.spacing16, cornerRadius: IPTheme.radiusXL) {
             VStack(alignment: .leading, spacing: 12) {
-                Text(viewModel.isReady ? "Everything is ready." : "Add your resume and the job description to continue.")
+                Text(startSummary)
                     .font(IPTypography.bodySmall)
                     .foregroundStyle(IPTheme.textSecondary)
 
@@ -256,7 +330,7 @@ struct SessionSetupView: View {
                         Image(systemName: "mic.fill")
                             .symbolEffect(.pulse, isActive: viewModel.isReady)
 
-                        Text("Start Interview Session")
+                        Text(viewModel.sessionMode.startButtonTitle)
                     }
                 }
                 .buttonStyle(IPPrimaryButtonStyle(isEnabled: viewModel.isReady))
@@ -267,9 +341,43 @@ struct SessionSetupView: View {
 
     private func startSession() {
         Task {
-            await viewModel.prepareSession()
-            guard viewModel.errorMessage == nil else { return }
-            showLiveSession = true
+            let destination = await viewModel.prepareSession()
+            showPaywall = viewModel.shouldPresentPaywall
+
+            switch destination {
+            case .live(let sessionId):
+                preparedSessionId = sessionId
+                showLiveSession = true
+            case .voicePrep(let sessionId):
+                preparedSessionId = sessionId
+                showPrepSession = true
+            case nil:
+                break
+            }
+        }
+    }
+
+    private var startSummary: String {
+        if !viewModel.isReady {
+            return "Add your resume and the job description to continue."
+        }
+
+        if let entitlement = subscriptionService.entitlement {
+            return entitlement.statusDetail
+        }
+
+        return "Everything is ready."
+    }
+
+    private func selectSessionMode(_ mode: SessionMode, isLocked: Bool) {
+        if isLocked {
+            viewModel.errorMessage = "Voice Prep requires an active Pro subscription."
+            showPaywall = true
+            return
+        }
+
+        withAnimation(IPAnimations.snappy) {
+            viewModel.sessionMode = mode
         }
     }
 

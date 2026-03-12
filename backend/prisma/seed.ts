@@ -19,12 +19,18 @@ async function main() {
 
   const user = await prisma.user.upsert({
     where: { email: testEmail },
-    update: {},
+    update: {
+      displayName: 'Sandbox Test User',
+      emailVerified: true,
+      isSandboxTester: true,
+      lastLoginAt: new Date(),
+    },
     create: {
       email: testEmail,
       passwordHash,
-      displayName: 'Test User',
+      displayName: 'Sandbox Test User',
       emailVerified: true,
+      isSandboxTester: true,
       lastLoginAt: new Date(),
       settings: {
         create: {
@@ -37,6 +43,30 @@ async function main() {
   });
 
   console.log(`Test user created/found: ${user.email} (id: ${user.id})`);
+
+  await prisma.userEntitlement.upsert({
+    where: { userId: user.id },
+    update: {
+      tier: 'SANDBOX',
+      status: 'SANDBOX',
+      provider: 'INTERNAL',
+      product: 'SANDBOX_FULL_ACCESS',
+      productId: 'sandbox.full.access',
+      sandboxFullAccess: true,
+      lastVerifiedAt: new Date(),
+    },
+    create: {
+      userId: user.id,
+      tier: 'SANDBOX',
+      status: 'SANDBOX',
+      provider: 'INTERNAL',
+      product: 'SANDBOX_FULL_ACCESS',
+      productId: 'sandbox.full.access',
+      sandboxFullAccess: true,
+      trialInterviewLimit: 5,
+      lastVerifiedAt: new Date(),
+    },
+  });
 
   // Sample answer bank
   const existingBank = await prisma.answerBank.findFirst({

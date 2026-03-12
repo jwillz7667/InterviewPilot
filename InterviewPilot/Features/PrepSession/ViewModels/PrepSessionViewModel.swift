@@ -18,6 +18,7 @@ final class PrepSessionViewModel {
     private let realtimeService: OpenAIRealtimePrepService
     private let playbackService = RealtimeAudioPlaybackService()
 
+    let sessionId: UUID
     let resume: String
     let jobDescription: String
     let interviewType: InterviewType
@@ -37,11 +38,13 @@ final class PrepSessionViewModel {
     private var hasRegisteredCurrentQuestion = false
 
     init(
+        sessionId: UUID,
         resume: String,
         jobDescription: String,
         interviewType: InterviewType,
         openAIKey: String
     ) {
+        self.sessionId = sessionId
         self.resume = resume
         self.jobDescription = jobDescription
         self.interviewType = interviewType

@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ContentView: View {
     @State private var authService = AuthService.shared
+    @State private var subscriptionService = SubscriptionService.shared
     @State private var showSettings = false
     @State private var selectedTab = 0
     @AppStorage("appAppearance") private var appearanceRawValue = AppAppearance.system.rawValue
@@ -51,6 +52,13 @@ struct ContentView: View {
         .preferredColorScheme(appAppearance.colorScheme)
         .onAppear {
             SessionStorageService.shared.configure(with: modelContext)
+        }
+        .task(id: authService.isAuthenticated) {
+            if authService.isAuthenticated {
+                await subscriptionService.refresh(forceStoreKitSync: true)
+            } else {
+                subscriptionService.reset()
+            }
         }
     }
 

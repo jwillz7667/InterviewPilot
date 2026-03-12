@@ -3,9 +3,12 @@ import { authenticate } from '../../middleware/authenticate.js';
 import { withDatabaseRetry } from '../../config/database.js';
 import { buildPaginatedResponse } from '../../utils/pagination.js';
 import { z } from 'zod';
+import { getSessionAccessGrant } from '../billing/billing.service.js';
+import { SessionMode } from '@prisma/client';
 
 const createSessionSchema = z.object({
   clientId: z.string().uuid(),
+  sessionMode: z.enum(['liveInterview', 'voicePrep']).default('liveInterview'),
   startedAt: z.string().datetime(),
   endedAt: z.string().datetime().optional(),
   resumeText: z.string(),
@@ -66,14 +69,25 @@ export async function sessionsRoutes(app: FastifyInstance) {
   // Create session
   app.post('/api/v1/sessions', async (request: FastifyRequest, reply: FastifyReply) => {
     const input = createSessionSchema.parse(request.body);
+    const accessGrant = await getSessionAccessGrant(
+      request.user.sub,
+      input.clientId,
+      input.sessionMode === 'voicePrep' ? SessionMode.VOICE_PREP : SessionMode.LIVE_INTERVIEW
+    );
+
     const session = await withDatabaseRetry((prisma) =>
       prisma.interviewSession.upsert({
         where: { clientId: input.clientId },
         create: {
           ...input,
+          sessionMode:
+            input.sessionMode === 'voicePrep' ? SessionMode.VOICE_PREP : SessionMode.LIVE_INTERVIEW,
           startedAt: new Date(input.startedAt),
           endedAt: input.endedAt ? new Date(input.endedAt) : undefined,
           userId: request.user.sub,
+          accessSource: accessGrant.accessSource,
+          accessTier: accessGrant.accessTier,
+          trialInterviewNumber: accessGrant.trialInterviewNumber ?? undefined,
         },
         update: {
           endedAt: input.endedAt ? new Date(input.endedAt) : undefined,

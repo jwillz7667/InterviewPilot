@@ -1,6 +1,13 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
-import { registerSchema, loginSchema, refreshSchema, logoutSchema } from './auth.schema.js';
 import {
+  appleLoginSchema,
+  loginSchema,
+  logoutSchema,
+  refreshSchema,
+  registerSchema,
+} from './auth.schema.js';
+import {
+  authenticateWithApple,
   registerUser,
   loginUser,
   createRefreshToken,
@@ -9,19 +16,30 @@ import {
 } from './auth.service.js';
 import { withDatabaseRetry } from '../../config/database.js';
 
+const ACCESS_TOKEN_TTL = '15m';
+
 export function buildAuthHandlers(app: FastifyInstance) {
+  function issueAccessToken(user: { id: string; email: string }) {
+    return app.jwt.sign(
+      { sub: user.id, email: user.email },
+      { expiresIn: ACCESS_TOKEN_TTL }
+    );
+  }
+
   async function register(request: FastifyRequest, reply: FastifyReply) {
     const input = registerSchema.parse(request.body);
     const user = await registerUser(input);
 
-    const accessToken = app.jwt.sign(
-      { sub: user.id, email: user.email },
-      { expiresIn: '30d' }
-    );
+    const accessToken = issueAccessToken(user);
     const refreshToken = await createRefreshToken(user.id);
 
     reply.status(201).send({
-      user: { id: user.id, email: user.email, displayName: user.displayName },
+      user: {
+        id: user.id,
+        email: user.email,
+        displayName: user.displayName,
+        appAccountToken: user.appAccountToken,
+      },
       accessToken,
       refreshToken,
     });
@@ -31,14 +49,34 @@ export function buildAuthHandlers(app: FastifyInstance) {
     const input = loginSchema.parse(request.body);
     const user = await loginUser(input);
 
-    const accessToken = app.jwt.sign(
-      { sub: user.id, email: user.email },
-      { expiresIn: '30d' }
-    );
+    const accessToken = issueAccessToken(user);
     const refreshToken = await createRefreshToken(user.id, input.deviceId);
 
     reply.send({
-      user: { id: user.id, email: user.email, displayName: user.displayName },
+      user: {
+        id: user.id,
+        email: user.email,
+        displayName: user.displayName,
+        appAccountToken: user.appAccountToken,
+      },
+      accessToken,
+      refreshToken,
+    });
+  }
+
+  async function apple(request: FastifyRequest, reply: FastifyReply) {
+    const input = appleLoginSchema.parse(request.body);
+    const user = await authenticateWithApple(input);
+    const accessToken = issueAccessToken(user);
+    const refreshToken = await createRefreshToken(user.id);
+
+    reply.send({
+      user: {
+        id: user.id,
+        email: user.email,
+        displayName: user.displayName,
+        appAccountToken: user.appAccountToken,
+      },
       accessToken,
       refreshToken,
     });
@@ -55,10 +93,7 @@ export function buildAuthHandlers(app: FastifyInstance) {
       })
     );
 
-    const accessToken = app.jwt.sign(
-      { sub: user.id, email: user.email },
-      { expiresIn: '30d' }
-    );
+    const accessToken = issueAccessToken(user);
 
     reply.send({ accessToken, refreshToken: newToken });
   }
@@ -69,5 +104,5 @@ export function buildAuthHandlers(app: FastifyInstance) {
     reply.send({ success: true });
   }
 
-  return { register, login, refresh, logout };
+  return { register, login, apple, refresh, logout };
 }

@@ -15,8 +15,14 @@ final class InterviewSession {
     var totalTokensUsed: Int
     var estimatedCost: Double
 
-    init(resumeText: String, jobDescription: String, interviewType: InterviewType, responseFormat: ResponseFormat) {
-        self.id = UUID()
+    init(
+        id: UUID = UUID(),
+        resumeText: String,
+        jobDescription: String,
+        interviewType: InterviewType,
+        responseFormat: ResponseFormat
+    ) {
+        self.id = id
         self.startedAt = Date()
         self.resumeText = resumeText
         self.jobDescription = jobDescription

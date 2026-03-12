@@ -26,6 +26,7 @@ final class LiveSessionViewModel {
     var errorMessage: String?
 
     // Session config
+    let sessionId: UUID
     let resume: String
     let jobDescription: String
     let interviewType: InterviewType
@@ -57,6 +58,7 @@ final class LiveSessionViewModel {
     }
 
     init(
+        sessionId: UUID,
         resume: String,
         jobDescription: String,
         interviewType: InterviewType,
@@ -65,6 +67,7 @@ final class LiveSessionViewModel {
         deepgramKey: String,
         openAIKey: String
     ) {
+        self.sessionId = sessionId
         self.resume = resume
         self.jobDescription = jobDescription
         self.interviewType = interviewType
@@ -602,6 +605,7 @@ final class LiveSessionViewModel {
         guard persistedSession == nil else { return }
 
         let session = InterviewSession(
+            id: sessionId,
             resumeText: resume,
             jobDescription: jobDescription,
             interviewType: interviewType,

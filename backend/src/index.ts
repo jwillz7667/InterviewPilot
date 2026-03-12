@@ -16,6 +16,7 @@ import { sessionsRoutes } from './modules/sessions/sessions.routes.js';
 import { exchangesRoutes } from './modules/exchanges/exchanges.routes.js';
 import { answerBanksRoutes } from './modules/answer-banks/answer-banks.routes.js';
 import { configRoutes } from './modules/config/config.routes.js';
+import { billingRoutes } from './modules/billing/billing.routes.js';
 import { AppError } from './utils/errors.js';
 import { ZodError } from 'zod';
 
@@ -48,6 +49,7 @@ app.setErrorHandler((error: Error & { statusCode?: number; code?: string }, _req
     return reply.status(error.statusCode).send({
       error: error.code ?? error.name,
       message: error.message,
+      ...(error.details ? { details: error.details } : {}),
     });
   }
 
@@ -98,6 +100,7 @@ await app.register(sessionsRoutes);
 await app.register(exchangesRoutes);
 await app.register(answerBanksRoutes);
 await app.register(configRoutes);
+await app.register(billingRoutes);
 
 // Verify database connection
 try {

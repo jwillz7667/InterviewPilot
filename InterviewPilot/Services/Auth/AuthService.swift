@@ -4,6 +4,7 @@ struct AuthUser: Codable, Sendable {
     let id: String
     let email: String
     let displayName: String?
+    let appAccountToken: String
 }
 
 struct AuthResponse: Codable, Sendable {
@@ -36,27 +37,24 @@ final class AuthService {
         restoreSession()
     }
 
-    // MARK: - Session Restore (persistent login)
-
     private func restoreSession() {
         guard let token = KeychainService.load(key: .accessToken),
               let userId = KeychainService.load(key: .userId),
-              let email = KeychainService.load(key: .userEmail) else {
+              let email = KeychainService.load(key: .userEmail),
+              let appAccountToken = KeychainService.load(key: .appAccountToken) else {
             return
         }
 
         currentUser = AuthUser(
             id: userId,
             email: email,
-            displayName: KeychainService.load(key: .displayName)
+            displayName: KeychainService.load(key: .displayName),
+            appAccountToken: appAccountToken
         )
         isAuthenticated = true
 
-        // Fetch fresh API keys in background
         Task { await fetchAndStoreAPIKeys(token: token) }
     }
-
-    // MARK: - Register
 
     func register(email: String, password: String, displayName: String?) async {
         isLoading = true
@@ -77,16 +75,11 @@ final class AuthService {
                 body: body
             )
 
-            storeAuthData(response)
-            await fetchAndStoreAPIKeys(token: response.accessToken)
-            isAuthenticated = true
-            currentUser = response.user
+            applyAuthenticatedSession(response)
         } catch {
             errorMessage = parseError(error)
         }
     }
-
-    // MARK: - Login
 
     func login(email: String, password: String) async {
         isLoading = true
@@ -94,33 +87,51 @@ final class AuthService {
         defer { isLoading = false }
 
         do {
-            let body: [String: String] = [
-                "email": email,
-                "password": password,
-                "deviceId": deviceId(),
-            ]
-
             let response: AuthResponse = try await post(
                 path: "/api/v1/auth/login",
-                body: body
+                body: [
+                    "email": email,
+                    "password": password,
+                    "deviceId": deviceId(),
+                ]
             )
 
-            storeAuthData(response)
-            await fetchAndStoreAPIKeys(token: response.accessToken)
-            isAuthenticated = true
-            currentUser = response.user
+            applyAuthenticatedSession(response)
         } catch {
             errorMessage = parseError(error)
         }
     }
 
-    // MARK: - Logout
+    func signInWithApple(identityToken: String, nonce: String, displayName: String?) async {
+        isLoading = true
+        errorMessage = nil
+        defer { isLoading = false }
+
+        do {
+            var body: [String: String] = [
+                "identityToken": identityToken,
+                "nonce": nonce,
+            ]
+            if let displayName, !displayName.isEmpty {
+                body["displayName"] = displayName
+            }
+
+            let response: AuthResponse = try await post(
+                path: "/api/v1/auth/apple",
+                body: body
+            )
+
+            applyAuthenticatedSession(response)
+        } catch {
+            errorMessage = parseError(error)
+        }
+    }
 
     func logout() async {
         if let refreshToken = KeychainService.load(key: .refreshToken),
            let accessToken = KeychainService.load(key: .accessToken) {
             let body = ["refreshToken": refreshToken]
-            try? await post(
+            _ = try? await post(
                 path: "/api/v1/auth/logout",
                 body: body,
                 token: accessToken
@@ -128,11 +139,10 @@ final class AuthService {
         }
 
         clearAuthData()
+        SubscriptionService.shared.reset()
         isAuthenticated = false
         currentUser = nil
     }
-
-    // MARK: - Token Refresh
 
     func refreshTokenIfNeeded() async -> String? {
         guard let refreshToken = KeychainService.load(key: .refreshToken) else { return nil }
@@ -148,15 +158,13 @@ final class AuthService {
 
             return response.accessToken
         } catch {
-            // Refresh failed — force re-login
             clearAuthData()
+            SubscriptionService.shared.reset()
             isAuthenticated = false
             currentUser = nil
             return nil
         }
     }
-
-    // MARK: - API Keys
 
     func fetchAndStoreAPIKeys(token: String? = nil) async {
         let authToken = token ?? KeychainService.load(key: .accessToken)
@@ -168,24 +176,31 @@ final class AuthService {
             request.setValue("Bearer \(authToken)", forHTTPHeaderField: "Authorization")
 
             let (data, response) = try await URLSession.shared.data(for: request)
+            guard let httpResponse = response as? HTTPURLResponse else { return }
 
-            if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 401 {
-                // Token expired — try refresh
+            if httpResponse.statusCode == 401 {
                 if let newToken = await refreshTokenIfNeeded() {
                     await fetchAndStoreAPIKeys(token: newToken)
                 }
                 return
             }
 
+            if httpResponse.statusCode == 402 || httpResponse.statusCode == 403 {
+                clearRuntimeKeys()
+                return
+            }
+
+            if httpResponse.statusCode >= 400 {
+                throw AuthError.serverError(serverMessage(from: data, fallback: "Request failed (\(httpResponse.statusCode))"))
+            }
+
             let keys = try JSONDecoder().decode(APIKeysResponse.self, from: data)
             _ = KeychainService.save(key: .deepgramAPIKey, value: keys.deepgramApiKey)
             _ = KeychainService.save(key: .openAIAPIKey, value: keys.openaiApiKey)
         } catch {
-            // Non-fatal — keys may already be cached locally
+            // Preserve the last known keys on transient failures.
         }
     }
-
-    // MARK: - Authenticated Request Helper
 
     func authenticatedRequest(url: URL) async -> URLRequest? {
         var token = KeychainService.load(key: .accessToken)
@@ -199,16 +214,30 @@ final class AuthService {
         return request
     }
 
-    // MARK: - Private Helpers
+    private func applyAuthenticatedSession(_ response: AuthResponse) {
+        storeAuthData(response)
+        isAuthenticated = true
+        currentUser = response.user
+
+        Task {
+            await fetchAndStoreAPIKeys(token: response.accessToken)
+        }
+    }
 
     private func storeAuthData(_ response: AuthResponse) {
         _ = KeychainService.save(key: .accessToken, value: response.accessToken)
         _ = KeychainService.save(key: .refreshToken, value: response.refreshToken)
         _ = KeychainService.save(key: .userId, value: response.user.id)
         _ = KeychainService.save(key: .userEmail, value: response.user.email)
+        _ = KeychainService.save(key: .appAccountToken, value: response.user.appAccountToken)
         if let displayName = response.user.displayName {
             _ = KeychainService.save(key: .displayName, value: displayName)
         }
+    }
+
+    private func clearRuntimeKeys() {
+        _ = KeychainService.delete(key: .deepgramAPIKey)
+        _ = KeychainService.delete(key: .openAIAPIKey)
     }
 
     private func clearAuthData() {
@@ -217,14 +246,15 @@ final class AuthService {
         _ = KeychainService.delete(key: .userId)
         _ = KeychainService.delete(key: .userEmail)
         _ = KeychainService.delete(key: .displayName)
-        _ = KeychainService.delete(key: .deepgramAPIKey)
-        _ = KeychainService.delete(key: .openAIAPIKey)
+        _ = KeychainService.delete(key: .appAccountToken)
+        clearRuntimeKeys()
     }
 
     private func deviceId() -> String {
         if let existing = UserDefaults.standard.string(forKey: "deviceId") {
             return existing
         }
+
         let id = UUID().uuidString
         UserDefaults.standard.set(id, forKey: "deviceId")
         return id
@@ -245,22 +275,33 @@ final class AuthService {
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
 
         let (data, response) = try await URLSession.shared.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw AuthError.serverError("Invalid server response")
+        }
 
-        if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode >= 400 {
-            if let errorObj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-               let message = errorObj["message"] as? String {
-                throw AuthError.serverError(message)
-            }
-            throw AuthError.serverError("Request failed (\(httpResponse.statusCode))")
+        if httpResponse.statusCode >= 400 {
+            throw AuthError.serverError(
+                serverMessage(from: data, fallback: "Request failed (\(httpResponse.statusCode))")
+            )
         }
 
         return try JSONDecoder().decode(T.self, from: data)
+    }
+
+    private func serverMessage(from data: Data, fallback: String) -> String {
+        if let errorObject = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           let message = errorObject["message"] as? String {
+            return message
+        }
+
+        return fallback
     }
 
     private func parseError(_ error: Error) -> String {
         if let authError = error as? AuthError {
             return authError.localizedDescription
         }
+
         if let urlError = error as? URLError {
             switch urlError.code {
             case .notConnectedToInternet:
@@ -273,6 +314,7 @@ final class AuthService {
                 return "Network error: \(urlError.localizedDescription)"
             }
         }
+
         return error.localizedDescription
     }
 }
@@ -282,7 +324,8 @@ enum AuthError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .serverError(let message): return message
+        case .serverError(let message):
+            return message
         }
     }
 }

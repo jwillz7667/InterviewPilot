@@ -9,6 +9,7 @@ enum KeychainKey: String {
     case userEmail = "com.interviewpilot.user-email"
     case userId = "com.interviewpilot.user-id"
     case displayName = "com.interviewpilot.display-name"
+    case appAccountToken = "com.interviewpilot.app-account-token"
 }
 
 struct KeychainService {

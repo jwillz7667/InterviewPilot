@@ -2,7 +2,8 @@ export class AppError extends Error {
   constructor(
     public statusCode: number,
     message: string,
-    public code?: string
+    public code?: string,
+    public details?: unknown
   ) {
     super(message);
     this.name = 'AppError';
@@ -30,6 +31,12 @@ export class NotFoundError extends AppError {
 export class ConflictError extends AppError {
   constructor(message = 'Resource already exists') {
     super(409, message, 'CONFLICT');
+  }
+}
+
+export class PaymentRequiredError extends AppError {
+  constructor(message = 'Payment required', details?: unknown) {
+    super(402, message, 'PAYMENT_REQUIRED', details);
   }
 }
 

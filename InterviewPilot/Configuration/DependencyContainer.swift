@@ -12,6 +12,7 @@ enum DependencyContainer {
         let openAIKey = KeychainService.load(key: .openAIAPIKey) ?? ""
 
         return LiveSessionViewModel(
+            sessionId: UUID(),
             resume: resume,
             jobDescription: jobDescription,
             interviewType: interviewType,
