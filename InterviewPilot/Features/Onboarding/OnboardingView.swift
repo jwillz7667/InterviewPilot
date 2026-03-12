@@ -4,79 +4,129 @@ struct OnboardingView: View {
     @State private var currentPage = 0
     var onComplete: () -> Void
 
-    private let pages: [(icon: String, title: String, description: String)] = [
-        ("mic.fill", "Real-Time Transcription",
-         "Place your phone face-up on your desk. The mic captures the interviewer's voice and transcribes in real-time."),
-        ("sparkles", "AI-Powered Responses",
-         "Get intelligent response suggestions streamed to your screen before the interviewer finishes asking."),
-        ("bolt.fill", "Pre-Computed Answers",
-         "Upload your resume and job description to pre-generate likely Q&A pairs for instant cache hits."),
-        ("lock.shield.fill", "Secure & Private",
-         "Your data is encrypted and protected. Sign in once and you're set.")
+    private let pages: [(icon: String, title: String, description: String, accent: Color)] = [
+        (
+            "waveform.and.mic",
+            "Separate the room from your answer",
+            "Live mode keeps the interviewer transcript and your on-screen answer in separate lanes so prompts stay visible while you speak.",
+            IPTheme.accent
+        ),
+        (
+            "person.wave.2.fill",
+            "Practice with a spoken mock interviewer",
+            "Voice Prep mode uses realtime speech-to-speech so the app can ask follow-ups naturally from the job post and your resume.",
+            IPTheme.accentWarm
+        ),
+        (
+            "bolt.badge.checkmark.fill",
+            "Prepare likely answers before the call",
+            "Upload your resume and job description to generate likely questions and keep fast answers ready for the live interview.",
+            IPTheme.accentSecondary
+        ),
+        (
+            "lock.shield.fill",
+            "Stay private and in control",
+            "Authentication is handled securely, and appearance can now follow system, light, or dark mode based on your interview setup.",
+            IPTheme.success
+        )
     ]
 
     var body: some View {
         ZStack {
-            Color(IPTheme.backgroundTop).ignoresSafeArea()
+            IPAppBackground()
 
             VStack(spacing: 0) {
-                Spacer()
+                HStack {
+                    IPStatusPill(title: "Guided setup", symbol: "sparkles")
+                    Spacer()
+                    Button("Skip", action: onComplete)
+                        .buttonStyle(IPSecondaryButtonStyle())
+                        .opacity(currentPage == pages.count - 1 ? 0 : 1)
+                        .allowsHitTesting(currentPage < pages.count - 1)
+                }
+                .padding(.horizontal, IPTheme.spacing20)
+                .padding(.top, IPTheme.spacing16)
+
+                Spacer(minLength: 16)
 
                 TabView(selection: $currentPage) {
                     ForEach(Array(pages.enumerated()), id: \.offset) { index, page in
-                        VStack(spacing: IPTheme.spacing24) {
-                            Image(systemName: page.icon)
-                                .font(.system(size: 64))
-                                .foregroundStyle(IPTheme.brand.gradient)
-                                .symbolEffect(.bounce, value: currentPage == index)
+                        IPPanel(tone: .accent(page.accent), padding: IPTheme.spacing24) {
+                            VStack(alignment: .leading, spacing: 24) {
+                                RoundedRectangle(cornerRadius: 30, style: .continuous)
+                                    .fill(
+                                        LinearGradient(
+                                            colors: [page.accent, page.accent.opacity(0.55)],
+                                            startPoint: .topLeading,
+                                            endPoint: .bottomTrailing
+                                        )
+                                    )
+                                    .frame(height: 180)
+                                    .overlay {
+                                        Image(systemName: page.icon)
+                                            .font(.system(size: 54, weight: .semibold))
+                                            .foregroundStyle(.white)
+                                            .symbolEffect(.breathe.pulse, isActive: currentPage == index)
+                                    }
 
-                            Text(page.title)
-                                .font(IPTypography.headlineLarge)
-                                .foregroundStyle(.white)
-                                .multilineTextAlignment(.center)
+                                VStack(alignment: .leading, spacing: 10) {
+                                    Text(page.title)
+                                        .font(IPTypography.headlineLarge)
+                                        .foregroundStyle(IPTheme.textPrimary)
 
-                            Text(page.description)
-                                .font(IPTypography.bodyLarge)
-                                .foregroundStyle(.white.opacity(0.6))
-                                .multilineTextAlignment(.center)
-                                .padding(.horizontal, IPTheme.spacing24)
+                                    Text(page.description)
+                                        .font(IPTypography.bodyLarge)
+                                        .foregroundStyle(IPTheme.textSecondary)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
+
+                                HStack(spacing: 10) {
+                                    ForEach(0..<pages.count, id: \.self) { dotIndex in
+                                        Capsule()
+                                            .fill(dotIndex == currentPage ? page.accent : Color.white.opacity(0.18))
+                                            .frame(width: dotIndex == currentPage ? 34 : 10, height: 10)
+                                    }
+                                }
+                            }
+                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                         }
                         .tag(index)
+                        .padding(.horizontal, IPTheme.spacing20)
+                        .padding(.bottom, IPTheme.spacing12)
                     }
                 }
-                .tabViewStyle(.page(indexDisplayMode: .always))
+                .tabViewStyle(.page(indexDisplayMode: .never))
 
-                Spacer()
+                Spacer(minLength: 8)
 
-                Button(action: {
-                    if currentPage < pages.count - 1 {
-                        withAnimation(IPAnimations.standard) {
-                            currentPage += 1
+                VStack(spacing: 12) {
+                    Button(action: advance) {
+                        HStack(spacing: 10) {
+                            Text(currentPage == pages.count - 1 ? "Get Started" : "Continue")
+                            Image(systemName: currentPage == pages.count - 1 ? "checkmark.circle.fill" : "arrow.right.circle.fill")
+                                .symbolEffect(.bounce, value: currentPage)
                         }
-                    } else {
-                        onComplete()
                     }
-                }) {
-                    Text(currentPage < pages.count - 1 ? "Next" : "Get Started")
-                        .font(.system(size: 17, weight: .semibold))
-                        .foregroundStyle(.white)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 16)
-                        .background(IPTheme.brand.gradient, in: RoundedRectangle(cornerRadius: IPTheme.radiusMedium))
-                }
-                .padding(.horizontal, IPTheme.spacing24)
-                .padding(.bottom, IPTheme.spacing24)
+                    .buttonStyle(IPPrimaryButtonStyle())
 
-                if currentPage < pages.count - 1 {
-                    Button("Skip") {
-                        onComplete()
-                    }
-                    .font(IPTypography.bodyMedium)
-                    .foregroundStyle(.white.opacity(0.4))
-                    .padding(.bottom, IPTheme.spacing16)
+                    Text(currentPage == pages.count - 1 ? "You can change appearance and app settings later." : "Swipe horizontally or continue through the guided setup.")
+                        .font(IPTypography.bodySmall)
+                        .foregroundStyle(IPTheme.textSecondary)
+                        .multilineTextAlignment(.center)
                 }
+                .padding(.horizontal, IPTheme.spacing20)
+                .padding(.bottom, IPTheme.spacing24)
             }
         }
-        .preferredColorScheme(.dark)
+    }
+
+    private func advance() {
+        if currentPage < pages.count - 1 {
+            withAnimation(IPAnimations.hero) {
+                currentPage += 1
+            }
+        } else {
+            onComplete()
+        }
     }
 }

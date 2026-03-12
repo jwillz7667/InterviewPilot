@@ -60,12 +60,20 @@ final class DeepgramService {
     }
 
     func disconnect() {
+        let socket = webSocket
+        let session = urlSession
         let closeMessage = #"{"type": "CloseStream"}"#
-        webSocket?.send(.string(closeMessage)) { [weak self] _ in
-            Task { @MainActor in
-                self?.webSocket?.cancel(with: .normalClosure, reason: nil)
-                self?.isConnected = false
+
+        Task { @MainActor [weak self, socket, session] in
+            if let socket {
+                try? await socket.send(.string(closeMessage))
+                socket.cancel(with: .normalClosure, reason: nil)
             }
+
+            session?.invalidateAndCancel()
+            self?.webSocket = nil
+            self?.urlSession = nil
+            self?.isConnected = false
         }
     }
 

@@ -5,6 +5,7 @@ import UniformTypeIdentifiers
 final class SessionSetupViewModel {
     var resumeText: String = ""
     var jobDescription: String = ""
+    var sessionMode: SessionMode = .liveInterview
     var interviewType: InterviewType = .general
     var responseFormat: ResponseFormat = .hybrid
     var shouldPreGenerate: Bool = true
@@ -35,12 +36,19 @@ final class SessionSetupViewModel {
 
     func prepareSession() async {
         guard isReady else { return }
+        errorMessage = nil
+
+        guard KeychainService.load(key: .openAIAPIKey) != nil else {
+            errorMessage = "OpenAI API key not configured"
+            return
+        }
+
+        guard sessionMode == .liveInterview else {
+            return
+        }
 
         if shouldPreGenerate {
-            guard let apiKey = KeychainService.load(key: .openAIAPIKey) else {
-                errorMessage = "OpenAI API key not configured"
-                return
-            }
+            let apiKey = KeychainService.load(key: .openAIAPIKey) ?? ""
 
             isPreGenerating = true
             do {
@@ -72,6 +80,17 @@ final class SessionSetupViewModel {
             responseFormat: responseFormat,
             preComputedAnswers: preComputedAnswers,
             deepgramKey: deepgramKey,
+            openAIKey: openAIKey
+        )
+    }
+
+    func createPrepViewModel() -> PrepSessionViewModel {
+        let openAIKey = KeychainService.load(key: .openAIAPIKey) ?? ""
+
+        return PrepSessionViewModel(
+            resume: resumeText,
+            jobDescription: jobDescription,
+            interviewType: interviewType,
             openAIKey: openAIKey
         )
     }

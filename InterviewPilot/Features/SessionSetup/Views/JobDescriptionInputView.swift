@@ -7,60 +7,60 @@ struct JobDescriptionInputView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Color(IPTheme.backgroundTop).ignoresSafeArea()
+                IPAppBackground()
 
-                VStack(spacing: IPTheme.spacing16) {
-                    Text("Paste the full job description below")
-                        .font(IPTypography.bodyMedium)
-                        .foregroundStyle(.white.opacity(0.6))
-                        .padding(.top, IPTheme.spacing16)
+                ScrollView {
+                    VStack(spacing: IPTheme.spacing20) {
+                        IPPanel(tone: .accent(IPTheme.accentWarm)) {
+                            VStack(alignment: .leading, spacing: 14) {
+                                IPSectionHeader(
+                                    eyebrow: "Job Post",
+                                    title: "Paste the full job description",
+                                    subtitle: "Include the responsibilities, requirements, and preferred skills so the interview plan stays grounded.",
+                                    symbol: "briefcase.fill"
+                                )
 
-                    TextEditor(text: $jobDescription)
-                        .font(IPTypography.bodyMedium)
-                        .foregroundStyle(.white)
-                        .scrollContentBackground(.hidden)
-                        .padding(IPTheme.spacing12)
-                        .background(.white.opacity(0.05), in: RoundedRectangle(cornerRadius: IPTheme.radiusMedium))
-                        .padding(.horizontal, IPTheme.spacing16)
+                                TextEditor(text: $jobDescription)
+                                    .font(IPTypography.bodyMedium)
+                                    .foregroundStyle(IPTheme.textPrimary)
+                                    .scrollContentBackground(.hidden)
+                                    .frame(minHeight: 280)
+                                    .padding(12)
+                                    .background(Color.white.opacity(0.16), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
 
-                    if !jobDescription.isEmpty {
-                        let keywords = JobDescriptionService.extractKeywords(from: jobDescription)
-                        if !keywords.isEmpty {
-                            VStack(alignment: .leading, spacing: IPTheme.spacing8) {
-                                Text("Detected Keywords")
-                                    .font(IPTypography.labelMedium)
-                                    .foregroundStyle(.white.opacity(0.5))
-
-                                FlowLayout(spacing: 6) {
-                                    ForEach(keywords, id: \.self) { keyword in
-                                        Text(keyword)
-                                            .font(IPTypography.labelSmall)
-                                            .foregroundStyle(.white)
-                                            .padding(.horizontal, 8)
-                                            .padding(.vertical, 4)
-                                            .background(IPTheme.brand.opacity(0.3), in: Capsule())
+                                let keywords = JobDescriptionService.extractKeywords(from: jobDescription)
+                                if !keywords.isEmpty {
+                                    FlowLayout(spacing: 8) {
+                                        ForEach(keywords, id: \.self) { keyword in
+                                            Text(keyword)
+                                                .font(IPTypography.labelSmall)
+                                                .foregroundStyle(IPTheme.textPrimary)
+                                                .padding(.horizontal, 12)
+                                                .padding(.vertical, 8)
+                                                .background(IPTheme.accent.opacity(0.10), in: Capsule())
+                                        }
                                     }
                                 }
                             }
-                            .padding(.horizontal, IPTheme.spacing16)
                         }
                     }
+                    .padding(.horizontal, IPTheme.spacing20)
+                    .padding(.vertical, IPTheme.spacing20)
                 }
+                .ipScrollablePage()
             }
-            .preferredColorScheme(.dark)
             .navigationTitle("Job Description")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Done") { dismiss() }
-                        .foregroundStyle(IPTheme.brandLight)
+                        .foregroundStyle(IPTheme.accent)
                 }
             }
         }
     }
 }
 
-// Simple flow layout for keyword tags
 struct FlowLayout: Layout {
     var spacing: CGFloat = 8
 

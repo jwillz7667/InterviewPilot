@@ -1,6 +1,6 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { authenticate } from '../../middleware/authenticate.js';
-import { getPrisma } from '../../config/database.js';
+import { withDatabaseRetry } from '../../config/database.js';
 import { buildPaginatedResponse } from '../../utils/pagination.js';
 import { z } from 'zod';
 
@@ -34,15 +34,15 @@ export async function sessionsRoutes(app: FastifyInstance) {
   // List sessions (paginated)
   app.get('/api/v1/sessions', async (request: FastifyRequest, reply: FastifyReply) => {
     const { cursor, limit } = listQuerySchema.parse(request.query);
-    const prisma = getPrisma();
-
-    const sessions = await prisma.interviewSession.findMany({
-      where: { userId: request.user.sub },
-      orderBy: { startedAt: 'desc' },
-      take: limit + 1,
-      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
-      include: { _count: { select: { exchanges: true } } },
-    });
+    const sessions = await withDatabaseRetry((prisma) =>
+      prisma.interviewSession.findMany({
+        where: { userId: request.user.sub },
+        orderBy: { startedAt: 'desc' },
+        take: limit + 1,
+        ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+        include: { _count: { select: { exchanges: true } } },
+      })
+    );
 
     reply.send(buildPaginatedResponse(sessions, limit));
   });
@@ -51,11 +51,12 @@ export async function sessionsRoutes(app: FastifyInstance) {
   app.get(
     '/api/v1/sessions/:id',
     async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
-      const prisma = getPrisma();
-      const session = await prisma.interviewSession.findFirst({
-        where: { id: request.params.id, userId: request.user.sub },
-        include: { exchanges: { orderBy: { sequenceOrder: 'asc' } } },
-      });
+      const session = await withDatabaseRetry((prisma) =>
+        prisma.interviewSession.findFirst({
+          where: { id: request.params.id, userId: request.user.sub },
+          include: { exchanges: { orderBy: { sequenceOrder: 'asc' } } },
+        })
+      );
 
       if (!session) return reply.status(404).send({ error: 'Session not found' });
       reply.send({ session });
@@ -65,22 +66,22 @@ export async function sessionsRoutes(app: FastifyInstance) {
   // Create session
   app.post('/api/v1/sessions', async (request: FastifyRequest, reply: FastifyReply) => {
     const input = createSessionSchema.parse(request.body);
-    const prisma = getPrisma();
-
-    const session = await prisma.interviewSession.upsert({
-      where: { clientId: input.clientId },
-      create: {
-        ...input,
-        startedAt: new Date(input.startedAt),
-        endedAt: input.endedAt ? new Date(input.endedAt) : undefined,
-        userId: request.user.sub,
-      },
-      update: {
-        endedAt: input.endedAt ? new Date(input.endedAt) : undefined,
-        totalTokensUsed: input.totalTokensUsed,
-        estimatedCost: input.estimatedCost,
-      },
-    });
+    const session = await withDatabaseRetry((prisma) =>
+      prisma.interviewSession.upsert({
+        where: { clientId: input.clientId },
+        create: {
+          ...input,
+          startedAt: new Date(input.startedAt),
+          endedAt: input.endedAt ? new Date(input.endedAt) : undefined,
+          userId: request.user.sub,
+        },
+        update: {
+          endedAt: input.endedAt ? new Date(input.endedAt) : undefined,
+          totalTokensUsed: input.totalTokensUsed,
+          estimatedCost: input.estimatedCost,
+        },
+      })
+    );
 
     reply.status(201).send({ session });
   });
@@ -90,20 +91,22 @@ export async function sessionsRoutes(app: FastifyInstance) {
     '/api/v1/sessions/:id',
     async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
       const input = updateSessionSchema.parse(request.body);
-      const prisma = getPrisma();
-
-      const existing = await prisma.interviewSession.findFirst({
-        where: { id: request.params.id, userId: request.user.sub },
-      });
+      const existing = await withDatabaseRetry((prisma) =>
+        prisma.interviewSession.findFirst({
+          where: { id: request.params.id, userId: request.user.sub },
+        })
+      );
       if (!existing) return reply.status(404).send({ error: 'Session not found' });
 
-      const session = await prisma.interviewSession.update({
-        where: { id: request.params.id },
-        data: {
-          ...input,
-          endedAt: input.endedAt ? new Date(input.endedAt) : undefined,
-        },
-      });
+      const session = await withDatabaseRetry((prisma) =>
+        prisma.interviewSession.update({
+          where: { id: request.params.id },
+          data: {
+            ...input,
+            endedAt: input.endedAt ? new Date(input.endedAt) : undefined,
+          },
+        })
+      );
 
       reply.send({ session });
     }
@@ -113,13 +116,16 @@ export async function sessionsRoutes(app: FastifyInstance) {
   app.delete(
     '/api/v1/sessions/:id',
     async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
-      const prisma = getPrisma();
-      const existing = await prisma.interviewSession.findFirst({
-        where: { id: request.params.id, userId: request.user.sub },
-      });
+      const existing = await withDatabaseRetry((prisma) =>
+        prisma.interviewSession.findFirst({
+          where: { id: request.params.id, userId: request.user.sub },
+        })
+      );
       if (!existing) return reply.status(404).send({ error: 'Session not found' });
 
-      await prisma.interviewSession.delete({ where: { id: request.params.id } });
+      await withDatabaseRetry((prisma) =>
+        prisma.interviewSession.deleteMany({ where: { id: request.params.id } })
+      );
       reply.send({ success: true });
     }
   );

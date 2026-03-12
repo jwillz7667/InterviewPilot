@@ -10,7 +10,8 @@ struct GlassCard<Content: View>: View {
     }
 
     var body: some View {
-        content
-            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: cornerRadius))
+        IPPanel(cornerRadius: cornerRadius) {
+            content
+        }
     }
 }

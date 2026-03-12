@@ -9,6 +9,8 @@ final class LiveSessionViewModel {
     let responseGenerator: ResponseGeneratorService
     private let answerBank: AnswerBankService
     private let classifier: QuestionClassifierService
+    private let localStorage = SessionStorageService.shared
+    private let remoteSync = RemoteSessionSyncService()
 
     // State
     var sessionState: SessionState = .idle
@@ -33,16 +35,17 @@ final class LiveSessionViewModel {
     // Private state
     private var accumulatedTranscript: String = ""  // Finalized segments only
     private var currentPartial: String = ""          // Current interim partial
+    private var postResponseAccumulatedTranscript: String = ""
+    private var postResponseCurrentPartial: String = ""
+    private var responseReadyAt: Date?
+    private var postResponseSpeechStartedAt: Date?
     private var hasFiredResponse: Bool = false
     private var sessionStartTime: Date?
     private var timer: Timer?
     private var currentExchangeStart: Date?
     private var exchanges: [Exchange] = []
-    private var responseReadyTime: Date?             // When response finished displaying
-    private var resetDebounceTask: Task<Void, Never>?
-
-    // Minimum seconds to show response before allowing reset from new speech
-    private let responseDisplayCooldown: TimeInterval = 5.0
+    private var persistedSession: InterviewSession?
+    private var modelsUsed: Set<String> = []
 
     enum SessionState: Equatable {
         case idle
@@ -50,6 +53,7 @@ final class LiveSessionViewModel {
         case interviewerSpeaking
         case generating
         case responseReady
+        case postResponseSpeech
     }
 
     init(
@@ -78,64 +82,68 @@ final class LiveSessionViewModel {
 
     private func setupCallbacks() {
         // Audio → Deepgram
-        audioCapture.onAudioBuffer = { [weak self] data in
+        let deepgram = self.deepgram
+        audioCapture.onAudioBuffer = { data in
             Task { @MainActor in
-                self?.deepgram.sendAudio(data)
+                deepgram.sendAudio(data)
             }
         }
 
         // Deepgram → Transcript display
         deepgram.onPartialTranscript = { [weak self] text in
             guard let self else { return }
-            // Only process transcript when we're NOT generating/showing a response
-            // (otherwise YOUR voice reading the answer gets transcribed and causes chaos)
-            guard self.sessionState == .listening || self.sessionState == .interviewerSpeaking else {
-                return
+            switch self.sessionState {
+            case .listening, .interviewerSpeaking:
+                self.currentPartial = text
+                self.interviewerTranscript = self.accumulatedTranscript.isEmpty
+                    ? text
+                    : self.accumulatedTranscript + " " + text
+                self.checkForPredictiveFire(fullText: self.interviewerTranscript)
+
+            case .responseReady, .postResponseSpeech:
+                self.sessionState = .postResponseSpeech
+                self.postResponseCurrentPartial = text
+
+            case .idle, .generating:
+                break
             }
-            self.currentPartial = text
-            // Show accumulated finals + current partial
-            self.interviewerTranscript = self.accumulatedTranscript.isEmpty
-                ? text
-                : self.accumulatedTranscript + " " + text
-            self.checkForPredictiveFire(fullText: self.interviewerTranscript)
         }
 
         deepgram.onFinalTranscript = { [weak self] text in
             guard let self else { return }
-            // Only accumulate transcript during listening/speaking states
-            guard self.sessionState == .listening || self.sessionState == .interviewerSpeaking else {
-                return
+            switch self.sessionState {
+            case .listening, .interviewerSpeaking:
+                self.accumulatedTranscript += (self.accumulatedTranscript.isEmpty ? "" : " ") + text
+                self.accumulatedTranscript = self.accumulatedTranscript
+                    .trimmingCharacters(in: .whitespaces)
+                self.currentPartial = ""
+                self.interviewerTranscript = self.accumulatedTranscript
+
+            case .responseReady, .postResponseSpeech:
+                self.sessionState = .postResponseSpeech
+                self.postResponseAccumulatedTranscript +=
+                    (self.postResponseAccumulatedTranscript.isEmpty ? "" : " ") + text
+                self.postResponseAccumulatedTranscript = self.postResponseAccumulatedTranscript
+                    .trimmingCharacters(in: .whitespaces)
+                self.postResponseCurrentPartial = ""
+
+            case .idle, .generating:
+                break
             }
-            self.accumulatedTranscript += (self.accumulatedTranscript.isEmpty ? "" : " ") + text
-            self.accumulatedTranscript = self.accumulatedTranscript
-                .trimmingCharacters(in: .whitespaces)
-            self.currentPartial = ""
-            self.interviewerTranscript = self.accumulatedTranscript
         }
 
         deepgram.onSpeechStarted = { [weak self] in
             guard let self else { return }
 
-            // If we're generating or just showed a response, IGNORE new speech events
-            // (it's the user's voice reading the answer)
-            if self.sessionState == .generating {
+            if self.sessionState == .generating || self.sessionState == .idle {
                 return
             }
 
             if self.sessionState == .responseReady {
-                // Only reset if enough time has passed since response was displayed
-                guard let readyTime = self.responseReadyTime,
-                      Date().timeIntervalSince(readyTime) >= self.responseDisplayCooldown else {
-                    return
-                }
-                // Debounce: wait a moment to confirm this is real new speech, not a blip
-                self.resetDebounceTask?.cancel()
-                self.resetDebounceTask = Task {
-                    try? await Task.sleep(for: .milliseconds(800))
-                    guard !Task.isCancelled else { return }
-                    self.resetForNewQuestion()
-                    self.sessionState = .interviewerSpeaking
-                }
+                self.postResponseAccumulatedTranscript = ""
+                self.postResponseCurrentPartial = ""
+                self.postResponseSpeechStartedAt = Date()
+                self.sessionState = .postResponseSpeech
                 return
             }
 
@@ -149,11 +157,16 @@ final class LiveSessionViewModel {
 
         deepgram.onSpeechEnded = { [weak self] in
             guard let self else { return }
-            // Only fire response if we're actually listening to the interviewer
+
+            if self.sessionState == .postResponseSpeech {
+                self.handlePostResponseUtterance()
+                return
+            }
+
             guard self.sessionState == .interviewerSpeaking || self.sessionState == .listening else {
                 return
             }
-            // Use full text (accumulated + any partial that wasn't finalized)
+
             let fullQuestion = self.interviewerTranscript.trimmingCharacters(in: .whitespaces)
             if !self.hasFiredResponse && !fullQuestion.isEmpty {
                 self.fireResponse(question: fullQuestion)
@@ -177,28 +190,7 @@ final class LiveSessionViewModel {
 
         responseGenerator.onResponseComplete = { [weak self] fullText in
             guard let self else { return }
-            self.sessionState = .responseReady
-            self.responseReadyTime = Date()
-            self.exchangeCount += 1
-            self.fullTranscript.append(TranscriptSegment(
-                speaker: .interviewer,
-                text: self.accumulatedTranscript,
-                timestamp: self.currentExchangeStart ?? Date()
-            ))
-            self.fullTranscript.append(TranscriptSegment(
-                speaker: .aiResponse,
-                text: fullText,
-                timestamp: Date()
-            ))
-
-            let latency = Int((Date().timeIntervalSince(self.currentExchangeStart ?? Date())) * 1000)
-            self.exchanges.append(Exchange(
-                question: self.accumulatedTranscript,
-                response: fullText,
-                type: self.questionType?.type ?? .unknown,
-                latencyMs: latency,
-                cached: self.isResponseFromCache
-            ))
+            self.completeExchange(with: fullText)
         }
     }
 
@@ -210,24 +202,28 @@ final class LiveSessionViewModel {
         try await deepgram.connect(keywords: keywords)
         try audioCapture.startCapture()
 
-        sessionStartTime = Date()
+        let startedAt = Date()
+        sessionStartTime = startedAt
         sessionState = .listening
+        createPersistedSession(startedAt: startedAt)
+        persistSessionSnapshot()
 
         timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
-            Task { @MainActor in
-                guard let self, let start = self.sessionStartTime else { return }
-                self.elapsedTime = Date().timeIntervalSince(start)
-            }
+            guard let self, let start = self.sessionStartTime else { return }
+            self.elapsedTime = Date().timeIntervalSince(start)
         }
     }
 
     func stopSession() {
+        let endedAt = Date()
         audioCapture.stopCapture()
         deepgram.disconnect()
         responseGenerator.cancelGeneration()
         timer?.invalidate()
         timer = nil
-        resetDebounceTask?.cancel()
+        persistSessionSnapshot(endedAt: endedAt)
+        responseReadyAt = nil
+        clearPostResponseBuffers()
         sessionState = .idle
     }
 
@@ -248,6 +244,9 @@ final class LiveSessionViewModel {
             isResponseFromCache = true
             sessionState = .generating
             currentExchangeStart = currentExchangeStart ?? Date()
+            accumulatedTranscript = fullText.trimmingCharacters(in: .whitespacesAndNewlines)
+            interviewerTranscript = accumulatedTranscript
+            modelsUsed.insert(currentSessionModelName)
             displayCachedAnswer(cachedAnswer)
             return
         }
@@ -275,6 +274,12 @@ final class LiveSessionViewModel {
         }
 
         let model = selectModel(for: questionType)
+        let normalizedQuestion = question.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !normalizedQuestion.isEmpty {
+            accumulatedTranscript = normalizedQuestion
+            interviewerTranscript = normalizedQuestion
+        }
+        modelsUsed.insert(model)
 
         responseGenerator.generateResponse(
             question: question,
@@ -307,15 +312,24 @@ final class LiveSessionViewModel {
         hasFiredResponse = false
         isResponseFromCache = false
         currentExchangeStart = nil
-        responseReadyTime = nil
         errorMessage = nil
-        resetDebounceTask?.cancel()
+        responseReadyAt = nil
         responseGenerator.cancelGeneration()
         sessionState = .listening
+        clearPostResponseBuffers()
+    }
+
+    func resumeListeningForNextQuestion() {
+        resetForNewQuestion()
+
+        if !audioCapture.isCapturing {
+            try? audioCapture.startCapture()
+        }
     }
 
     private func displayCachedAnswer(_ answer: PreComputedAnswer) {
-        let words = answer.response.split(separator: " ").map(String.init)
+        let condensed = makeResponseInterviewLength(answer.response)
+        let words = condensed.split(separator: " ").map(String.init)
         Task {
             for (index, word) in words.enumerated() {
                 if Task.isCancelled { break }
@@ -324,13 +338,335 @@ final class LiveSessionViewModel {
                 self.responseTokens.append(token)
                 try? await Task.sleep(for: .milliseconds(20))
             }
-            self.sessionState = .responseReady
-            self.responseReadyTime = Date()
-            self.exchangeCount += 1
+            self.completeExchange(with: self.currentResponse)
         }
     }
 
     func getExchanges() -> [Exchange] {
         exchanges
+    }
+
+    private func handlePostResponseUtterance() {
+        let utterance = normalizeTranscript(combinedPostResponseTranscript)
+        let speechStartedAt = postResponseSpeechStartedAt
+        clearPostResponseBuffers()
+
+        guard !utterance.isEmpty else {
+            sessionState = .responseReady
+            return
+        }
+
+        if shouldTreatAsInterviewerQuestion(utterance, speechStartedAt: speechStartedAt) {
+            beginNextQuestion(with: utterance)
+        } else {
+            sessionState = .responseReady
+        }
+    }
+
+    private func beginNextQuestion(with question: String) {
+        resetForNewQuestion()
+        interviewerTranscript = question
+        accumulatedTranscript = question
+        currentExchangeStart = Date()
+        sessionState = .interviewerSpeaking
+        checkForPredictiveFire(fullText: question)
+        if !hasFiredResponse {
+            fireResponse(question: question)
+        }
+    }
+
+    private func clearPostResponseBuffers() {
+        postResponseAccumulatedTranscript = ""
+        postResponseCurrentPartial = ""
+        postResponseSpeechStartedAt = nil
+    }
+
+    private var combinedPostResponseTranscript: String {
+        let joined = [postResponseAccumulatedTranscript, postResponseCurrentPartial]
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+            .trimmingCharacters(in: .whitespaces)
+        return joined.replacingOccurrences(of: "  +", with: " ", options: .regularExpression)
+    }
+
+    private func normalizeTranscript(_ text: String) -> String {
+        text
+            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func shouldTreatAsInterviewerQuestion(
+        _ text: String,
+        speechStartedAt: Date?
+    ) -> Bool {
+        let normalized = normalizeTranscript(text)
+        let lower = normalized.lowercased()
+        let wordCount = lower.split(separator: " ").count
+        guard wordCount > 1 else { return false }
+
+        let questionStarters = [
+            "what", "how", "why", "when", "where", "who", "can", "could",
+            "would", "will", "do", "did", "are", "is", "have", "tell",
+            "walk", "describe", "explain"
+        ]
+        let interviewerPhrases = [
+            "tell me", "walk me through", "can you", "could you", "how would",
+            "what is", "what's", "why did", "describe", "explain", "give me",
+            "and what about", "what about", "suppose", "let's say",
+            "tell me more", "can you elaborate", "go deeper", "expand on",
+            "and then", "then what", "how so"
+        ]
+        let answerPhrases = [
+            "i think", "i would", "i've", "i have", "i am", "i'm", "my",
+            "we", "our", "in my", "for me", "personally", "one time", "i led"
+        ]
+
+        let responseSimilarity = SimilarityMatchService.wordOverlapSimilarity(
+            lower,
+            currentResponse
+        )
+        if responseSimilarity >= APIConfig.postResponseEchoSimilarityThreshold {
+            return false
+        }
+
+        let containsQuestionMark = lower.contains("?")
+        let startsWithQuestionWord: Bool
+        if let firstWord = lower.split(separator: " ").first {
+            startsWithQuestionWord = questionStarters.contains(String(firstWord))
+        } else {
+            startsWithQuestionWord = false
+        }
+
+        let interviewerPhraseMatches = interviewerPhrases.filter { lower.contains($0) }.count
+        let answerPhraseMatches = answerPhrases.filter { lower.contains($0) }.count
+        let startedSoonAfterResponse = {
+            guard let responseReadyAt, let speechStartedAt else { return false }
+            return speechStartedAt.timeIntervalSince(responseReadyAt)
+                <= APIConfig.postResponseGracePeriodSeconds
+        }()
+
+        var questionScore = 0
+        var answerScore = 0
+
+        if containsQuestionMark {
+            questionScore += 3
+        }
+
+        if startsWithQuestionWord {
+            questionScore += 2
+        }
+
+        questionScore += interviewerPhraseMatches * 2
+        answerScore += answerPhraseMatches * 2
+
+        let firstPersonTerms = [" i ", " my ", " we ", " our ", " me "]
+        answerScore += firstPersonTerms.reduce(into: 0) { result, term in
+            if lower.contains(term) {
+                result += 1
+            }
+        }
+
+        let classification = classifier.classify(lower)
+        if classification.type == .followUp && classification.confidence >= 0.8 {
+            questionScore += 2
+        }
+
+        let hasExplicitQuestionSignal = containsQuestionMark
+            || startsWithQuestionWord
+            || interviewerPhraseMatches > 0
+            || (classification.type == .followUp && classification.confidence >= 0.8)
+
+        if startedSoonAfterResponse {
+            answerScore += 1
+
+            // Immediately after surfacing an answer, default to "user is speaking"
+            // unless the new utterance clearly looks like a fresh interviewer prompt.
+            if !hasExplicitQuestionSignal {
+                return false
+            }
+        }
+
+        return questionScore >= APIConfig.postResponseMinimumQuestionScore
+            && questionScore > answerScore
+    }
+
+    private func makeResponseInterviewLength(_ text: String) -> String {
+        let normalized = text
+            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard !normalized.isEmpty else { return normalized }
+
+        if normalized.contains("•") {
+            let bullets = normalized
+                .components(separatedBy: "•")
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+                .prefix(2)
+                .map { "• " + shortenToWordLimit($0, maxWords: 12) }
+
+            if !bullets.isEmpty {
+                return bullets.joined(separator: "\n")
+            }
+        }
+
+        let sentences = normalized
+            .split(whereSeparator: { ".!?".contains($0) })
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        var selected: [String] = []
+        var wordCount = 0
+
+        for sentence in sentences {
+            let sentenceWords = sentence.split(separator: " ").count
+            if selected.isEmpty || (selected.count < 2 && wordCount + sentenceWords <= 55) {
+                selected.append(sentence)
+                wordCount += sentenceWords
+            } else {
+                break
+            }
+        }
+
+        if !selected.isEmpty {
+            return selected.joined(separator: ". ") + "."
+        }
+
+        return shortenToWordLimit(normalized, maxWords: 55)
+    }
+
+    private func shortenToWordLimit(_ text: String, maxWords: Int) -> String {
+        let words = text.split(separator: " ")
+        guard words.count > maxWords else { return text }
+        return words.prefix(maxWords).joined(separator: " ") + "..."
+    }
+
+    private func completeExchange(with response: String) {
+        let finalizedQuestion = currentQuestionTranscript
+        let finalizedResponse = makeResponseInterviewLength(response)
+        let completedAt = Date()
+
+        currentResponse = finalizedResponse
+        accumulatedTranscript = finalizedQuestion
+        interviewerTranscript = finalizedQuestion
+        sessionState = .responseReady
+        responseReadyAt = completedAt
+        clearPostResponseBuffers()
+        exchangeCount += 1
+
+        fullTranscript.append(TranscriptSegment(
+            speaker: .interviewer,
+            text: finalizedQuestion,
+            timestamp: currentExchangeStart ?? Date()
+        ))
+        fullTranscript.append(TranscriptSegment(
+            speaker: .aiResponse,
+            text: finalizedResponse,
+            timestamp: completedAt
+        ))
+
+        let latency = Int((completedAt.timeIntervalSince(currentExchangeStart ?? completedAt)) * 1000)
+        exchanges.append(Exchange(
+            question: finalizedQuestion,
+            response: finalizedResponse,
+            type: questionType?.type ?? .unknown,
+            latencyMs: latency,
+            cached: isResponseFromCache
+        ))
+
+        persistSessionSnapshot()
+    }
+
+    private var currentQuestionTranscript: String {
+        let transcript = interviewerTranscript
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if !transcript.isEmpty {
+            return transcript
+        }
+
+        return accumulatedTranscript.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var currentSessionModelName: String {
+        switch modelsUsed.count {
+        case 0:
+            return APIConfig.defaultResponseModel
+        case 1:
+            return modelsUsed.first ?? APIConfig.defaultResponseModel
+        default:
+            return "mixed"
+        }
+    }
+
+    private func createPersistedSession(startedAt: Date) {
+        guard persistedSession == nil else { return }
+
+        let session = InterviewSession(
+            resumeText: resume,
+            jobDescription: jobDescription,
+            interviewType: interviewType,
+            responseFormat: responseFormat
+        )
+        session.startedAt = startedAt
+        session.modelUsed = currentSessionModelName
+        session.setExchanges([])
+
+        persistedSession = session
+        localStorage.saveSession(session)
+    }
+
+    private func persistSessionSnapshot(endedAt: Date? = nil) {
+        guard let session = persistedSession else { return }
+
+        session.resumeText = resume
+        session.jobDescription = jobDescription
+        session.interviewType = interviewType.rawValue
+        session.responseFormat = responseFormat.rawValue
+        session.modelUsed = currentSessionModelName
+        session.totalTokensUsed = estimatedTokenUsage()
+        session.estimatedCost = 0
+        session.setExchanges(exchanges)
+
+        if let endedAt {
+            session.endedAt = endedAt
+        }
+
+        localStorage.saveChanges()
+
+        let snapshot = SessionSyncSnapshot(
+            clientId: session.id,
+            startedAt: session.startedAt,
+            endedAt: session.endedAt,
+            resumeText: session.resumeText,
+            jobDescription: session.jobDescription,
+            interviewType: session.interviewType,
+            responseFormat: session.responseFormat,
+            modelUsed: session.modelUsed,
+            totalTokensUsed: session.totalTokensUsed,
+            estimatedCost: session.estimatedCost,
+            exchanges: exchanges.enumerated().map { index, exchange in
+                ExchangeSyncSnapshot(
+                    clientId: exchange.id,
+                    timestamp: exchange.timestamp,
+                    questionTranscript: exchange.questionTranscript,
+                    questionType: exchange.questionType,
+                    generatedResponse: exchange.generatedResponse,
+                    responseLatencyMs: exchange.responseLatencyMs,
+                    wasPreComputed: exchange.wasPreComputed,
+                    sequenceOrder: index
+                )
+            }
+        )
+
+        Task {
+            try? await self.remoteSync.syncSession(snapshot)
+        }
+    }
+
+    private func estimatedTokenUsage() -> Int {
+        exchanges.reduce(into: 0) { total, exchange in
+            total += exchange.questionTranscript.split(separator: " ").count
+            total += exchange.generatedResponse.split(separator: " ").count
+        }
     }
 }

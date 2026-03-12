@@ -7,7 +7,7 @@ import {
   rotateRefreshToken,
   revokeRefreshToken,
 } from './auth.service.js';
-import { getPrisma } from '../../config/database.js';
+import { withDatabaseRetry } from '../../config/database.js';
 
 export function buildAuthHandlers(app: FastifyInstance) {
   async function register(request: FastifyRequest, reply: FastifyReply) {
@@ -48,11 +48,12 @@ export function buildAuthHandlers(app: FastifyInstance) {
     const { refreshToken: oldToken } = refreshSchema.parse(request.body);
     const { userId, newToken } = await rotateRefreshToken(oldToken);
 
-    const prisma = getPrisma();
-    const user = await prisma.user.findUniqueOrThrow({
-      where: { id: userId },
-      select: { id: true, email: true },
-    });
+    const user = await withDatabaseRetry((prisma) =>
+      prisma.user.findUniqueOrThrow({
+        where: { id: userId },
+        select: { id: true, email: true },
+      })
+    );
 
     const accessToken = app.jwt.sign(
       { sub: user.id, email: user.email },

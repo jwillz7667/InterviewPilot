@@ -9,54 +9,45 @@ struct ResumeInputView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Color(IPTheme.backgroundTop).ignoresSafeArea()
+                IPAppBackground()
 
-                VStack(spacing: IPTheme.spacing16) {
-                    // Upload button
-                    Button(action: { showFilePicker = true }) {
-                        VStack(spacing: IPTheme.spacing12) {
-                            Image(systemName: "doc.badge.plus")
-                                .font(.system(size: 36))
-                                .foregroundStyle(IPTheme.brandLight)
+                ScrollView {
+                    VStack(spacing: IPTheme.spacing20) {
+                        IPPanel(tone: .accent(IPTheme.accent)) {
+                            VStack(alignment: .leading, spacing: 14) {
+                                IPSectionHeader(
+                                    eyebrow: "Resume",
+                                    title: "Import or paste your resume",
+                                    subtitle: "A full resume gives the app better language for tailored answers and prep questions.",
+                                    symbol: "doc.text.fill"
+                                )
 
-                            Text("Upload PDF Resume")
-                                .font(IPTypography.bodyLarge)
-                                .foregroundStyle(.white)
+                                Button(action: { showFilePicker = true }) {
+                                    Label("Upload PDF Resume", systemImage: "doc.badge.plus")
+                                }
+                                .buttonStyle(IPSecondaryButtonStyle())
 
-                            Text("Tap to select a file")
-                                .font(IPTypography.labelSmall)
-                                .foregroundStyle(.white.opacity(0.4))
+                                TextEditor(text: $resumeText)
+                                    .font(IPTypography.bodyMedium)
+                                    .foregroundStyle(IPTheme.textPrimary)
+                                    .scrollContentBackground(.hidden)
+                                    .frame(minHeight: 260)
+                                    .padding(12)
+                                    .background(Color.white.opacity(0.16), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+                            }
                         }
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, IPTheme.spacing24)
-                        .background(
-                            RoundedRectangle(cornerRadius: IPTheme.radiusMedium)
-                                .strokeBorder(IPTheme.brand.opacity(0.3), style: StrokeStyle(lineWidth: 2, dash: [8]))
-                        )
                     }
-                    .padding(.horizontal, IPTheme.spacing16)
-
-                    // Or paste text
-                    Text("or paste your resume text below")
-                        .font(IPTypography.labelSmall)
-                        .foregroundStyle(.white.opacity(0.4))
-
-                    TextEditor(text: $resumeText)
-                        .font(IPTypography.bodyMedium)
-                        .foregroundStyle(.white)
-                        .scrollContentBackground(.hidden)
-                        .padding(IPTheme.spacing12)
-                        .background(.white.opacity(0.05), in: RoundedRectangle(cornerRadius: IPTheme.radiusMedium))
-                        .padding(.horizontal, IPTheme.spacing16)
+                    .padding(.horizontal, IPTheme.spacing20)
+                    .padding(.vertical, IPTheme.spacing20)
                 }
+                .ipScrollablePage()
             }
-            .preferredColorScheme(.dark)
             .navigationTitle("Resume")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Done") { dismiss() }
-                        .foregroundStyle(IPTheme.brandLight)
+                        .foregroundStyle(IPTheme.accent)
                 }
             }
             .fileImporter(

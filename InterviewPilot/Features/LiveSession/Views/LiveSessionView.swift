@@ -7,33 +7,26 @@ struct LiveSessionView: View {
 
     var body: some View {
         ZStack {
-            // Background gradient
-            LinearGradient(
-                colors: [IPTheme.backgroundTop, IPTheme.backgroundBottom],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .ignoresSafeArea()
+            IPAppBackground()
 
-            VStack(spacing: 0) {
+            VStack(spacing: 12) {
                 topBar
-                    .padding(.horizontal, IPTheme.spacing16)
-                    .padding(.top, IPTheme.spacing8)
+                    .padding(.horizontal, IPTheme.spacing20)
+                    .padding(.top, IPTheme.spacing12)
 
                 transcriptSection
                     .frame(maxHeight: .infinity)
 
-                divider
-
                 responseSection
                     .frame(maxHeight: .infinity)
-
-                controlBar
-                    .padding(.horizontal, IPTheme.spacing16)
-                    .padding(.bottom, IPTheme.spacing8)
             }
+            .padding(.bottom, 96)
         }
-        .preferredColorScheme(.dark)
+        .safeAreaInset(edge: .bottom) {
+            controlBar
+                .padding(.horizontal, IPTheme.spacing16)
+                .padding(.bottom, IPTheme.spacing8)
+        }
         .onAppear {
             Task { try? await viewModel.startSession() }
         }
@@ -51,273 +44,251 @@ struct LiveSessionView: View {
         }
     }
 
-    // MARK: - Top Bar
-
     private var topBar: some View {
-        HStack {
-            Button(action: { showEndConfirmation = true }) {
-                Image(systemName: "chevron.left")
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.7))
+        IPPanel(tone: .secondary, padding: IPTheme.spacing16, cornerRadius: IPTheme.radiusXL) {
+            HStack(spacing: 12) {
+                Button(action: { showEndConfirmation = true }) {
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(IPTheme.textPrimary)
+                        .frame(width: 38, height: 38)
+                        .background(Color.white.opacity(0.12), in: Circle())
+                }
+                .buttonStyle(.plain)
+
+                AnimatedStatusBadge(text: "Live", color: IPTheme.live, isActive: true)
+                IPStatusPill(title: liveStateTitle, symbol: liveStateSymbol, tint: IPTheme.accent)
+
+                Spacer()
+
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text(formatTime(viewModel.elapsedTime))
+                        .font(IPTypography.timer)
+                        .foregroundStyle(IPTheme.textPrimary)
+                        .contentTransition(.numericText())
+                    Text("Interview mode")
+                        .font(IPTypography.labelSmall)
+                        .foregroundStyle(IPTheme.textSecondary)
+                }
             }
-
-            Spacer()
-
-            HStack(spacing: 6) {
-                PulsingDot(color: IPTheme.live)
-                    .frame(width: 8, height: 8)
-
-                Text("LIVE")
-                    .font(IPTypography.labelSmall)
-                    .foregroundStyle(IPTheme.live)
-                    .fontWeight(.bold)
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
-            .background(.ultraThinMaterial, in: Capsule())
-
-            Spacer()
-
-            Text(formatTime(viewModel.elapsedTime))
-                .font(IPTypography.timer)
-                .foregroundStyle(.white.opacity(0.6))
-                .contentTransition(.numericText())
-                .animation(.linear(duration: 0.3), value: viewModel.elapsedTime)
         }
     }
 
-    // MARK: - Transcript Section
-
     private var transcriptSection: some View {
-        VStack(alignment: .leading, spacing: IPTheme.spacing12) {
-            HStack(spacing: 8) {
-                Image(systemName: "mic.fill")
-                    .font(.system(size: 14))
-                    .foregroundStyle(IPTheme.brandLight)
-                    .symbolEffect(
-                        .variableColor.iterative,
-                        isActive: viewModel.sessionState == .interviewerSpeaking
-                    )
+        IPPanel(tone: .secondary) {
+            VStack(alignment: .leading, spacing: 14) {
+                laneHeader(
+                    title: "Interviewer",
+                    subtitle: "Live transcript",
+                    symbol: "waveform.and.mic",
+                    tint: IPTheme.accent,
+                    trailing: viewModel.sessionState == .interviewerSpeaking
+                        ? AnyView(AnimatedStatusBadge(text: "Listening", color: IPTheme.accent, isActive: true))
+                        : AnyView(IPStatusPill(title: "On standby", symbol: "ear", tint: IPTheme.textSecondary))
+                )
 
-                Text("INTERVIEWER")
-                    .font(IPTypography.labelSmall)
-                    .foregroundStyle(.white.opacity(0.5))
-                    .tracking(1.5)
-            }
-            .padding(.horizontal, IPTheme.spacing20)
-            .padding(.top, IPTheme.spacing16)
-
-            ScrollViewReader { proxy in
-                ScrollView {
-                    Text(viewModel.interviewerTranscript.isEmpty
-                         ? "Listening..."
-                         : viewModel.interviewerTranscript)
-                        .font(IPTypography.bodyLarge)
-                        .foregroundStyle(viewModel.interviewerTranscript.isEmpty
-                                        ? .white.opacity(0.3) : .white.opacity(0.9))
-                        .lineSpacing(4)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.horizontal, IPTheme.spacing20)
-                        .id("transcript-bottom")
-                        .animation(IPAnimations.tokenAppear, value: viewModel.interviewerTranscript)
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        Text(viewModel.interviewerTranscript.isEmpty ? "Place the phone so the interviewer is closest to the mic. The live transcript will build here." : viewModel.interviewerTranscript)
+                            .font(IPTypography.bodyLarge)
+                            .foregroundStyle(viewModel.interviewerTranscript.isEmpty ? IPTheme.textSecondary : IPTheme.textPrimary)
+                            .lineSpacing(4)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .id("transcript-bottom")
+                    }
+                    .ipScrollablePage()
+                    .onChange(of: viewModel.interviewerTranscript) {
+                        withAnimation(IPAnimations.gentle) {
+                            proxy.scrollTo("transcript-bottom", anchor: .bottom)
+                        }
+                    }
                 }
-                .onChange(of: viewModel.interviewerTranscript) {
-                    withAnimation(IPAnimations.gentle) {
-                        proxy.scrollTo("transcript-bottom", anchor: .bottom)
+
+                if viewModel.audioCapture.isCapturing && viewModel.sessionState != .generating {
+                    WaveformView(level: viewModel.audioCapture.audioLevel)
+                        .frame(height: 34)
+                        .padding(.top, 2)
+                        .transition(.opacity.combined(with: .scale(scale: 0.98)))
+                } else if viewModel.sessionState == .responseReady || viewModel.sessionState == .postResponseSpeech {
+                    Text("Your answer stays pinned while you speak. The app only promotes new interviewer audio when it sees a real question signal.")
+                        .font(IPTypography.bodySmall)
+                        .foregroundStyle(IPTheme.textSecondary)
+                }
+            }
+        }
+        .padding(.horizontal, IPTheme.spacing16)
+        .padding(.top, 4)
+    }
+
+    private var responseSection: some View {
+        IPPanel(tone: .accent(IPTheme.accent)) {
+            VStack(alignment: .leading, spacing: 14) {
+                laneHeader(
+                    title: "Suggested answer",
+                    subtitle: viewModel.isResponseFromCache ? "Instant answer bank hit" : "Generated response",
+                    symbol: viewModel.isResponseFromCache ? "bolt.fill" : "sparkles",
+                    tint: viewModel.isResponseFromCache ? IPTheme.accentWarm : IPTheme.accent,
+                    trailing: AnyView(
+                        HStack(spacing: 8) {
+                            if let questionType = viewModel.questionType {
+                                QuestionTypeBadge(classification: questionType)
+                            }
+
+                            if viewModel.responseGenerator.isGenerating {
+                                ProgressView()
+                                    .tint(IPTheme.accent)
+                            }
+                        }
+                    )
+                )
+
+                if let error = viewModel.errorMessage {
+                    Label(error, systemImage: "exclamationmark.triangle.fill")
+                        .font(IPTypography.bodySmall)
+                        .foregroundStyle(IPTheme.error)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(12)
+                        .background(IPTheme.error.opacity(0.10), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                }
+
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        if viewModel.currentResponse.isEmpty && viewModel.sessionState != .generating {
+                            Text("The response will appear here when the app has enough of the question to answer.")
+                                .font(IPTypography.responseText)
+                                .foregroundStyle(IPTheme.textSecondary)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        } else if viewModel.currentResponse.isEmpty && viewModel.sessionState == .generating {
+                            VStack(alignment: .leading, spacing: 10) {
+                                ForEach(0..<3, id: \.self) { index in
+                                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                        .fill(Color.white.opacity(0.14))
+                                        .frame(height: 16)
+                                        .frame(maxWidth: index == 2 ? 220 : .infinity)
+                                        .shimmer()
+                                }
+                            }
+                        } else {
+                            Text(viewModel.currentResponse)
+                                .font(IPTypography.responseText)
+                                .foregroundStyle(IPTheme.textPrimary)
+                                .lineSpacing(6)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .id("response-bottom")
+                        }
+                    }
+                    .ipScrollablePage()
+                    .onChange(of: viewModel.currentResponse) {
+                        withAnimation(IPAnimations.gentle) {
+                            proxy.scrollTo("response-bottom", anchor: .bottom)
+                        }
                     }
                 }
             }
-
-            if viewModel.sessionState == .interviewerSpeaking || viewModel.sessionState == .listening {
-                WaveformView(level: viewModel.audioCapture.audioLevel)
-                    .frame(height: 30)
-                    .padding(.horizontal, IPTheme.spacing20)
-                    .transition(.opacity.combined(with: .scale(scale: 0.95)))
-            }
         }
-        .background(
-            RoundedRectangle(cornerRadius: IPTheme.radiusLarge)
-                .fill(.ultraThinMaterial)
-                .padding(.horizontal, IPTheme.spacing8)
-        )
-        .padding(.horizontal, IPTheme.spacing8)
-        .padding(.top, IPTheme.spacing8)
+        .padding(.horizontal, IPTheme.spacing16)
     }
 
-    // MARK: - Divider
-
-    private var divider: some View {
-        HStack {
-            Rectangle()
-                .fill(.white.opacity(0.1))
-                .frame(height: 1)
-
-            if let questionType = viewModel.questionType {
-                QuestionTypeBadge(classification: questionType)
-                    .transition(.scale.combined(with: .opacity))
-            }
-
-            Rectangle()
-                .fill(.white.opacity(0.1))
-                .frame(height: 1)
-        }
-        .padding(.horizontal, IPTheme.spacing20)
-        .padding(.vertical, IPTheme.spacing4)
-        .animation(IPAnimations.snappy, value: viewModel.questionType?.type)
-    }
-
-    // MARK: - Response Section
-
-    private var responseSection: some View {
-        VStack(alignment: .leading, spacing: IPTheme.spacing12) {
-            HStack(spacing: 8) {
-                Image(systemName: viewModel.isResponseFromCache ? "bolt.fill" : "sparkles")
-                    .font(.system(size: 14))
-                    .foregroundStyle(.yellow)
-                    .symbolEffect(.bounce, value: viewModel.sessionState == .responseReady)
-
-                Text("YOUR ANSWER")
-                    .font(IPTypography.labelSmall)
-                    .foregroundStyle(.white.opacity(0.5))
-                    .tracking(1.5)
-
-                if viewModel.isResponseFromCache {
-                    Text("INSTANT")
-                        .font(.system(size: 9, weight: .bold))
-                        .foregroundStyle(.black)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(.yellow, in: Capsule())
-                        .transition(.scale.combined(with: .opacity))
+    private var controlBar: some View {
+        IPPanel(tone: .secondary, padding: IPTheme.spacing16, cornerRadius: IPTheme.radiusXL) {
+            HStack(spacing: 18) {
+                ControlButton(
+                    icon: viewModel.audioCapture.isCapturing ? "mic.fill" : "mic.slash.fill",
+                    label: micButtonLabel,
+                    isActive: viewModel.audioCapture.isCapturing,
+                    tint: IPTheme.accent
+                ) {
+                    if viewModel.audioCapture.isCapturing {
+                        viewModel.audioCapture.stopCapture()
+                    } else {
+                        try? viewModel.audioCapture.startCapture()
+                    }
                 }
 
                 Spacer()
 
-                if viewModel.responseGenerator.isGenerating {
-                    ProgressView()
-                        .progressViewStyle(.circular)
-                        .scaleEffect(0.7)
-                        .tint(IPTheme.brandLight)
+                Button(action: { showEndConfirmation = true }) {
+                    Image(systemName: "phone.down.fill")
+                        .font(.system(size: 20, weight: .bold))
+                        .foregroundStyle(.white)
+                        .frame(width: 58, height: 58)
+                        .background(IPTheme.error.gradient, in: Circle())
+                        .shadow(color: IPTheme.error.opacity(0.24), radius: 16, y: 10)
                 }
-            }
-            .padding(.horizontal, IPTheme.spacing20)
-            .padding(.top, IPTheme.spacing12)
+                .buttonStyle(.plain)
 
-            // Error banner
-            if let error = viewModel.errorMessage {
-                HStack(spacing: 6) {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .foregroundStyle(.yellow)
-                        .font(.system(size: 12))
-                    Text(error)
-                        .font(IPTypography.labelSmall)
-                        .foregroundStyle(.white.opacity(0.8))
-                        .lineLimit(2)
-                    Spacer()
-                    Button(action: { viewModel.errorMessage = nil }) {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 10, weight: .bold))
-                            .foregroundStyle(.white.opacity(0.4))
-                    }
-                }
-                .padding(IPTheme.spacing8)
-                .background(IPTheme.error.opacity(0.2), in: RoundedRectangle(cornerRadius: IPTheme.radiusSmall))
-                .padding(.horizontal, IPTheme.spacing20)
-                .transition(.opacity.combined(with: .move(edge: .top)))
-            }
+                Spacer()
 
-            ScrollViewReader { proxy in
-                ScrollView {
-                    if viewModel.currentResponse.isEmpty && viewModel.sessionState != .generating {
-                        Text("Response will appear here...")
-                            .font(IPTypography.responseText)
-                            .foregroundStyle(.white.opacity(0.2))
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.horizontal, IPTheme.spacing20)
-                    } else if viewModel.currentResponse.isEmpty && viewModel.sessionState == .generating {
-                        VStack(alignment: .leading, spacing: 8) {
-                            ForEach(0..<3, id: \.self) { i in
-                                RoundedRectangle(cornerRadius: 4)
-                                    .fill(.white.opacity(0.08))
-                                    .frame(height: 16)
-                                    .frame(maxWidth: i == 2 ? 200 : .infinity)
-                                    .shimmer()
-                            }
-                        }
-                        .padding(.horizontal, IPTheme.spacing20)
-                        .transition(.opacity)
-                    } else {
-                        Text(viewModel.currentResponse)
-                            .font(IPTypography.responseText)
-                            .foregroundStyle(.white)
-                            .lineSpacing(6)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.horizontal, IPTheme.spacing20)
-                            .padding(.bottom, IPTheme.spacing12)
-                            .id("response-bottom")
-                    }
-                }
-                .onChange(of: viewModel.currentResponse) {
-                    withAnimation(IPAnimations.gentle) {
-                        proxy.scrollTo("response-bottom", anchor: .bottom)
+                ControlButton(
+                    icon: "forward.fill",
+                    label: "Next",
+                    isActive: true,
+                    tint: IPTheme.accentWarm
+                ) {
+                    withAnimation(IPAnimations.standard) {
+                        viewModel.resumeListeningForNextQuestion()
                     }
                 }
             }
         }
-        .background(
-            RoundedRectangle(cornerRadius: IPTheme.radiusLarge)
-                .fill(.regularMaterial)
-                .padding(.horizontal, IPTheme.spacing8)
-        )
-        .padding(.horizontal, IPTheme.spacing8)
-        .padding(.bottom, IPTheme.spacing8)
     }
 
-    // MARK: - Control Bar
-
-    private var controlBar: some View {
-        HStack(spacing: IPTheme.spacing24) {
-            ControlButton(
-                icon: viewModel.audioCapture.isCapturing ? "mic.fill" : "mic.slash.fill",
-                label: viewModel.audioCapture.isCapturing ? "Mute" : "Unmute",
-                isActive: viewModel.audioCapture.isCapturing
-            ) {
-                if viewModel.audioCapture.isCapturing {
-                    viewModel.audioCapture.stopCapture()
-                } else {
-                    try? viewModel.audioCapture.startCapture()
+    private func laneHeader(
+        title: String,
+        subtitle: String,
+        symbol: String,
+        tint: Color,
+        trailing: AnyView
+    ) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(tint.opacity(0.14))
+                .frame(width: 42, height: 42)
+                .overlay {
+                    Image(systemName: symbol)
+                        .font(.system(size: 17, weight: .semibold))
+                        .foregroundStyle(tint)
                 }
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(IPTypography.bodyLarge)
+                    .foregroundStyle(IPTheme.textPrimary)
+                Text(subtitle)
+                    .font(IPTypography.bodySmall)
+                    .foregroundStyle(IPTheme.textSecondary)
             }
 
             Spacer()
-
-            Button(action: { showEndConfirmation = true }) {
-                Image(systemName: "phone.down.fill")
-                    .font(.system(size: 22))
-                    .foregroundStyle(.white)
-                    .frame(width: 56, height: 56)
-                    .background(IPTheme.error.gradient, in: Circle())
-                    .shadow(color: IPTheme.error.opacity(0.4), radius: 8, y: 4)
-            }
-
-            Spacer()
-
-            ControlButton(
-                icon: "forward.fill",
-                label: "Next",
-                isActive: true
-            ) {
-                withAnimation(IPAnimations.standard) {
-                    viewModel.resetForNewQuestion()
-                }
-            }
+            trailing
         }
-        .padding(.vertical, IPTheme.spacing12)
-        .padding(.horizontal, IPTheme.spacing24)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: IPTheme.radiusXL))
     }
 
-    // MARK: - Helpers
+    private var micButtonLabel: String {
+        viewModel.audioCapture.isCapturing ? "Mute" : "Unmute"
+    }
+
+    private var liveStateTitle: String {
+        switch viewModel.sessionState {
+        case .idle: return "Idle"
+        case .listening: return "Ready"
+        case .interviewerSpeaking: return "Hearing question"
+        case .generating: return "Drafting"
+        case .responseReady: return "Answer locked"
+        case .postResponseSpeech: return "Waiting for next cue"
+        }
+    }
+
+    private var liveStateSymbol: String {
+        switch viewModel.sessionState {
+        case .idle: return "pause.circle"
+        case .listening: return "ear"
+        case .interviewerSpeaking: return "waveform"
+        case .generating: return "sparkles"
+        case .responseReady: return "checkmark.circle.fill"
+        case .postResponseSpeech: return "person.fill.wave.2"
+        }
+    }
 
     private func formatTime(_ interval: TimeInterval) -> String {
         let minutes = Int(interval) / 60
@@ -326,12 +297,11 @@ struct LiveSessionView: View {
     }
 }
 
-// MARK: - Control Button
-
 struct ControlButton: View {
     let icon: String
     let label: String
     let isActive: Bool
+    var tint: Color = IPTheme.accent
     let action: () -> Void
 
     @State private var isPressed = false
@@ -341,17 +311,23 @@ struct ControlButton: View {
             isPressed.toggle()
             action()
         }) {
-            VStack(spacing: 4) {
-                Image(systemName: icon)
-                    .font(.system(size: 20))
-                    .foregroundStyle(isActive ? .white : .white.opacity(0.4))
-                    .symbolEffect(.bounce, value: isPressed)
+            VStack(spacing: 6) {
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .fill((isActive ? tint : Color.white.opacity(0.10)))
+                    .frame(width: 54, height: 54)
+                    .overlay {
+                        Image(systemName: icon)
+                            .font(.system(size: 18, weight: .semibold))
+                            .foregroundStyle(isActive ? .white : IPTheme.textSecondary)
+                            .symbolEffect(.bounce, value: isPressed)
+                    }
 
                 Text(label)
                     .font(IPTypography.labelSmall)
-                    .foregroundStyle(.white.opacity(0.5))
+                    .foregroundStyle(IPTheme.textSecondary)
             }
         }
+        .buttonStyle(.plain)
         .sensoryFeedback(.impact(weight: .light), trigger: isPressed)
     }
 }

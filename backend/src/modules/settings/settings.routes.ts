@@ -1,6 +1,6 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { authenticate } from '../../middleware/authenticate.js';
-import { getPrisma } from '../../config/database.js';
+import { withDatabaseRetry } from '../../config/database.js';
 import { z } from 'zod';
 
 const updateSettingsSchema = z.object({
@@ -20,28 +20,26 @@ export async function settingsRoutes(app: FastifyInstance) {
   app.addHook('onRequest', authenticate);
 
   app.get('/api/v1/settings', async (request: FastifyRequest, reply: FastifyReply) => {
-    const prisma = getPrisma();
-    let settings = await prisma.userSettings.findUnique({
-      where: { userId: request.user.sub },
-    });
-
-    if (!settings) {
-      settings = await prisma.userSettings.create({
-        data: { userId: request.user.sub },
-      });
-    }
+    const settings = await withDatabaseRetry((prisma) =>
+      prisma.userSettings.upsert({
+        where: { userId: request.user.sub },
+        create: { userId: request.user.sub },
+        update: {},
+      })
+    );
 
     reply.send({ settings });
   });
 
   app.put('/api/v1/settings', async (request: FastifyRequest, reply: FastifyReply) => {
     const input = updateSettingsSchema.parse(request.body);
-    const prisma = getPrisma();
-    const settings = await prisma.userSettings.upsert({
-      where: { userId: request.user.sub },
-      create: { userId: request.user.sub, ...input },
-      update: input,
-    });
+    const settings = await withDatabaseRetry((prisma) =>
+      prisma.userSettings.upsert({
+        where: { userId: request.user.sub },
+        create: { userId: request.user.sub, ...input },
+        update: input,
+      })
+    );
     reply.send({ settings });
   });
 }

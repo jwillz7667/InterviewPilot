@@ -5,14 +5,11 @@ struct QuestionTypeBadge: View {
 
     var body: some View {
         Text(classification.type.displayName.uppercased())
-            .font(.system(size: 10, weight: .bold))
+            .font(IPTypography.labelSmall)
             .tracking(1)
-            .foregroundStyle(.white)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 4)
-            .background(
-                IPTheme.questionTypeColor(classification.type).opacity(0.8),
-                in: Capsule()
-            )
+            .foregroundStyle(IPTheme.questionTypeColor(classification.type))
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(IPTheme.questionTypeColor(classification.type).opacity(0.12), in: Capsule())
     }
 }

@@ -30,12 +30,7 @@ final class AuthService {
     private(set) var currentUser: AuthUser?
     private(set) var isLoading: Bool = false
     var errorMessage: String?
-
-    #if DEBUG
-    private let baseURL = "http://localhost:3000"
-    #else
-    private let baseURL = "https://interviewpilot-production.up.railway.app"
-    #endif
+    private let baseURL = AppEnvironment.backendBaseURL
 
     private init() {
         restoreSession()

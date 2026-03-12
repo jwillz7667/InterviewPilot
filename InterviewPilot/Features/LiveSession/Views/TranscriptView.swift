@@ -6,42 +6,43 @@ struct TranscriptView: View {
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                LazyVStack(alignment: .leading, spacing: IPTheme.spacing12) {
+                LazyVStack(alignment: .leading, spacing: 12) {
                     ForEach(segments) { segment in
-                        VStack(alignment: .leading, spacing: 4) {
-                            HStack(spacing: 6) {
-                                Image(systemName: segment.speaker == .interviewer ? "person.fill" : "sparkles")
-                                    .font(.system(size: 10))
-                                    .foregroundStyle(segment.speaker == .interviewer ? IPTheme.brandLight : .yellow)
+                        IPPanel(
+                            tone: segment.speaker == .interviewer ? .secondary : .accent(IPTheme.accent),
+                            padding: IPTheme.spacing16,
+                            cornerRadius: IPTheme.radiusMedium
+                        ) {
+                            VStack(alignment: .leading, spacing: 8) {
+                                HStack(spacing: 8) {
+                                    Image(systemName: segment.speaker == .interviewer ? "person.fill" : "sparkles")
+                                        .font(.system(size: 11, weight: .semibold))
+                                        .foregroundStyle(segment.speaker == .interviewer ? IPTheme.accent : IPTheme.accentWarm)
 
-                                Text(segment.speaker == .interviewer ? "Interviewer" : "AI Response")
-                                    .font(IPTypography.labelSmall)
-                                    .foregroundStyle(.white.opacity(0.5))
+                                    Text(segment.speaker == .interviewer ? "Interviewer" : "AI Response")
+                                        .font(IPTypography.labelSmall)
+                                        .foregroundStyle(IPTheme.textSecondary)
 
-                                Spacer()
+                                    Spacer()
 
-                                Text(segment.timestamp, style: .time)
-                                    .font(IPTypography.labelSmall)
-                                    .foregroundStyle(.white.opacity(0.3))
+                                    Text(segment.timestamp, style: .time)
+                                        .font(IPTypography.labelSmall)
+                                        .foregroundStyle(IPTheme.textSecondary)
+                                }
+
+                                Text(segment.text)
+                                    .font(IPTypography.bodyMedium)
+                                    .foregroundStyle(IPTheme.textPrimary)
+                                    .lineSpacing(3)
                             }
-
-                            Text(segment.text)
-                                .font(IPTypography.bodyMedium)
-                                .foregroundStyle(segment.speaker == .interviewer ? .white.opacity(0.9) : .white)
-                                .lineSpacing(3)
+                            .id(segment.id)
                         }
-                        .padding(IPTheme.spacing12)
-                        .background(
-                            segment.speaker == .interviewer
-                                ? Color.white.opacity(0.05)
-                                : IPTheme.brand.opacity(0.1),
-                            in: RoundedRectangle(cornerRadius: IPTheme.radiusSmall)
-                        )
-                        .id(segment.id)
                     }
                 }
                 .padding(.horizontal, IPTheme.spacing16)
+                .padding(.vertical, IPTheme.spacing8)
             }
+            .ipScrollablePage()
             .onChange(of: segments.count) {
                 if let last = segments.last {
                     withAnimation(IPAnimations.gentle) {

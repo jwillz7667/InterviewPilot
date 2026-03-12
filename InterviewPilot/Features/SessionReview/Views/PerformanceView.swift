@@ -4,58 +4,58 @@ struct PerformanceView: View {
     let exchanges: [Exchange]
 
     var body: some View {
-        VStack(alignment: .leading, spacing: IPTheme.spacing12) {
-            Text("Performance Metrics")
-                .font(IPTypography.headlineSmall)
-                .foregroundStyle(.white)
+        IPPanel {
+            VStack(alignment: .leading, spacing: IPTheme.spacing16) {
+                Text("Performance metrics")
+                    .font(IPTypography.headlineSmall)
+                    .foregroundStyle(IPTheme.textPrimary)
 
-            // Average latency
-            metricRow(
-                title: "Avg Response Time",
-                value: "\(averageLatency)ms",
-                icon: "bolt.fill",
-                color: averageLatency < 2000 ? IPTheme.success : IPTheme.warning
-            )
+                metricRow(
+                    title: "Average response time",
+                    value: "\(averageLatency)ms",
+                    icon: "bolt.fill",
+                    color: averageLatency < 2000 ? IPTheme.success : IPTheme.warning
+                )
 
-            // Cache hit rate
-            metricRow(
-                title: "Cache Hit Rate",
-                value: String(format: "%.0f%%", cacheHitRate),
-                icon: "arrow.triangle.2.circlepath",
-                color: cacheHitRate > 50 ? IPTheme.success : IPTheme.brandLight
-            )
+                metricRow(
+                    title: "Cache hit rate",
+                    value: String(format: "%.0f%%", cacheHitRate),
+                    icon: "arrow.triangle.2.circlepath",
+                    color: cacheHitRate > 50 ? IPTheme.success : IPTheme.accent
+                )
 
-            // Questions answered
-            metricRow(
-                title: "Questions Answered",
-                value: "\(exchanges.count)",
-                icon: "checkmark.circle.fill",
-                color: IPTheme.success
-            )
+                metricRow(
+                    title: "Questions answered",
+                    value: "\(exchanges.count)",
+                    icon: "checkmark.circle.fill",
+                    color: IPTheme.success
+                )
+            }
         }
-        .padding(IPTheme.spacing16)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: IPTheme.radiusLarge))
     }
 
     private func metricRow(title: String, value: String, icon: String, color: Color) -> some View {
-        HStack(spacing: IPTheme.spacing12) {
-            Image(systemName: icon)
-                .foregroundStyle(color)
-                .font(.system(size: 16))
-                .frame(width: 24)
+        HStack(spacing: 12) {
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(color.opacity(0.12))
+                .frame(width: 40, height: 40)
+                .overlay {
+                    Image(systemName: icon)
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(color)
+                }
 
-            Text(title)
-                .font(IPTypography.bodyMedium)
-                .foregroundStyle(.white.opacity(0.7))
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(IPTypography.bodyMedium)
+                    .foregroundStyle(IPTheme.textPrimary)
+                Text(value)
+                    .font(IPTypography.bodySmall)
+                    .foregroundStyle(IPTheme.textSecondary)
+            }
 
             Spacer()
-
-            Text(value)
-                .font(IPTypography.bodyLarge)
-                .fontWeight(.semibold)
-                .foregroundStyle(.white)
         }
-        .padding(.vertical, 4)
     }
 
     private var averageLatency: Int {

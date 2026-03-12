@@ -3,93 +3,139 @@ import SwiftData
 
 struct SessionHistoryView: View {
     @State private var viewModel = SessionHistoryViewModel()
+    @Namespace private var reviewTransition
     @Environment(\.modelContext) private var modelContext
 
     var body: some View {
         ZStack {
-            Color(IPTheme.backgroundTop).ignoresSafeArea()
+            IPAppBackground()
 
             if viewModel.sessions.isEmpty {
-                VStack(spacing: IPTheme.spacing16) {
-                    Image(systemName: "clock.arrow.circlepath")
-                        .font(.system(size: 48))
-                        .foregroundStyle(.white.opacity(0.2))
-
-                    Text("No Sessions Yet")
-                        .font(IPTypography.headlineMedium)
-                        .foregroundStyle(.white.opacity(0.5))
-
-                    Text("Complete an interview session to see it here")
-                        .font(IPTypography.bodyMedium)
-                        .foregroundStyle(.white.opacity(0.3))
+                VStack {
+                    Spacer()
+                    IPEmptyState(
+                        title: "No sessions yet",
+                        subtitle: "Run a live interview or voice prep session and your recap will appear here with duration, latency, and question breakdowns.",
+                        symbol: "clock.arrow.trianglehead.counterclockwise.rotate.90"
+                    )
+                    .padding(.horizontal, IPTheme.spacing20)
+                    Spacer()
                 }
             } else {
                 ScrollView {
-                    LazyVStack(spacing: IPTheme.spacing12) {
-                        ForEach(viewModel.sessions) { session in
-                            sessionCard(session)
+                    VStack(alignment: .leading, spacing: IPTheme.spacing20) {
+                        IPPanel(tone: .secondary) {
+                            VStack(alignment: .leading, spacing: 10) {
+                                Text("Session history")
+                                    .font(IPTypography.headlineLarge)
+                                    .foregroundStyle(IPTheme.textPrimary)
+
+                                Text("Open any session to review response latency, question mix, and generated answers.")
+                                    .font(IPTypography.bodyMedium)
+                                    .foregroundStyle(IPTheme.textSecondary)
+                            }
+                        }
+
+                        LazyVStack(spacing: 14) {
+                            ForEach(viewModel.sessions) { session in
+                                NavigationLink {
+                                    SessionReviewView(
+                                        viewModel: SessionReviewViewModel(
+                                            exchanges: session.exchanges,
+                                            transcript: [],
+                                            duration: session.duration,
+                                            interviewType: InterviewType(rawValue: session.interviewType) ?? .general
+                                        )
+                                    )
+                                    .navigationTransition(.zoom(sourceID: session.id, in: reviewTransition))
+                                } label: {
+                                    sessionCard(session)
+                                }
+                                .matchedTransitionSource(id: session.id, in: reviewTransition)
+                                .buttonStyle(.plain)
+                                .swipeActions(edge: .trailing) {
+                                    Button(role: .destructive) {
+                                        viewModel.deleteSession(session)
+                                    } label: {
+                                        Label("Delete", systemImage: "trash")
+                                    }
+                                }
+                            }
                         }
                     }
-                    .padding(.horizontal, IPTheme.spacing16)
-                    .padding(.vertical, IPTheme.spacing12)
+                    .padding(.horizontal, IPTheme.spacing20)
+                    .padding(.vertical, IPTheme.spacing20)
                 }
+                .ipScrollablePage()
             }
         }
-        .preferredColorScheme(.dark)
         .onAppear {
             viewModel.configure(with: modelContext)
         }
     }
 
     private func sessionCard(_ session: InterviewSession) -> some View {
-        VStack(alignment: .leading, spacing: IPTheme.spacing8) {
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(InterviewType(rawValue: session.interviewType)?.displayName ?? "Interview")
-                        .font(IPTypography.bodyLarge)
-                        .fontWeight(.semibold)
-                        .foregroundStyle(.white)
+        IPPanel(tone: .primary) {
+            VStack(alignment: .leading, spacing: 16) {
+                HStack(alignment: .top, spacing: 14) {
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .fill(IPTheme.accent.opacity(0.12))
+                        .frame(width: 52, height: 52)
+                        .overlay {
+                            Image(systemName: sessionIcon(for: session))
+                                .font(.system(size: 20, weight: .semibold))
+                                .foregroundStyle(IPTheme.accent)
+                        }
 
-                    Text(viewModel.formatDate(session.startedAt))
-                        .font(IPTypography.labelSmall)
-                        .foregroundStyle(.white.opacity(0.4))
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(InterviewType(rawValue: session.interviewType)?.displayName ?? "Interview")
+                            .font(IPTypography.headlineSmall)
+                            .foregroundStyle(IPTheme.textPrimary)
+
+                        Text(viewModel.formatDate(session.startedAt))
+                            .font(IPTypography.bodySmall)
+                            .foregroundStyle(IPTheme.textSecondary)
+                    }
+
+                    Spacer()
+
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(IPTheme.textTertiary)
                 }
 
-                Spacer()
-
-                VStack(alignment: .trailing, spacing: 2) {
-                    Text(viewModel.formatDuration(session.duration))
-                        .font(IPTypography.timer)
-                        .foregroundStyle(.white.opacity(0.6))
-
-                    Text("\(session.exchanges.count) Q&As")
-                        .font(IPTypography.labelSmall)
-                        .foregroundStyle(.white.opacity(0.4))
+                HStack(spacing: 10) {
+                    statPill(viewModel.formatDuration(session.duration), symbol: "clock.fill")
+                    statPill("\(session.exchanges.count) prompts", symbol: "questionmark.bubble.fill")
+                    statPill("\(session.totalTokensUsed) tokens", symbol: "sparkles")
                 }
-            }
-
-            HStack(spacing: IPTheme.spacing8) {
-                Label("\(session.totalTokensUsed) tokens", systemImage: "cpu")
-                    .font(IPTypography.labelSmall)
-                    .foregroundStyle(.white.opacity(0.3))
-
-                Spacer()
 
                 if session.estimatedCost > 0 {
-                    Text(String(format: "$%.2f", session.estimatedCost))
-                        .font(IPTypography.labelSmall)
-                        .foregroundStyle(.white.opacity(0.3))
+                    Text(String(format: "Estimated cost $%.2f", session.estimatedCost))
+                        .font(IPTypography.bodySmall)
+                        .foregroundStyle(IPTheme.textSecondary)
                 }
             }
         }
-        .padding(IPTheme.spacing16)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: IPTheme.radiusLarge))
-        .swipeActions(edge: .trailing) {
-            Button(role: .destructive) {
-                viewModel.deleteSession(session)
-            } label: {
-                Label("Delete", systemImage: "trash")
-            }
+    }
+
+    private func statPill(_ text: String, symbol: String) -> some View {
+        Label(text, systemImage: symbol)
+            .font(IPTypography.labelSmall)
+            .foregroundStyle(IPTheme.textSecondary)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(Color.white.opacity(0.10), in: Capsule())
+    }
+
+    private func sessionIcon(for session: InterviewSession) -> String {
+        switch InterviewType(rawValue: session.interviewType) ?? .general {
+        case .behavioral: return "person.2.fill"
+        case .technical: return "terminal.fill"
+        case .systemDesign: return "server.rack"
+        case .caseStudy: return "doc.text.magnifyingglass"
+        case .hrScreen: return "person.text.rectangle.fill"
+        case .general: return "waveform.and.mic"
         }
     }
 }

@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 77;
+	objectVersion = 90;
 	objects = {
 
 /* Begin PBXFileReference section */
@@ -34,10 +34,8 @@
 /* Begin PBXFrameworksBuildPhase section */
 		2FDD21452F5FC12D001E6C21 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
 			files = (
 			);
-			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
 
@@ -71,14 +69,10 @@
 			);
 			buildRules = (
 			);
-			dependencies = (
-			);
 			fileSystemSynchronizedGroups = (
 				2FDD214A2F5FC12D001E6C21 /* InterviewPilot */,
 			);
 			name = InterviewPilot;
-			packageProductDependencies = (
-			);
 			productName = InterviewPilot;
 			productReference = 2FDD21482F5FC12D001E6C21 /* InterviewPilot.app */;
 			productType = "com.apple.product-type.application";
@@ -107,7 +101,7 @@
 			);
 			mainGroup = 2FDD213F2F5FC12D001E6C21;
 			minimizedProjectReferenceProxies = 1;
-			preferredProjectObjectVersion = 77;
+			preferredProjectObjectVersion = 90;
 			productRefGroup = 2FDD21492F5FC12D001E6C21 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -120,30 +114,27 @@
 /* Begin PBXResourcesBuildPhase section */
 		2FDD21462F5FC12D001E6C21 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
 			files = (
 			);
-			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		2FDD21442F5FC12D001E6C21 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
 			files = (
 			);
-			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin XCBuildConfiguration section */
-		2FDD21572F5FC12E001E6C21 /* Debug */ = {
+		2FDD21572F5FC12E001E6C21 /* Debug configuration for PBXNativeTarget "InterviewPilot" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = InterviewPilot/InterviewPilot.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 487LC4H9U4;
@@ -162,6 +153,7 @@
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = Res.InterviewPilot;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
@@ -172,12 +164,13 @@
 			};
 			name = Debug;
 		};
-		2FDD21582F5FC12E001E6C21 /* Release */ = {
+		2FDD21582F5FC12E001E6C21 /* Release configuration for PBXNativeTarget "InterviewPilot" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = InterviewPilot/InterviewPilot.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 487LC4H9U4;
@@ -196,6 +189,7 @@
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = Res.InterviewPilot;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
@@ -206,7 +200,7 @@
 			};
 			name = Release;
 		};
-		2FDD21592F5FC12E001E6C21 /* Debug */ = {
+		2FDD21592F5FC12E001E6C21 /* Debug configuration for PBXProject "InterviewPilot" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
@@ -270,7 +264,7 @@
 			};
 			name = Debug;
 		};
-		2FDD215A2F5FC12E001E6C21 /* Release */ = {
+		2FDD215A2F5FC12E001E6C21 /* Release configuration for PBXProject "InterviewPilot" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
@@ -333,19 +327,17 @@
 		2FDD21432F5FC12D001E6C21 /* Build configuration list for PBXProject "InterviewPilot" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				2FDD21592F5FC12E001E6C21 /* Debug */,
-				2FDD215A2F5FC12E001E6C21 /* Release */,
+				2FDD21592F5FC12E001E6C21 /* Debug configuration for PBXProject "InterviewPilot" */,
+				2FDD215A2F5FC12E001E6C21 /* Release configuration for PBXProject "InterviewPilot" */,
 			);
-			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
 		2FDD21562F5FC12E001E6C21 /* Build configuration list for PBXNativeTarget "InterviewPilot" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				2FDD21572F5FC12E001E6C21 /* Debug */,
-				2FDD21582F5FC12E001E6C21 /* Release */,
+				2FDD21572F5FC12E001E6C21 /* Debug configuration for PBXNativeTarget "InterviewPilot" */,
+				2FDD21582F5FC12E001E6C21 /* Release configuration for PBXNativeTarget "InterviewPilot" */,
 			);
-			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */

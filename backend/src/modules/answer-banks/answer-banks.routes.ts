@@ -1,6 +1,6 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { authenticate } from '../../middleware/authenticate.js';
-import { getPrisma } from '../../config/database.js';
+import { getPrisma, withDatabaseRetry } from '../../config/database.js';
 import { z } from 'zod';
 
 const answerSchema = z.object({
@@ -22,12 +22,13 @@ export async function answerBanksRoutes(app: FastifyInstance) {
 
   // List answer banks
   app.get('/api/v1/answer-banks', async (request: FastifyRequest, reply: FastifyReply) => {
-    const prisma = getPrisma();
-    const banks = await prisma.answerBank.findMany({
-      where: { userId: request.user.sub },
-      include: { _count: { select: { answers: true } } },
-      orderBy: { createdAt: 'desc' },
-    });
+    const banks = await withDatabaseRetry((prisma) =>
+      prisma.answerBank.findMany({
+        where: { userId: request.user.sub },
+        include: { _count: { select: { answers: true } } },
+        orderBy: { createdAt: 'desc' },
+      })
+    );
     reply.send({ banks });
   });
 
@@ -35,11 +36,12 @@ export async function answerBanksRoutes(app: FastifyInstance) {
   app.get(
     '/api/v1/answer-banks/:id',
     async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
-      const prisma = getPrisma();
-      const bank = await prisma.answerBank.findFirst({
-        where: { id: request.params.id, userId: request.user.sub },
-        include: { answers: true },
-      });
+      const bank = await withDatabaseRetry((prisma) =>
+        prisma.answerBank.findFirst({
+          where: { id: request.params.id, userId: request.user.sub },
+          include: { answers: true },
+        })
+      );
       if (!bank) return reply.status(404).send({ error: 'Answer bank not found' });
       reply.send({ bank });
     }
@@ -71,13 +73,16 @@ export async function answerBanksRoutes(app: FastifyInstance) {
   app.delete(
     '/api/v1/answer-banks/:id',
     async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
-      const prisma = getPrisma();
-      const bank = await prisma.answerBank.findFirst({
-        where: { id: request.params.id, userId: request.user.sub },
-      });
+      const bank = await withDatabaseRetry((prisma) =>
+        prisma.answerBank.findFirst({
+          where: { id: request.params.id, userId: request.user.sub },
+        })
+      );
       if (!bank) return reply.status(404).send({ error: 'Answer bank not found' });
 
-      await prisma.answerBank.delete({ where: { id: request.params.id } });
+      await withDatabaseRetry((prisma) =>
+        prisma.answerBank.deleteMany({ where: { id: request.params.id } })
+      );
       reply.send({ success: true });
     }
   );

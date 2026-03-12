@@ -8,22 +8,22 @@ struct AnimatedStatusBadge: View {
     @State private var isPulsing = false
 
     var body: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: 8) {
             Circle()
                 .fill(color)
-                .frame(width: 6, height: 6)
+                .frame(width: 7, height: 7)
                 .scaleEffect(isPulsing && isActive ? 1.4 : 1.0)
-                .opacity(isPulsing && isActive ? 0.6 : 1.0)
+                .opacity(isPulsing && isActive ? 0.55 : 1.0)
                 .animation(IPAnimations.pulse, value: isPulsing)
 
             Text(text.uppercased())
-                .font(.system(size: 10, weight: .bold))
+                .font(IPTypography.labelSmall)
+                .tracking(1.0)
                 .foregroundStyle(color)
-                .tracking(1)
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 5)
-        .background(.ultraThinMaterial, in: Capsule())
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(color.opacity(0.10), in: Capsule())
         .onAppear { isPulsing = true }
     }
 }

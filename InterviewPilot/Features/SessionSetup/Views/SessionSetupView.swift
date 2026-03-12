@@ -3,237 +3,59 @@ import UniformTypeIdentifiers
 
 struct SessionSetupView: View {
     @State private var viewModel = SessionSetupViewModel()
-    @State private var showLiveSession = false
+    @State private var activeSessionMode: SessionMode?
     @State private var showFilePicker = false
 
     var body: some View {
         NavigationStack {
             ZStack {
-                Color(IPTheme.backgroundTop).ignoresSafeArea()
+                IPAppBackground()
 
                 ScrollView {
-                    VStack(spacing: IPTheme.spacing24) {
-                        // Header
-                        VStack(spacing: IPTheme.spacing8) {
-                            Image(systemName: "sparkles")
-                                .font(.system(size: 40))
-                                .foregroundStyle(IPTheme.brand.gradient)
-                                .symbolEffect(.breathe.pulse)
+                    VStack(spacing: IPTheme.spacing20) {
+                        heroSection
+                        modeSection
+                        resumeSection
+                        jobSection
+                        interviewTypeSection
 
-                            Text("Interview Prep")
-                                .font(IPTypography.headlineLarge)
-                                .foregroundStyle(.white)
-
-                            Text("Upload your resume and job description to get started")
-                                .font(IPTypography.bodyMedium)
-                                .foregroundStyle(.white.opacity(0.5))
-                                .multilineTextAlignment(.center)
-                        }
-                        .padding(.top, IPTheme.spacing24)
-
-                        // Resume input card
-                        SetupCard(
-                            icon: "doc.text.fill",
-                            title: "Resume",
-                            subtitle: viewModel.hasResume ? "Uploaded" : "PDF or paste text"
-                        ) {
-                            if viewModel.hasResume {
-                                HStack {
-                                    Image(systemName: "checkmark.circle.fill")
-                                        .foregroundStyle(IPTheme.success)
-                                    Text("Resume loaded (\(viewModel.resumeText.count) chars)")
-                                        .font(IPTypography.bodyMedium)
-                                        .foregroundStyle(.white.opacity(0.7))
-                                    Spacer()
-                                    Button("Change") { showFilePicker = true }
-                                        .font(IPTypography.labelMedium)
-                                        .foregroundStyle(IPTheme.brandLight)
-                                }
-                            } else {
-                                VStack(spacing: IPTheme.spacing12) {
-                                    Button(action: { showFilePicker = true }) {
-                                        Label("Upload PDF", systemImage: "doc.badge.plus")
-                                            .font(IPTypography.bodyMedium)
-                                            .foregroundStyle(IPTheme.brandLight)
-                                            .frame(maxWidth: .infinity)
-                                            .padding(.vertical, IPTheme.spacing12)
-                                            .background(IPTheme.brand.opacity(0.15), in: RoundedRectangle(cornerRadius: IPTheme.radiusSmall))
-                                    }
-
-                                    Text("or paste text below")
-                                        .font(IPTypography.labelSmall)
-                                        .foregroundStyle(.white.opacity(0.3))
-
-                                    TextEditor(text: $viewModel.resumeText)
-                                        .font(IPTypography.bodyMedium)
-                                        .foregroundStyle(.white)
-                                        .scrollContentBackground(.hidden)
-                                        .frame(minHeight: 80, maxHeight: 150)
-                                        .padding(IPTheme.spacing8)
-                                        .background(.white.opacity(0.05), in: RoundedRectangle(cornerRadius: IPTheme.radiusSmall))
-                                }
-                            }
+                        if viewModel.sessionMode == .liveInterview {
+                            responseFormatSection
                         }
 
-                        // Job description input card
-                        SetupCard(
-                            icon: "briefcase.fill",
-                            title: "Job Description",
-                            subtitle: viewModel.hasJobDescription ? "Added" : "Paste or enter URL"
-                        ) {
-                            TextEditor(text: $viewModel.jobDescription)
-                                .font(IPTypography.bodyMedium)
-                                .foregroundStyle(.white)
-                                .scrollContentBackground(.hidden)
-                                .frame(minHeight: 100, maxHeight: 200)
-                                .padding(IPTheme.spacing8)
-                                .background(.white.opacity(0.05), in: RoundedRectangle(cornerRadius: IPTheme.radiusSmall))
+                        if viewModel.isReady && viewModel.sessionMode == .liveInterview {
+                            preGenerationSection
                         }
 
-                        // Interview type picker
-                        SetupCard(
-                            icon: "target",
-                            title: "Interview Type",
-                            subtitle: viewModel.interviewType.displayName
-                        ) {
-                            LazyVGrid(columns: [
-                                GridItem(.flexible()),
-                                GridItem(.flexible()),
-                                GridItem(.flexible())
-                            ], spacing: IPTheme.spacing8) {
-                                ForEach(InterviewType.allCases, id: \.self) { type in
-                                    Button(action: {
-                                        withAnimation(IPAnimations.snappy) {
-                                            viewModel.interviewType = type
-                                        }
-                                    }) {
-                                        Text(type.displayName)
-                                            .font(IPTypography.labelMedium)
-                                            .foregroundStyle(viewModel.interviewType == type ? .white : .white.opacity(0.5))
-                                            .padding(.vertical, IPTheme.spacing8)
-                                            .frame(maxWidth: .infinity)
-                                            .background(
-                                                viewModel.interviewType == type
-                                                    ? IPTheme.brand.opacity(0.8)
-                                                    : Color.white.opacity(0.05),
-                                                in: RoundedRectangle(cornerRadius: IPTheme.radiusSmall)
-                                            )
-                                    }
-                                    .sensoryFeedback(.selection, trigger: viewModel.interviewType)
-                                }
-                            }
-                        }
-
-                        // Response format picker
-                        SetupCard(
-                            icon: "text.alignleft",
-                            title: "Response Format",
-                            subtitle: "How answers appear on screen"
-                        ) {
-                            VStack(spacing: IPTheme.spacing8) {
-                                ForEach(ResponseFormat.allCases, id: \.self) { format in
-                                    Button(action: {
-                                        withAnimation(IPAnimations.snappy) {
-                                            viewModel.responseFormat = format
-                                        }
-                                    }) {
-                                        HStack {
-                                            Image(systemName: viewModel.responseFormat == format
-                                                  ? "checkmark.circle.fill" : "circle")
-                                                .foregroundStyle(viewModel.responseFormat == format
-                                                                ? IPTheme.brand : .white.opacity(0.3))
-
-                                            VStack(alignment: .leading, spacing: 2) {
-                                                Text(format.displayName)
-                                                    .font(IPTypography.bodyMedium)
-                                                    .foregroundStyle(.white)
-                                                Text(format.description)
-                                                    .font(IPTypography.labelSmall)
-                                                    .foregroundStyle(.white.opacity(0.4))
-                                            }
-
-                                            Spacer()
-                                        }
-                                        .padding(IPTheme.spacing12)
-                                        .background(
-                                            viewModel.responseFormat == format
-                                                ? IPTheme.brand.opacity(0.1)
-                                                : Color.clear,
-                                            in: RoundedRectangle(cornerRadius: IPTheme.radiusSmall)
-                                        )
-                                    }
-                                }
-                            }
-                        }
-
-                        // Start button
-                        Button(action: {
-                            Task {
-                                await viewModel.prepareSession()
-                                showLiveSession = true
-                            }
-                        }) {
-                            HStack(spacing: IPTheme.spacing8) {
-                                if viewModel.isPreGenerating {
-                                    ProgressView()
-                                        .progressViewStyle(.circular)
-                                        .tint(.white)
-                                        .scaleEffect(0.8)
-                                } else {
-                                    Image(systemName: "mic.fill")
-                                        .font(.system(size: 18))
-                                }
-                                Text(viewModel.isPreGenerating ? "Preparing..." : "Start Interview Session")
-                                    .font(.system(size: 17, weight: .semibold))
-                            }
-                            .foregroundStyle(.white)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 16)
-                            .background(
-                                viewModel.isReady
-                                    ? AnyShapeStyle(IPTheme.brand.gradient)
-                                    : AnyShapeStyle(Color.gray.opacity(0.3)),
-                                in: RoundedRectangle(cornerRadius: IPTheme.radiusMedium)
-                            )
-                            .shadow(color: viewModel.isReady ? IPTheme.brand.opacity(0.4) : .clear, radius: 12, y: 6)
-                        }
-                        .disabled(!viewModel.isReady || viewModel.isPreGenerating)
-                        .sensoryFeedback(.impact(weight: .heavy), trigger: showLiveSession)
-                        .padding(.top, IPTheme.spacing8)
-
-                        // Pre-generation toggle
-                        if viewModel.isReady {
-                            HStack {
-                                Image(systemName: "bolt.fill")
-                                    .foregroundStyle(.yellow)
-                                Text("Pre-generate likely questions?")
-                                    .font(IPTypography.bodyMedium)
-                                    .foregroundStyle(.white.opacity(0.7))
-                                Spacer()
-                                Toggle("", isOn: $viewModel.shouldPreGenerate)
-                                    .tint(IPTheme.brand)
-                            }
-                            .padding(IPTheme.spacing16)
-                            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: IPTheme.radiusMedium))
-                            .transition(.opacity.combined(with: .move(edge: .bottom)))
-                        }
-
-                        // Error display
                         if let error = viewModel.errorMessage {
-                            Text(error)
-                                .font(IPTypography.bodyMedium)
+                            Label(error, systemImage: "exclamationmark.triangle.fill")
+                                .font(IPTypography.bodySmall)
                                 .foregroundStyle(IPTheme.error)
-                                .padding(IPTheme.spacing12)
-                                .background(IPTheme.error.opacity(0.1), in: RoundedRectangle(cornerRadius: IPTheme.radiusSmall))
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(14)
+                                .background(IPTheme.error.opacity(0.10), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
                         }
                     }
-                    .padding(.horizontal, IPTheme.spacing16)
-                    .padding(.bottom, IPTheme.spacing24)
+                    .padding(.horizontal, IPTheme.spacing20)
+                    .padding(.top, IPTheme.spacing20)
+                    .padding(.bottom, 120)
                 }
+                .ipScrollablePage()
             }
-            .preferredColorScheme(.dark)
-            .fullScreenCover(isPresented: $showLiveSession) {
-                LiveSessionView(viewModel: viewModel.createLiveViewModel())
+            .navigationTitle("Prepare")
+            .navigationBarTitleDisplayMode(.large)
+            .safeAreaInset(edge: .bottom) {
+                startDock
+                    .padding(.horizontal, IPTheme.spacing16)
+                    .padding(.bottom, IPTheme.spacing8)
+            }
+            .fullScreenCover(item: $activeSessionMode) { mode in
+                switch mode {
+                case .liveInterview:
+                    LiveSessionView(viewModel: viewModel.createLiveViewModel())
+                case .voicePrep:
+                    PrepSessionView(viewModel: viewModel.createPrepViewModel())
+                }
             }
             .fileImporter(
                 isPresented: $showFilePicker,
@@ -251,57 +73,329 @@ struct SessionSetupView: View {
             }
         }
     }
-}
 
-// MARK: - Setup Card
-
-struct SetupCard<Content: View>: View {
-    let icon: String
-    let title: String
-    let subtitle: String
-    @ViewBuilder let content: Content
-
-    @State private var isExpanded = true
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: IPTheme.spacing12) {
-            Button(action: {
-                withAnimation(IPAnimations.standard) {
-                    isExpanded.toggle()
+    private var heroSection: some View {
+        IPPanel(tone: .accent(IPTheme.accent)) {
+            VStack(alignment: .leading, spacing: 16) {
+                HStack {
+                    IPStatusPill(title: viewModel.sessionMode.displayName, symbol: viewModel.sessionMode.icon)
+                    Spacer()
+                    if viewModel.hasResume && viewModel.hasJobDescription {
+                        IPStatusPill(title: "Ready", symbol: "checkmark.circle.fill", tint: IPTheme.success)
+                    }
                 }
-            }) {
-                HStack(spacing: IPTheme.spacing12) {
-                    Image(systemName: icon)
-                        .font(.system(size: 16))
-                        .foregroundStyle(IPTheme.brandLight)
-                        .frame(width: 32, height: 32)
-                        .background(IPTheme.brand.opacity(0.15), in: RoundedRectangle(cornerRadius: 8))
 
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(title)
+                Text("Build a cleaner interview workspace")
+                    .font(IPTypography.headlineLarge)
+                    .foregroundStyle(IPTheme.textPrimary)
+
+                Text("Choose between live assistance for a real interview or a voice-first mock interview, then anchor it to your resume and the job posting.")
+                    .font(IPTypography.bodyLarge)
+                    .foregroundStyle(IPTheme.textSecondary)
+
+                HStack(spacing: 10) {
+                    summaryPill("Resume", isReady: viewModel.hasResume)
+                    summaryPill("Job post", isReady: viewModel.hasJobDescription)
+                    summaryPill(viewModel.interviewType.displayName, isReady: true, tint: IPTheme.accentWarm)
+                }
+            }
+        }
+    }
+
+    private var modeSection: some View {
+        IPPanel {
+            VStack(alignment: .leading, spacing: 14) {
+                IPSectionHeader(
+                    eyebrow: "Step 1",
+                    title: "Choose the session style",
+                    subtitle: "Use live mode during a real interview, or voice prep when you want the app to act as the interviewer.",
+                    symbol: "switch.2"
+                )
+
+                HStack(spacing: 12) {
+                    ForEach(SessionMode.allCases) { mode in
+                        Button(action: {
+                            withAnimation(IPAnimations.standard) {
+                                viewModel.sessionMode = mode
+                            }
+                        }) {
+                            VStack(alignment: .leading, spacing: 12) {
+                                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                    .fill((viewModel.sessionMode == mode ? IPTheme.accent : IPTheme.surfaceTertiary).opacity(0.15))
+                                    .frame(width: 46, height: 46)
+                                    .overlay {
+                                        Image(systemName: mode.icon)
+                                            .font(.system(size: 18, weight: .semibold))
+                                            .foregroundStyle(viewModel.sessionMode == mode ? IPTheme.accent : IPTheme.textSecondary)
+                                    }
+
+                                Text(mode.displayName)
+                                    .font(IPTypography.bodyLarge)
+                                    .foregroundStyle(IPTheme.textPrimary)
+
+                                Text(mode.subtitle)
+                                    .font(IPTypography.bodySmall)
+                                    .foregroundStyle(IPTheme.textSecondary)
+                                    .fixedSize(horizontal: false, vertical: true)
+
+                                Spacer()
+
+                                Image(systemName: viewModel.sessionMode == mode ? "checkmark.circle.fill" : "circle")
+                                    .font(.system(size: 18, weight: .semibold))
+                                    .foregroundStyle(viewModel.sessionMode == mode ? IPTheme.accent : IPTheme.textTertiary)
+                            }
+                            .frame(maxWidth: .infinity, minHeight: 190, alignment: .topLeading)
+                            .padding(16)
+                            .background(
+                                (viewModel.sessionMode == mode ? IPTheme.accent.opacity(0.10) : Color.white.opacity(0.08)),
+                                in: RoundedRectangle(cornerRadius: 22, style: .continuous)
+                            )
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+        }
+    }
+
+    private var resumeSection: some View {
+        IPPanel {
+            VStack(alignment: .leading, spacing: 14) {
+                IPSectionHeader(
+                    eyebrow: "Step 2",
+                    title: "Add your resume",
+                    subtitle: "Upload a PDF or paste text so the app can tailor both answer suggestions and mock questions.",
+                    symbol: "doc.text.fill"
+                )
+
+                HStack(spacing: 10) {
+                    Button(action: { showFilePicker = true }) {
+                        Label(viewModel.hasResume ? "Replace PDF" : "Upload PDF", systemImage: "doc.badge.plus")
+                    }
+                    .buttonStyle(IPSecondaryButtonStyle())
+
+                    if viewModel.hasResume {
+                        IPStatusPill(title: "\(viewModel.resumeText.count) characters", symbol: "checkmark.circle.fill", tint: IPTheme.success)
+                    }
+                }
+
+                TextEditor(text: $viewModel.resumeText)
+                    .font(IPTypography.bodyMedium)
+                    .foregroundStyle(IPTheme.textPrimary)
+                    .scrollContentBackground(.hidden)
+                    .frame(minHeight: 160)
+                    .padding(12)
+                    .background(Color.white.opacity(0.16), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+            }
+        }
+    }
+
+    private var jobSection: some View {
+        IPPanel {
+            VStack(alignment: .leading, spacing: 14) {
+                IPSectionHeader(
+                    eyebrow: "Step 3",
+                    title: "Paste the job description",
+                    subtitle: "The full posting gives the app stronger signals for likely questions, technical areas, and framing.",
+                    symbol: "briefcase.fill"
+                )
+
+                TextEditor(text: $viewModel.jobDescription)
+                    .font(IPTypography.bodyMedium)
+                    .foregroundStyle(IPTheme.textPrimary)
+                    .scrollContentBackground(.hidden)
+                    .frame(minHeight: 180)
+                    .padding(12)
+                    .background(Color.white.opacity(0.16), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+
+                if !viewModel.jobDescription.isEmpty {
+                    let keywords = Array(JobDescriptionService.extractKeywords(from: viewModel.jobDescription).prefix(8))
+                    if !keywords.isEmpty {
+                        FlowLayout(spacing: 8) {
+                            ForEach(keywords, id: \.self) { keyword in
+                                Text(keyword)
+                                    .font(IPTypography.labelSmall)
+                                    .foregroundStyle(IPTheme.textPrimary)
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 8)
+                                    .background(IPTheme.accent.opacity(0.10), in: Capsule())
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private var interviewTypeSection: some View {
+        IPPanel {
+            VStack(alignment: .leading, spacing: 14) {
+                IPSectionHeader(
+                    eyebrow: "Step 4",
+                    title: "Set the interview focus",
+                    subtitle: "Bias the app toward the style of interview you expect so the generated answers and prep questions stay relevant.",
+                    symbol: "target"
+                )
+
+                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+                    ForEach(InterviewType.allCases, id: \.self) { type in
+                        Button(action: {
+                            withAnimation(IPAnimations.snappy) {
+                                viewModel.interviewType = type
+                            }
+                        }) {
+                            VStack(alignment: .leading, spacing: 10) {
+                                Image(systemName: interviewTypeIcon(for: type))
+                                    .font(.system(size: 17, weight: .semibold))
+                                    .foregroundStyle(viewModel.interviewType == type ? IPTheme.accent : IPTheme.textSecondary)
+
+                                Text(type.displayName)
+                                    .font(IPTypography.bodyLarge)
+                                    .foregroundStyle(IPTheme.textPrimary)
+                            }
+                            .frame(maxWidth: .infinity, minHeight: 78, alignment: .topLeading)
+                            .padding(14)
+                            .background(
+                                (viewModel.interviewType == type ? IPTheme.accent.opacity(0.10) : Color.white.opacity(0.08)),
+                                in: RoundedRectangle(cornerRadius: 18, style: .continuous)
+                            )
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+        }
+    }
+
+    private var responseFormatSection: some View {
+        IPPanel {
+            VStack(alignment: .leading, spacing: 14) {
+                IPSectionHeader(
+                    eyebrow: "Step 5",
+                    title: "Choose how answers are shown",
+                    subtitle: "Live mode can render complete scripts, compact bullets, or a hybrid blend.",
+                    symbol: "text.alignleft"
+                )
+
+                VStack(spacing: 10) {
+                    ForEach(ResponseFormat.allCases, id: \.self) { format in
+                        Button(action: {
+                            withAnimation(IPAnimations.snappy) {
+                                viewModel.responseFormat = format
+                            }
+                        }) {
+                            HStack(spacing: 12) {
+                                Image(systemName: viewModel.responseFormat == format ? "checkmark.circle.fill" : "circle")
+                                    .font(.system(size: 18, weight: .semibold))
+                                    .foregroundStyle(viewModel.responseFormat == format ? IPTheme.accent : IPTheme.textTertiary)
+
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(format.displayName)
+                                        .font(IPTypography.bodyLarge)
+                                        .foregroundStyle(IPTheme.textPrimary)
+                                    Text(format.description)
+                                        .font(IPTypography.bodySmall)
+                                        .foregroundStyle(IPTheme.textSecondary)
+                                }
+
+                                Spacer()
+                            }
+                            .padding(14)
+                            .background(
+                                (viewModel.responseFormat == format ? IPTheme.accent.opacity(0.10) : Color.white.opacity(0.08)),
+                                in: RoundedRectangle(cornerRadius: 18, style: .continuous)
+                            )
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+        }
+    }
+
+    private var preGenerationSection: some View {
+        IPPanel {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Pre-generate likely questions")
                             .font(IPTypography.bodyLarge)
-                            .fontWeight(.semibold)
-                            .foregroundStyle(.white)
-                        Text(subtitle)
-                            .font(IPTypography.labelSmall)
-                            .foregroundStyle(.white.opacity(0.4))
+                            .foregroundStyle(IPTheme.textPrimary)
+
+                        Text("Turn this on to build a fast response bank before the interview starts.")
+                            .font(IPTypography.bodySmall)
+                            .foregroundStyle(IPTheme.textSecondary)
                     }
 
                     Spacer()
 
-                    Image(systemName: "chevron.down")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(.white.opacity(0.3))
-                        .rotationEffect(.degrees(isExpanded ? 0 : -90))
+                    Toggle("", isOn: $viewModel.shouldPreGenerate)
+                        .labelsHidden()
+                        .tint(IPTheme.accent)
+                }
+
+                if viewModel.isPreGenerating || !viewModel.preComputedAnswers.isEmpty {
+                    PreGenerationView(
+                        progress: viewModel.preGenProgress,
+                        answers: viewModel.preComputedAnswers,
+                        isGenerating: viewModel.isPreGenerating
+                    )
                 }
             }
+        }
+    }
 
-            if isExpanded {
-                content
-                    .transition(.opacity.combined(with: .move(edge: .top)))
+    private var startDock: some View {
+        IPPanel(tone: .accent(IPTheme.accent), padding: IPTheme.spacing16, cornerRadius: IPTheme.radiusXL) {
+            VStack(alignment: .leading, spacing: 12) {
+                Text(viewModel.isReady ? "Everything is ready." : "Add your resume and the job description to continue.")
+                    .font(IPTypography.bodySmall)
+                    .foregroundStyle(IPTheme.textSecondary)
+
+                Button(action: startSession) {
+                    HStack(spacing: 10) {
+                        if viewModel.isPreGenerating {
+                            ProgressView()
+                                .tint(.white)
+                        } else {
+                            Image(systemName: viewModel.sessionMode == .voicePrep ? "person.wave.2.fill" : "mic.fill")
+                                .symbolEffect(.pulse, isActive: viewModel.isReady)
+                        }
+
+                        Text(viewModel.isPreGenerating ? "Preparing..." : viewModel.sessionMode.startButtonTitle)
+                    }
+                }
+                .buttonStyle(IPPrimaryButtonStyle(isEnabled: viewModel.isReady && !viewModel.isPreGenerating))
+                .disabled(!viewModel.isReady || viewModel.isPreGenerating)
             }
         }
-        .padding(IPTheme.spacing16)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: IPTheme.radiusLarge))
+    }
+
+    private func startSession() {
+        Task {
+            await viewModel.prepareSession()
+            guard viewModel.errorMessage == nil else { return }
+            activeSessionMode = viewModel.sessionMode
+        }
+    }
+
+    private func summaryPill(_ title: String, isReady: Bool, tint: Color = IPTheme.accent) -> some View {
+        Label(title, systemImage: isReady ? "checkmark.circle.fill" : "circle")
+            .font(IPTypography.labelSmall)
+            .foregroundStyle(isReady ? tint : IPTheme.textSecondary)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background((isReady ? tint : IPTheme.surfaceTertiary).opacity(0.12), in: Capsule())
+    }
+
+    private func interviewTypeIcon(for type: InterviewType) -> String {
+        switch type {
+        case .behavioral: return "person.2.fill"
+        case .technical: return "terminal.fill"
+        case .systemDesign: return "server.rack"
+        case .caseStudy: return "doc.text.magnifyingglass"
+        case .hrScreen: return "person.text.rectangle.fill"
+        case .general: return "square.grid.2x2.fill"
+        }
     }
 }

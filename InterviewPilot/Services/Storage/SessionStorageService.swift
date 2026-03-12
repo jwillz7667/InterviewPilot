@@ -3,7 +3,11 @@ import SwiftData
 
 @Observable
 final class SessionStorageService {
+    static let shared = SessionStorageService()
+
     private var modelContext: ModelContext?
+
+    private init() {}
 
     func configure(with context: ModelContext) {
         self.modelContext = context
@@ -11,6 +15,10 @@ final class SessionStorageService {
 
     func saveSession(_ session: InterviewSession) {
         modelContext?.insert(session)
+        saveChanges()
+    }
+
+    func saveChanges() {
         try? modelContext?.save()
     }
 
@@ -23,6 +31,6 @@ final class SessionStorageService {
 
     func deleteSession(_ session: InterviewSession) {
         modelContext?.delete(session)
-        try? modelContext?.save()
+        saveChanges()
     }
 }

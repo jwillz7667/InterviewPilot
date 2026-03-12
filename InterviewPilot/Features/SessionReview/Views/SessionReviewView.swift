@@ -7,41 +7,57 @@ struct SessionReviewView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Color(IPTheme.backgroundTop).ignoresSafeArea()
+                IPAppBackground()
 
                 ScrollView {
                     VStack(spacing: IPTheme.spacing20) {
-                        // Stats overview
+                        headerSection
                         statsSection
+                        PerformanceView(exchanges: viewModel.exchanges)
 
-                        // Question type breakdown
                         if !viewModel.questionTypeBreakdown.isEmpty {
                             questionTypeSection
                         }
 
-                        // Exchanges list
                         exchangesSection
                     }
-                    .padding(.horizontal, IPTheme.spacing16)
-                    .padding(.vertical, IPTheme.spacing16)
+                    .padding(.horizontal, IPTheme.spacing20)
+                    .padding(.vertical, IPTheme.spacing20)
                 }
+                .ipScrollablePage()
             }
-            .preferredColorScheme(.dark)
             .navigationTitle("Session Review")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Done") { dismiss() }
-                        .foregroundStyle(IPTheme.brandLight)
+                        .foregroundStyle(IPTheme.accent)
                 }
             }
         }
     }
 
-    // MARK: - Stats
+    private var headerSection: some View {
+        IPPanel(tone: .accent(IPTheme.accent)) {
+            VStack(alignment: .leading, spacing: 16) {
+                IPSectionHeader(
+                    eyebrow: "Summary",
+                    title: viewModel.interviewType.displayName,
+                    subtitle: "A polished recap of the interview session with timing, question mix, and answer output.",
+                    symbol: "chart.xyaxis.line"
+                )
+
+                HStack(spacing: 10) {
+                    IPStatusPill(title: viewModel.formattedDuration, symbol: "clock.fill")
+                    IPStatusPill(title: "\(viewModel.exchanges.count) exchanges", symbol: "text.bubble.fill")
+                    IPStatusPill(title: "\(viewModel.averageLatency) ms avg", symbol: "bolt.fill", tint: IPTheme.accentWarm)
+                }
+            }
+        }
+    }
 
     private var statsSection: some View {
-        HStack(spacing: IPTheme.spacing12) {
+        HStack(spacing: 12) {
             statCard(title: "Duration", value: viewModel.formattedDuration, icon: "clock.fill")
             statCard(title: "Questions", value: "\(viewModel.exchanges.count)", icon: "questionmark.bubble.fill")
             statCard(title: "Avg Latency", value: "\(viewModel.averageLatency)ms", icon: "bolt.fill")
@@ -49,61 +65,57 @@ struct SessionReviewView: View {
     }
 
     private func statCard(title: String, value: String, icon: String) -> some View {
-        VStack(spacing: IPTheme.spacing4) {
-            Image(systemName: icon)
-                .font(.system(size: 16))
-                .foregroundStyle(IPTheme.brandLight)
+        IPPanel(tone: .secondary, padding: IPTheme.spacing16, cornerRadius: IPTheme.radiusMedium) {
+            VStack(spacing: 10) {
+                Image(systemName: icon)
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(IPTheme.accent)
 
-            Text(value)
-                .font(IPTypography.headlineMedium)
-                .foregroundStyle(.white)
+                Text(value)
+                    .font(IPTypography.headlineSmall)
+                    .foregroundStyle(IPTheme.textPrimary)
+                    .minimumScaleFactor(0.8)
 
-            Text(title)
-                .font(IPTypography.labelSmall)
-                .foregroundStyle(.white.opacity(0.4))
+                Text(title)
+                    .font(IPTypography.bodySmall)
+                    .foregroundStyle(IPTheme.textSecondary)
+            }
+            .frame(maxWidth: .infinity)
         }
-        .frame(maxWidth: .infinity)
-        .padding(IPTheme.spacing12)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: IPTheme.radiusMedium))
     }
-
-    // MARK: - Question Types
 
     private var questionTypeSection: some View {
-        VStack(alignment: .leading, spacing: IPTheme.spacing8) {
-            Text("Question Types")
-                .font(IPTypography.headlineSmall)
-                .foregroundStyle(.white)
+        IPPanel {
+            VStack(alignment: .leading, spacing: 14) {
+                Text("Question types")
+                    .font(IPTypography.headlineSmall)
+                    .foregroundStyle(IPTheme.textPrimary)
 
-            ForEach(viewModel.questionTypeBreakdown, id: \.0) { type, count in
-                HStack {
-                    Text(type.displayName)
-                        .font(IPTypography.bodyMedium)
-                        .foregroundStyle(.white)
+                ForEach(viewModel.questionTypeBreakdown, id: \.0) { type, count in
+                    HStack {
+                        Text(type.displayName)
+                            .font(IPTypography.bodyMedium)
+                            .foregroundStyle(IPTheme.textPrimary)
 
-                    Spacer()
+                        Spacer()
 
-                    Text("\(count)")
-                        .font(IPTypography.bodyMedium)
-                        .foregroundStyle(.white.opacity(0.6))
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 2)
-                        .background(IPTheme.questionTypeColor(type).opacity(0.3), in: Capsule())
+                        Text("\(count)")
+                            .font(IPTypography.labelMedium)
+                            .foregroundStyle(IPTheme.questionTypeColor(type))
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .background(IPTheme.questionTypeColor(type).opacity(0.12), in: Capsule())
+                    }
                 }
-                .padding(.vertical, 4)
             }
         }
-        .padding(IPTheme.spacing16)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: IPTheme.radiusLarge))
     }
 
-    // MARK: - Exchanges
-
     private var exchangesSection: some View {
-        VStack(alignment: .leading, spacing: IPTheme.spacing12) {
-            Text("Interview Exchanges")
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Interview exchanges")
                 .font(IPTypography.headlineSmall)
-                .foregroundStyle(.white)
+                .foregroundStyle(IPTheme.textPrimary)
 
             ForEach(viewModel.exchanges) { exchange in
                 ExchangeDetailView(exchange: exchange)

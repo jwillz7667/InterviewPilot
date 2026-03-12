@@ -3,76 +3,124 @@ import SwiftUI
 struct SettingsView: View {
     @State private var authService = AuthService.shared
     @State private var showSignOutConfirm = false
+    @AppStorage("appAppearance") private var appearanceRawValue = AppAppearance.system.rawValue
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         NavigationStack {
             ZStack {
-                Color(IPTheme.backgroundTop).ignoresSafeArea()
+                IPAppBackground()
 
                 ScrollView {
-                    VStack(spacing: IPTheme.spacing16) {
-                        // Account Section
-                        VStack(alignment: .leading, spacing: IPTheme.spacing16) {
-                            Text("Account")
-                                .font(IPTypography.headlineSmall)
-                                .foregroundStyle(.white)
-
-                            VStack(alignment: .leading, spacing: IPTheme.spacing12) {
-                                if let user = authService.currentUser {
-                                    accountRow(
-                                        icon: "person.circle.fill",
-                                        title: user.displayName ?? "User",
-                                        detail: user.email
-                                    )
-                                }
-
-                                accountRow(
-                                    icon: "checkmark.shield.fill",
-                                    title: "Status",
-                                    detail: "Signed in"
+                    VStack(spacing: IPTheme.spacing20) {
+                        IPPanel(tone: .secondary) {
+                            VStack(alignment: .leading, spacing: 18) {
+                                IPSectionHeader(
+                                    eyebrow: "Preferences",
+                                    title: "Settings",
+                                    subtitle: "Control app appearance and review account details without breaking the visual rhythm across screens.",
+                                    symbol: "slider.horizontal.3"
                                 )
+
+                                if let user = authService.currentUser {
+                                    HStack(spacing: 14) {
+                                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                            .fill(IPTheme.accent.opacity(0.12))
+                                            .frame(width: 54, height: 54)
+                                            .overlay {
+                                                Image(systemName: "person.crop.circle.fill")
+                                                    .font(.system(size: 24))
+                                                    .foregroundStyle(IPTheme.accent)
+                                            }
+
+                                        VStack(alignment: .leading, spacing: 3) {
+                                            Text(user.displayName ?? "InterviewPilot User")
+                                                .font(IPTypography.headlineSmall)
+                                                .foregroundStyle(IPTheme.textPrimary)
+
+                                            Text(user.email)
+                                                .font(IPTypography.bodyMedium)
+                                                .foregroundStyle(IPTheme.textSecondary)
+                                        }
+                                    }
+                                }
                             }
                         }
-                        .padding(.horizontal, IPTheme.spacing16)
 
-                        // Info section
-                        VStack(alignment: .leading, spacing: IPTheme.spacing12) {
-                            Text("About")
-                                .font(IPTypography.headlineSmall)
-                                .foregroundStyle(.white)
+                        IPPanel {
+                            VStack(alignment: .leading, spacing: 14) {
+                                Text("Appearance")
+                                    .font(IPTypography.headlineSmall)
+                                    .foregroundStyle(IPTheme.textPrimary)
 
-                            infoRow(icon: "lock.shield.fill", title: "Security", detail: "Auth tokens stored in iOS Keychain")
-                            infoRow(icon: "wifi", title: "Network", detail: "Requires internet for live sessions")
-                            infoRow(icon: "server.rack", title: "AI Services", detail: "Powered by Deepgram Nova-3 & OpenAI GPT-4.1")
+                                ForEach(AppAppearance.allCases) { appearance in
+                                    Button(action: { appearanceRawValue = appearance.rawValue }) {
+                                        HStack(spacing: 14) {
+                                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                                .fill((currentAppearance == appearance ? IPTheme.accent : IPTheme.surfaceTertiary).opacity(0.18))
+                                                .frame(width: 42, height: 42)
+                                                .overlay {
+                                                    Image(systemName: appearance.symbol)
+                                                        .font(.system(size: 17, weight: .semibold))
+                                                        .foregroundStyle(currentAppearance == appearance ? IPTheme.accent : IPTheme.textSecondary)
+                                                }
+
+                                            VStack(alignment: .leading, spacing: 2) {
+                                                Text(appearance.title)
+                                                    .font(IPTypography.bodyLarge)
+                                                    .foregroundStyle(IPTheme.textPrimary)
+                                                Text(appearance.subtitle)
+                                                    .font(IPTypography.bodySmall)
+                                                    .foregroundStyle(IPTheme.textSecondary)
+                                            }
+
+                                            Spacer()
+
+                                            Image(systemName: currentAppearance == appearance ? "checkmark.circle.fill" : "circle")
+                                                .font(.system(size: 18, weight: .semibold))
+                                                .foregroundStyle(currentAppearance == appearance ? IPTheme.accent : IPTheme.textTertiary)
+                                        }
+                                        .padding(14)
+                                        .background(
+                                            (currentAppearance == appearance ? IPTheme.accent.opacity(0.10) : Color.white.opacity(0.08)),
+                                            in: RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                        )
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
                         }
-                        .padding(.horizontal, IPTheme.spacing16)
 
-                        // Sign Out
+                        IPPanel {
+                            VStack(alignment: .leading, spacing: 14) {
+                                Text("About")
+                                    .font(IPTypography.headlineSmall)
+                                    .foregroundStyle(IPTheme.textPrimary)
+
+                                infoRow(icon: "lock.shield.fill", title: "Security", detail: "Authentication tokens are stored in the iOS Keychain.")
+                                infoRow(icon: "antenna.radiowaves.left.and.right", title: "Connectivity", detail: "Live interview and voice prep need network access.")
+                                infoRow(icon: "waveform.badge.magnifyingglass", title: "Speech stack", detail: "Live mode keeps the current interview configuration. Voice Prep uses realtime speech-to-speech.")
+                            }
+                        }
+
                         Button(action: { showSignOutConfirm = true }) {
-                            HStack {
-                                Image(systemName: "rectangle.portrait.and.arrow.right")
-                                Text("Sign Out")
-                            }
-                            .font(.system(size: 16, weight: .medium))
-                            .foregroundStyle(IPTheme.error)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 14)
-                            .background(IPTheme.error.opacity(0.1), in: RoundedRectangle(cornerRadius: IPTheme.radiusMedium))
+                            Label("Sign Out", systemImage: "rectangle.portrait.and.arrow.right")
+                                .frame(maxWidth: .infinity)
                         }
-                        .padding(.horizontal, IPTheme.spacing16)
-                        .padding(.top, IPTheme.spacing8)
+                        .buttonStyle(IPPrimaryButtonStyle(isEnabled: true, tint: IPTheme.error))
+                        .padding(.top, 4)
                     }
-                    .padding(.top, IPTheme.spacing16)
+                    .padding(.horizontal, IPTheme.spacing20)
+                    .padding(.vertical, IPTheme.spacing20)
                 }
+                .ipScrollablePage()
             }
-            .preferredColorScheme(.dark)
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Done") { dismiss() }
-                        .foregroundStyle(IPTheme.brandLight)
+                        .foregroundStyle(IPTheme.accent)
                 }
             }
             .confirmationDialog("Sign Out", isPresented: $showSignOutConfirm) {
@@ -85,46 +133,31 @@ struct SettingsView: View {
         }
     }
 
-    private func accountRow(icon: String, title: String, detail: String) -> some View {
-        HStack(spacing: IPTheme.spacing12) {
-            Image(systemName: icon)
-                .font(.system(size: 20))
-                .foregroundStyle(IPTheme.brand)
-                .frame(width: 28, height: 28)
-
-            VStack(alignment: .leading, spacing: 1) {
-                Text(title)
-                    .font(IPTypography.bodyLarge)
-                    .fontWeight(.medium)
-                    .foregroundStyle(.white)
-                Text(detail)
-                    .font(IPTypography.labelSmall)
-                    .foregroundStyle(.white.opacity(0.5))
-            }
-            Spacer()
-        }
-        .padding(IPTheme.spacing16)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: IPTheme.radiusLarge))
+    private var currentAppearance: AppAppearance {
+        AppAppearance(rawValue: appearanceRawValue) ?? .system
     }
 
     private func infoRow(icon: String, title: String, detail: String) -> some View {
-        HStack(spacing: IPTheme.spacing12) {
-            Image(systemName: icon)
-                .font(.system(size: 16))
-                .foregroundStyle(IPTheme.brandLight)
-                .frame(width: 28, height: 28)
+        HStack(spacing: 12) {
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(IPTheme.accent.opacity(0.10))
+                .frame(width: 40, height: 40)
+                .overlay {
+                    Image(systemName: icon)
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(IPTheme.accent)
+                }
 
-            VStack(alignment: .leading, spacing: 1) {
+            VStack(alignment: .leading, spacing: 2) {
                 Text(title)
-                    .font(IPTypography.bodyMedium)
-                    .foregroundStyle(.white)
+                    .font(IPTypography.bodyLarge)
+                    .foregroundStyle(IPTheme.textPrimary)
                 Text(detail)
-                    .font(IPTypography.labelSmall)
-                    .foregroundStyle(.white.opacity(0.4))
+                    .font(IPTypography.bodySmall)
+                    .foregroundStyle(IPTheme.textSecondary)
             }
+
+            Spacer()
         }
-        .padding(IPTheme.spacing12)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: IPTheme.radiusMedium))
     }
 }

@@ -4,40 +4,57 @@ struct ContentView: View {
     @State private var authService = AuthService.shared
     @State private var showSettings = false
     @State private var selectedTab = 0
+    @AppStorage("appAppearance") private var appearanceRawValue = AppAppearance.system.rawValue
+    @Environment(\.modelContext) private var modelContext
 
     var body: some View {
-        if !authService.isAuthenticated {
-            LoginView()
-        } else {
-            TabView(selection: $selectedTab) {
-                Tab("Interview", systemImage: "mic.fill", value: 0) {
-                    SessionSetupView()
-                }
+        Group {
+            if !authService.isAuthenticated {
+                LoginView()
+            } else {
+                TabView(selection: $selectedTab) {
+                    Tab("Prepare", systemImage: "mic.badge.plus", value: 0) {
+                        SessionSetupView()
+                    }
 
-                Tab("History", systemImage: "clock.arrow.circlepath", value: 1) {
-                    NavigationStack {
-                        SessionHistoryView()
-                            .navigationTitle("History")
-                            .toolbar {
-                                ToolbarItem(placement: .topBarTrailing) {
-                                    Button(action: { showSettings = true }) {
-                                        Image(systemName: "gearshape.fill")
-                                            .foregroundStyle(.white.opacity(0.6))
+                    Tab("History", systemImage: "clock.arrow.circlepath", value: 1) {
+                        NavigationStack {
+                            SessionHistoryView()
+                                .navigationTitle("History")
+                                .navigationBarTitleDisplayMode(.large)
+                                .toolbar {
+                                    ToolbarItem(placement: .topBarTrailing) {
+                                        Button(action: { showSettings = true }) {
+                                            Image(systemName: "gearshape.2.fill")
+                                                .font(.system(size: 16, weight: .semibold))
+                                                .foregroundStyle(IPTheme.textSecondary)
+                                        }
                                     }
                                 }
-                            }
+                        }
+                    }
+
+                    Tab("Settings", systemImage: "slider.horizontal.3", value: 2) {
+                        SettingsView()
                     }
                 }
-
-                Tab("Settings", systemImage: "gearshape.fill", value: 2) {
+                .tabBarMinimizeBehavior(.onScrollDown)
+                .tabViewBottomAccessory {
+                    IPTabAccessory(selectedTab: selectedTab)
+                }
+                .tint(IPTheme.accent)
+                .sheet(isPresented: $showSettings) {
                     SettingsView()
                 }
             }
-            .preferredColorScheme(.dark)
-            .tint(IPTheme.brand)
-            .sheet(isPresented: $showSettings) {
-                SettingsView()
-            }
         }
+        .preferredColorScheme(appAppearance.colorScheme)
+        .onAppear {
+            SessionStorageService.shared.configure(with: modelContext)
+        }
+    }
+
+    private var appAppearance: AppAppearance {
+        AppAppearance(rawValue: appearanceRawValue) ?? .system
     }
 }

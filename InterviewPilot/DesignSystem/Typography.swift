@@ -1,25 +1,22 @@
 import SwiftUI
 
 enum IPTypography {
-    // Display — Timer, big numbers
-    static let displayLarge = Font.system(size: 48, weight: .bold, design: .rounded)
+    static let displayLarge = Font.system(size: 44, weight: .bold, design: .rounded)
+    static let displayMedium = Font.system(size: 34, weight: .bold, design: .rounded)
 
-    // Headings
-    static let headlineLarge = Font.system(.title, design: .default, weight: .bold)
-    static let headlineMedium = Font.system(.title2, design: .default, weight: .semibold)
-    static let headlineSmall = Font.system(.title3, design: .default, weight: .semibold)
+    static let headlineLarge = Font.system(.largeTitle, design: .rounded, weight: .bold)
+    static let headlineMedium = Font.system(.title2, design: .rounded, weight: .semibold)
+    static let headlineSmall = Font.system(.title3, design: .rounded, weight: .semibold)
 
-    // Body — Transcript and response text
-    static let bodyLarge = Font.system(.body, design: .default, weight: .regular)
-    static let bodyMedium = Font.system(.callout, design: .default, weight: .regular)
+    static let bodyLarge = Font.system(.body, design: .rounded, weight: .medium)
+    static let bodyMedium = Font.system(.callout, design: .rounded, weight: .regular)
+    static let bodySmall = Font.system(.footnote, design: .rounded, weight: .regular)
 
-    // Response text — slightly larger for readability at a glance
-    static let responseText = Font.system(size: 18, weight: .medium, design: .default)
+    static let responseText = Font.system(size: 19, weight: .medium, design: .rounded)
 
-    // Labels
-    static let labelMedium = Font.system(.footnote, design: .default, weight: .medium)
-    static let labelSmall = Font.system(.caption, design: .default, weight: .medium)
+    static let labelLarge = Font.system(.subheadline, design: .rounded, weight: .semibold)
+    static let labelMedium = Font.system(.footnote, design: .rounded, weight: .semibold)
+    static let labelSmall = Font.system(.caption, design: .rounded, weight: .semibold)
 
-    // Timer
-    static let timer = Font.system(size: 14, weight: .medium, design: .monospaced)
+    static let timer = Font.system(size: 14, weight: .semibold, design: .monospaced)
 }

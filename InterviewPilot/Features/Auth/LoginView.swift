@@ -11,7 +11,7 @@ struct LoginView: View {
     var body: some View {
         if !hasSeenOnboarding {
             OnboardingView {
-                withAnimation(IPAnimations.standard) {
+                withAnimation(IPAnimations.hero) {
                     hasSeenOnboarding = true
                 }
             }
@@ -21,108 +21,141 @@ struct LoginView: View {
     }
 
     private var loginForm: some View {
-        ZStack {
-            Color(IPTheme.backgroundTop).ignoresSafeArea()
+        NavigationStack {
+            ZStack {
+                IPAppBackground()
 
-            ScrollView {
-                VStack(spacing: IPTheme.spacing24) {
-                    Spacer().frame(height: 40)
+                ScrollView {
+                    VStack(spacing: IPTheme.spacing24) {
+                        heroSection
 
-                    // Logo
-                    VStack(spacing: IPTheme.spacing12) {
-                        Image(systemName: "mic.badge.xmark")
-                            .font(.system(size: 56))
-                            .foregroundStyle(IPTheme.brand.gradient)
+                        IPPanel(tone: .accent(IPTheme.accent)) {
+                            VStack(spacing: 18) {
+                                if isRegistering {
+                                    authField(
+                                        title: "Display name",
+                                        placeholder: "How should we label your sessions?",
+                                        text: $displayName,
+                                        icon: "person.text.rectangle"
+                                    )
+                                }
 
-                        Text("InterviewPilot")
-                            .font(IPTypography.headlineLarge)
-                            .foregroundStyle(.white)
+                                authField(
+                                    title: "Email",
+                                    placeholder: "name@company.com",
+                                    text: $email,
+                                    icon: "envelope.badge"
+                                )
+                                .textInputAutocapitalization(.never)
+                                .keyboardType(.emailAddress)
 
-                        Text("Real-time AI interview assistant")
-                            .font(IPTypography.bodyMedium)
-                            .foregroundStyle(.white.opacity(0.5))
-                    }
-                    .padding(.bottom, IPTheme.spacing16)
+                                secureAuthField(
+                                    title: "Password",
+                                    placeholder: "At least 8 characters",
+                                    text: $password,
+                                    icon: "lock.shield"
+                                )
 
-                    // Form
-                    VStack(spacing: IPTheme.spacing16) {
-                        if isRegistering {
-                            formField(
-                                icon: "person",
-                                placeholder: "Display Name (optional)",
-                                text: $displayName,
-                                isSecure: false
-                            )
-                        }
+                                if let error = authService.errorMessage {
+                                    Label(error, systemImage: "exclamationmark.triangle.fill")
+                                        .font(IPTypography.bodySmall)
+                                        .foregroundStyle(IPTheme.error)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                        .padding(12)
+                                        .background(IPTheme.error.opacity(0.10), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                                }
 
-                        formField(
-                            icon: "envelope",
-                            placeholder: "Email",
-                            text: $email,
-                            isSecure: false
-                        )
-                        .textInputAutocapitalization(.never)
-                        .keyboardType(.emailAddress)
+                                Button(action: submit) {
+                                    HStack(spacing: 10) {
+                                        if authService.isLoading {
+                                            ProgressView()
+                                                .tint(.white)
+                                        } else {
+                                            Image(systemName: isRegistering ? "person.crop.circle.badge.plus" : "arrow.right.circle.fill")
+                                                .symbolEffect(.bounce, value: isRegistering)
 
-                        formField(
-                            icon: "lock",
-                            placeholder: "Password",
-                            text: $password,
-                            isSecure: true
-                        )
-                    }
-                    .padding(.horizontal, IPTheme.spacing16)
+                                            Text(isRegistering ? "Create Account" : "Sign In")
+                                        }
+                                    }
+                                }
+                                .buttonStyle(IPPrimaryButtonStyle(isEnabled: canSubmit && !authService.isLoading))
+                                .disabled(!canSubmit || authService.isLoading)
 
-                    // Error message
-                    if let error = authService.errorMessage {
-                        Text(error)
-                            .font(IPTypography.bodyMedium)
-                            .foregroundStyle(IPTheme.error)
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal, IPTheme.spacing16)
-                    }
-
-                    // Submit button
-                    Button(action: submit) {
-                        Group {
-                            if authService.isLoading {
-                                ProgressView()
-                                    .tint(.white)
-                            } else {
-                                Text(isRegistering ? "Create Account" : "Sign In")
-                                    .font(.system(size: 17, weight: .semibold))
+                                Button(action: {
+                                    withAnimation(IPAnimations.standard) {
+                                        isRegistering.toggle()
+                                        authService.errorMessage = nil
+                                    }
+                                }) {
+                                    Text(isRegistering ? "Already have an account? Sign In" : "Need an account? Sign Up")
+                                }
+                                .buttonStyle(IPSecondaryButtonStyle())
                             }
                         }
-                        .foregroundStyle(.white)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 16)
-                        .background(
-                            canSubmit
-                                ? AnyShapeStyle(IPTheme.brand.gradient)
-                                : AnyShapeStyle(Color.white.opacity(0.1)),
-                            in: RoundedRectangle(cornerRadius: IPTheme.radiusMedium)
-                        )
                     }
-                    .disabled(!canSubmit || authService.isLoading)
-                    .padding(.horizontal, IPTheme.spacing16)
+                    .padding(.horizontal, IPTheme.spacing20)
+                    .padding(.vertical, IPTheme.spacing24)
+                }
+                .ipScrollablePage()
+            }
+        }
+    }
 
-                    // Toggle mode
-                    Button(action: {
-                        withAnimation(IPAnimations.standard) {
-                            isRegistering.toggle()
-                            authService.errorMessage = nil
-                        }
-                    }) {
-                        Text(isRegistering
-                             ? "Already have an account? **Sign In**"
-                             : "Don't have an account? **Sign Up**")
-                            .font(IPTypography.bodyMedium)
-                            .foregroundStyle(.white.opacity(0.6))
+    private var heroSection: some View {
+        IPPanel(tone: .secondary) {
+            VStack(alignment: .leading, spacing: 18) {
+                HStack {
+                    IPStatusPill(title: isRegistering ? "Create workspace" : "Secure sign in", symbol: "lock.fill")
+                    Spacer()
+                    IPStatusPill(title: "Live + Prep", symbol: "sparkles", tint: IPTheme.accentWarm)
+                }
+
+                HStack(alignment: .top, spacing: 16) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 24, style: .continuous)
+                            .fill(
+                                LinearGradient(
+                                    colors: [IPTheme.accent, IPTheme.accentSecondary],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                            .frame(width: 70, height: 70)
+
+                        Image(systemName: "mic.and.signal.meter.fill")
+                            .font(.system(size: 30, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .symbolEffect(.pulse, isActive: true)
                     }
+
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("InterviewPilot")
+                            .font(IPTypography.displayMedium)
+                            .foregroundStyle(IPTheme.textPrimary)
+
+                        Text("Real-time interview assistance with a clean voice prep workflow and live in-call support.")
+                            .font(IPTypography.bodyLarge)
+                            .foregroundStyle(IPTheme.textSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+
+                HStack(spacing: 10) {
+                    featurePill("Resume aware", symbol: "doc.text.fill")
+                    featurePill("Realtime prep", symbol: "person.wave.2.fill")
+                    featurePill("Low latency", symbol: "bolt.fill")
                 }
             }
         }
-        .preferredColorScheme(.dark)
+    }
+
+    private func featurePill(_ title: String, symbol: String) -> some View {
+        Label(title, systemImage: symbol)
+            .font(IPTypography.labelSmall)
+            .foregroundStyle(IPTheme.textSecondary)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(Color.white.opacity(0.12), in: Capsule())
     }
 
     private var canSubmit: Bool {
@@ -147,31 +180,37 @@ struct LoginView: View {
         }
     }
 
-    @ViewBuilder
-    private func formField(
-        icon: String,
+    private func authField(
+        title: String,
         placeholder: String,
         text: Binding<String>,
-        isSecure: Bool
+        icon: String
     ) -> some View {
-        HStack(spacing: IPTheme.spacing12) {
-            Image(systemName: icon)
-                .foregroundStyle(.white.opacity(0.4))
-                .frame(width: 20)
-
-            if isSecure {
-                SecureField(placeholder, text: text)
-                    .font(IPTypography.bodyMedium)
-                    .foregroundStyle(.white)
-                    .autocorrectionDisabled()
-            } else {
-                TextField(placeholder, text: text)
-                    .font(IPTypography.bodyMedium)
-                    .foregroundStyle(.white)
-                    .autocorrectionDisabled()
-            }
+        IPInputShell(icon: icon, title: title, subtitle: nil) {
+            TextField(placeholder, text: text)
+                .font(IPTypography.bodyMedium)
+                .foregroundStyle(IPTheme.textPrimary)
+                .autocorrectionDisabled()
+                .padding(.horizontal, 14)
+                .padding(.vertical, 14)
+                .background(Color.white.opacity(0.16), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
         }
-        .padding(IPTheme.spacing16)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: IPTheme.radiusMedium))
+    }
+
+    private func secureAuthField(
+        title: String,
+        placeholder: String,
+        text: Binding<String>,
+        icon: String
+    ) -> some View {
+        IPInputShell(icon: icon, title: title, subtitle: nil) {
+            SecureField(placeholder, text: text)
+                .font(IPTypography.bodyMedium)
+                .foregroundStyle(IPTheme.textPrimary)
+                .autocorrectionDisabled()
+                .padding(.horizontal, 14)
+                .padding(.vertical, 14)
+                .background(Color.white.opacity(0.16), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        }
     }
 }

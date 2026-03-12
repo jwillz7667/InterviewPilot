@@ -1,6 +1,6 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { authenticate } from '../../middleware/authenticate.js';
-import { getPrisma } from '../../config/database.js';
+import { withDatabaseRetry } from '../../config/database.js';
 import { encryptApiKey, decryptApiKey } from '../../utils/encryption.js';
 import { z } from 'zod';
 
@@ -17,11 +17,12 @@ export async function apiKeysRoutes(app: FastifyInstance) {
 
   // List keys (prefix only)
   app.get('/api/v1/api-keys', async (request: FastifyRequest, reply: FastifyReply) => {
-    const prisma = getPrisma();
-    const keys = await prisma.userApiKey.findMany({
-      where: { userId: request.user.sub },
-      select: { id: true, provider: true, keyPrefix: true, createdAt: true, updatedAt: true },
-    });
+    const keys = await withDatabaseRetry((prisma) =>
+      prisma.userApiKey.findMany({
+        where: { userId: request.user.sub },
+        select: { id: true, provider: true, keyPrefix: true, createdAt: true, updatedAt: true },
+      })
+    );
     reply.send({ keys });
   });
 
@@ -35,25 +36,26 @@ export async function apiKeysRoutes(app: FastifyInstance) {
       const { encrypted, iv, tag } = encryptApiKey(apiKey);
       const keyPrefix = apiKey.substring(0, 4) + '...';
 
-      const prisma = getPrisma();
-      const key = await prisma.userApiKey.upsert({
-        where: { userId_provider: { userId: request.user.sub, provider } },
-        create: {
-          userId: request.user.sub,
-          provider,
-          encryptedKey: encrypted,
-          keyIv: iv,
-          keyTag: tag,
-          keyPrefix,
-        },
-        update: {
-          encryptedKey: encrypted,
-          keyIv: iv,
-          keyTag: tag,
-          keyPrefix,
-        },
-        select: { id: true, provider: true, keyPrefix: true, updatedAt: true },
-      });
+      const key = await withDatabaseRetry((prisma) =>
+        prisma.userApiKey.upsert({
+          where: { userId_provider: { userId: request.user.sub, provider } },
+          create: {
+            userId: request.user.sub,
+            provider,
+            encryptedKey: encrypted,
+            keyIv: iv,
+            keyTag: tag,
+            keyPrefix,
+          },
+          update: {
+            encryptedKey: encrypted,
+            keyIv: iv,
+            keyTag: tag,
+            keyPrefix,
+          },
+          select: { id: true, provider: true, keyPrefix: true, updatedAt: true },
+        })
+      );
 
       reply.send({ key });
     }
@@ -64,11 +66,11 @@ export async function apiKeysRoutes(app: FastifyInstance) {
     '/api/v1/api-keys/:provider/decrypt',
     async (request: FastifyRequest<{ Params: { provider: string } }>, reply: FastifyReply) => {
       const { provider } = providerParam.parse(request.params);
-      const prisma = getPrisma();
-
-      const key = await prisma.userApiKey.findUnique({
-        where: { userId_provider: { userId: request.user.sub, provider } },
-      });
+      const key = await withDatabaseRetry((prisma) =>
+        prisma.userApiKey.findUnique({
+          where: { userId_provider: { userId: request.user.sub, provider } },
+        })
+      );
 
       if (!key) {
         return reply.status(404).send({ error: 'API key not found for this provider' });
@@ -84,10 +86,11 @@ export async function apiKeysRoutes(app: FastifyInstance) {
     '/api/v1/api-keys/:provider',
     async (request: FastifyRequest<{ Params: { provider: string } }>, reply: FastifyReply) => {
       const { provider } = providerParam.parse(request.params);
-      const prisma = getPrisma();
-      await prisma.userApiKey.deleteMany({
-        where: { userId: request.user.sub, provider },
-      });
+      await withDatabaseRetry((prisma) =>
+        prisma.userApiKey.deleteMany({
+          where: { userId: request.user.sub, provider },
+        })
+      );
       reply.send({ success: true });
     }
   );

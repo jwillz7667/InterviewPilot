@@ -2,6 +2,8 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>BACKEND_BASE_URL</key>
+	<string>https://interviewpilot-production.up.railway.app</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>InterviewPilot needs microphone access to hear and transcribe the interviewer's questions in real-time.</string>
 	<key>UIBackgroundModes</key>

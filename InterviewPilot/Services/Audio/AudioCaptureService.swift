@@ -8,18 +8,37 @@ final class AudioCaptureService {
 
     @ObservationIgnored var onAudioBuffer: (@Sendable (Data) -> Void)?
 
-    // Target format for Deepgram: 16kHz, 16-bit PCM, mono
-    private let targetSampleRate: Double = 16000
-    private let bufferSize: AVAudioFrameCount = 1600  // 100ms at 16kHz
+    // Target format for downstream speech services.
+    private let targetSampleRate: Double
+    private let sessionMode: AVAudioSession.Mode
+    private let categoryOptions: AVAudioSession.CategoryOptions
+    private let bufferDurationSeconds: Double
+
+    init(
+        targetSampleRate: Double = 16000,
+        sessionMode: AVAudioSession.Mode = .measurement,
+        categoryOptions: AVAudioSession.CategoryOptions = [
+            .allowBluetoothHFP,
+            .defaultToSpeaker,
+            .mixWithOthers
+        ],
+        bufferDurationSeconds: Double = 0.1
+    ) {
+        self.targetSampleRate = targetSampleRate
+        self.sessionMode = sessionMode
+        self.categoryOptions = categoryOptions
+        self.bufferDurationSeconds = bufferDurationSeconds
+    }
+
+    private var bufferSize: AVAudioFrameCount {
+        AVAudioFrameCount(targetSampleRate * bufferDurationSeconds)
+    }
 
     func configureSession() throws {
         let session = AVAudioSession.sharedInstance()
-        try session.setCategory(.playAndRecord, mode: .measurement, options: [
-            .allowBluetooth,
-            .defaultToSpeaker,
-            .mixWithOthers
-        ])
+        try session.setCategory(.playAndRecord, mode: sessionMode, options: categoryOptions)
         try session.setPreferredSampleRate(targetSampleRate)
+        try session.setPreferredIOBufferDuration(bufferDurationSeconds)
         try session.setActive(true)
     }
 
@@ -42,6 +61,7 @@ final class AudioCaptureService {
         guard let converter = AVAudioConverter(from: inputFormat, to: outputFormat) else { return }
 
         let onBuffer = self.onAudioBuffer
+        let convertedFrameCapacity = AVAudioFrameCount(targetSampleRate * bufferDurationSeconds)
 
         inputNode.installTap(onBus: 0, bufferSize: bufferSize, format: inputFormat) {
             [weak self] buffer, _ in
@@ -55,7 +75,7 @@ final class AudioCaptureService {
             // Convert to 16kHz PCM16 mono
             guard let convertedBuffer = AVAudioPCMBuffer(
                 pcmFormat: converter.outputFormat,
-                frameCapacity: AVAudioFrameCount(16000 * 0.1)
+                frameCapacity: convertedFrameCapacity
             ) else { return }
 
             var error: NSError?

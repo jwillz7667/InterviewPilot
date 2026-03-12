@@ -3,7 +3,11 @@ import cors from '@fastify/cors';
 import jwt from '@fastify/jwt';
 import rateLimit from '@fastify/rate-limit';
 import { loadEnv } from './config/env.js';
-import { getPrisma, disconnectPrisma } from './config/database.js';
+import {
+  disconnectPrisma,
+  isTransientPrismaError,
+  reconnectPrisma,
+} from './config/database.js';
 import { authRoutes } from './modules/auth/auth.routes.js';
 import { usersRoutes } from './modules/users/users.routes.js';
 import { settingsRoutes } from './modules/settings/settings.routes.js';
@@ -58,6 +62,18 @@ app.setErrorHandler((error: Error & { statusCode?: number; code?: string }, _req
     });
   }
 
+  if (isTransientPrismaError(error)) {
+    app.log.warn({ err: error }, 'Transient database connectivity issue');
+    void reconnectPrisma().catch((reconnectError) => {
+      app.log.error({ err: reconnectError }, 'Database reconnect failed');
+    });
+
+    return reply.status(503).send({
+      error: 'DATABASE_UNAVAILABLE',
+      message: 'Database connection was interrupted. Retry your request.',
+    });
+  }
+
   // Fastify native errors (rate limit, etc.)
   if (error.statusCode) {
     return reply.status(error.statusCode).send({
@@ -85,7 +101,7 @@ await app.register(configRoutes);
 
 // Verify database connection
 try {
-  await getPrisma().$connect();
+  await reconnectPrisma();
   app.log.info('Database connected');
 } catch (err) {
   app.log.error(String(err));

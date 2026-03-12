@@ -3,7 +3,7 @@ import SwiftData
 
 @Observable
 final class SessionHistoryViewModel {
-    private let storage = SessionStorageService()
+    private let storage = SessionStorageService.shared
     var sessions: [InterviewSession] = []
 
     func configure(with context: ModelContext) {
