@@ -8,7 +8,7 @@ echo "DATABASE_URL set: $([ -n "$DATABASE_URL" ] && echo 'yes' || echo 'NO')"
 if [ -n "$DATABASE_URL" ]; then
   echo "Pushing database schema..."
   attempts=0
-  until npx prisma db push --skip-generate 2>&1; do
+  until npx prisma db push --skip-generate --accept-data-loss 2>&1; do
     attempts=$((attempts + 1))
     if [ "$attempts" -ge 5 ]; then
       echo "ERROR: Schema push failed after $attempts attempts"

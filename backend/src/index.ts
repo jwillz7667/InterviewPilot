@@ -102,13 +102,22 @@ await app.register(answerBanksRoutes);
 await app.register(configRoutes);
 await app.register(billingRoutes);
 
-// Verify database connection
-try {
-  await reconnectPrisma();
-  app.log.info('Database connected');
-} catch (err) {
-  app.log.error(String(err));
-  process.exit(1);
+function scheduleDatabaseReconnect(delayMs = 5_000) {
+  const timer = setTimeout(() => {
+    void initializeDatabaseConnection();
+  }, delayMs);
+
+  timer.unref?.();
+}
+
+async function initializeDatabaseConnection() {
+  try {
+    await reconnectPrisma();
+    app.log.info('Database connected');
+  } catch (err) {
+    app.log.warn({ err }, 'Database connection failed during startup; retrying');
+    scheduleDatabaseReconnect();
+  }
 }
 
 // Start server
@@ -116,6 +125,7 @@ const start = async () => {
   try {
     await app.listen({ port: env.PORT, host: '0.0.0.0' });
     app.log.info(`Server running on port ${env.PORT}`);
+    void initializeDatabaseConnection();
   } catch (err) {
     app.log.error(err);
     process.exit(1);
