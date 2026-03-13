@@ -2,6 +2,7 @@ import SwiftUI
 
 struct OnboardingView: View {
     @State private var currentPage = 0
+    @Environment(\.colorScheme) private var colorScheme
     var onComplete: () -> Void
 
     private let pages: [(icon: String, title: String, description: String, accent: Color)] = [
@@ -54,19 +55,23 @@ struct OnboardingView: View {
                         IPPanel(tone: .accent(page.accent), padding: IPTheme.spacing24) {
                             VStack(alignment: .leading, spacing: 24) {
                                 RoundedRectangle(cornerRadius: 30, style: .continuous)
-                                    .fill(
-                                        LinearGradient(
-                                            colors: [page.accent, page.accent.opacity(0.55)],
-                                            startPoint: .topLeading,
-                                            endPoint: .bottomTrailing
-                                        )
-                                    )
+                                    .fill(IPTheme.selectionFill(for: colorScheme, selected: true))
                                     .frame(height: 180)
                                     .overlay {
-                                        Image(systemName: page.icon)
-                                            .font(.system(size: 54, weight: .semibold))
-                                            .foregroundStyle(.white)
-                                            .symbolEffect(.breathe.pulse, isActive: currentPage == index)
+                                        ZStack(alignment: .bottomTrailing) {
+                                            IPBrandLogo(size: 104, cornerRadius: 30)
+
+                                            ZStack {
+                                                Circle()
+                                                    .fill(Color.white.opacity(0.18))
+                                                    .frame(width: 56, height: 56)
+
+                                                Image(systemName: page.icon)
+                                                    .font(.system(size: 24, weight: .semibold))
+                                                    .foregroundStyle(.white)
+                                            }
+                                            .offset(x: 34, y: 22)
+                                        }
                                     }
 
                                 VStack(alignment: .leading, spacing: 10) {

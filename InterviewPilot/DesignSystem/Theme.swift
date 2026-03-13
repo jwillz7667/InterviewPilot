@@ -76,12 +76,15 @@ enum IPTheme {
     }
 
     static func panelFill(for colorScheme: ColorScheme, emphasis: Double = 0) -> AnyShapeStyle {
+        let boost = min(max(emphasis, 0), 0.12)
+
         if colorScheme == .dark {
             return AnyShapeStyle(
                 LinearGradient(
                     colors: [
-                        Color(red: 0.112, green: 0.123, blue: 0.156).opacity(0.96 + emphasis),
-                        Color(red: 0.086, green: 0.094, blue: 0.123).opacity(0.98 + emphasis)
+                        Color(red: 0.112, green: 0.180, blue: 0.322).opacity(0.94 + boost),
+                        Color(red: 0.075, green: 0.129, blue: 0.251).opacity(0.98),
+                        Color(red: 0.047, green: 0.086, blue: 0.180).opacity(0.99)
                     ],
                     startPoint: .topLeading,
                     endPoint: .bottomTrailing
@@ -92,8 +95,9 @@ enum IPTheme {
         return AnyShapeStyle(
             LinearGradient(
                 colors: [
-                    Color.white.opacity(0.94 + emphasis),
-                    Color(red: 0.944, green: 0.956, blue: 0.977).opacity(0.98)
+                    Color(red: 0.946, green: 0.978, blue: 1.000).opacity(0.98),
+                    Color(red: 0.885, green: 0.938, blue: 1.000).opacity(0.94 + boost),
+                    Color(red: 0.820, green: 0.897, blue: 0.992).opacity(0.94)
                 ],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
@@ -102,12 +106,15 @@ enum IPTheme {
     }
 
     static func elevatedFill(for colorScheme: ColorScheme, tint: Color? = nil) -> AnyShapeStyle {
-        if let tint {
+        let fillTint = tint ?? accent
+
+        if tint != nil {
             return AnyShapeStyle(
                 LinearGradient(
                     colors: [
-                        tint.opacity(colorScheme == .dark ? 0.22 : 0.12),
-                        tint.opacity(colorScheme == .dark ? 0.10 : 0.05)
+                        fillTint.opacity(colorScheme == .dark ? 0.34 : 0.22),
+                        accentSecondary.opacity(colorScheme == .dark ? 0.24 : 0.18),
+                        brandDark.opacity(colorScheme == .dark ? 0.16 : 0.10)
                     ],
                     startPoint: .topLeading,
                     endPoint: .bottomTrailing
@@ -115,15 +122,107 @@ enum IPTheme {
             )
         }
 
-        return panelFill(for: colorScheme, emphasis: 0.06)
+        return AnyShapeStyle(
+            LinearGradient(
+                colors: colorScheme == .dark
+                    ? [
+                        fillTint.opacity(0.24),
+                        accentSecondary.opacity(0.20),
+                        Color(red: 0.050, green: 0.094, blue: 0.188).opacity(0.98)
+                    ]
+                    : [
+                        Color(red: 0.940, green: 0.973, blue: 1.000),
+                        fillTint.opacity(0.18),
+                        Color(red: 0.806, green: 0.893, blue: 1.000).opacity(0.92)
+                    ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        )
+    }
+
+    static func selectionFill(for colorScheme: ColorScheme, selected: Bool) -> AnyShapeStyle {
+        if colorScheme == .dark {
+            return AnyShapeStyle(
+                LinearGradient(
+                    colors: selected
+                        ? [
+                            accent.opacity(0.34),
+                            accentSecondary.opacity(0.28),
+                            Color(red: 0.053, green: 0.098, blue: 0.188).opacity(0.98)
+                        ]
+                        : [
+                            Color(red: 0.102, green: 0.152, blue: 0.271).opacity(0.92),
+                            Color(red: 0.062, green: 0.102, blue: 0.196).opacity(0.96),
+                            Color(red: 0.048, green: 0.078, blue: 0.149).opacity(0.98)
+                        ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            )
+        }
+
+        return AnyShapeStyle(
+            LinearGradient(
+                colors: selected
+                    ? [
+                        Color(red: 0.914, green: 0.961, blue: 1.000),
+                        accent.opacity(0.20),
+                        Color(red: 0.806, green: 0.897, blue: 1.000).opacity(0.92)
+                    ]
+                    : [
+                        Color(red: 0.950, green: 0.979, blue: 1.000),
+                        Color(red: 0.894, green: 0.940, blue: 1.000),
+                        Color(red: 0.846, green: 0.914, blue: 0.992).opacity(0.92)
+                    ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        )
+    }
+
+    static func buttonGradient(for colorScheme: ColorScheme) -> LinearGradient {
+        LinearGradient(
+            colors: colorScheme == .dark
+                ? [
+                    accent.opacity(0.98),
+                    accentSecondary.opacity(0.96),
+                    brandDark.opacity(0.98)
+                ]
+                : [
+                    Color(red: 0.262, green: 0.600, blue: 1.000),
+                    accent.opacity(0.98),
+                    accentSecondary.opacity(0.94)
+                ],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+    }
+
+    static func secondaryButtonGradient(for colorScheme: ColorScheme) -> LinearGradient {
+        LinearGradient(
+            colors: colorScheme == .dark
+                ? [
+                    accent.opacity(0.42),
+                    accentSecondary.opacity(0.34),
+                    brandDark.opacity(0.30)
+                ]
+                : [
+                    Color(red: 0.650, green: 0.826, blue: 1.000).opacity(0.92),
+                    accent.opacity(0.34),
+                    accentSecondary.opacity(0.24)
+                ],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
     }
 
     static func borderColor(for colorScheme: ColorScheme) -> Color {
-        colorScheme == .dark ? .white.opacity(0.12) : .white.opacity(0.62)
+        colorScheme == .dark ? .white.opacity(0.14) : accentSecondary.opacity(0.18)
     }
 
     static func shadowColor(for colorScheme: ColorScheme) -> Color {
-        colorScheme == .dark ? .black.opacity(0.28) : accent.opacity(0.10)
+        colorScheme == .dark ? .black.opacity(0.30) : accent.opacity(0.18)
     }
 
     static func questionTypeColor(_ type: QuestionType) -> Color {

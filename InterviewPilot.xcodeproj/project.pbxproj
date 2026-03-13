@@ -7,7 +7,7 @@
 	objects = {
 
 /* Begin PBXFileReference section */
-		2FDD21482F5FC12D001E6C21 /* InterviewPilot.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = InterviewPilot.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		2FDD21482F5FC12D001E6C21 /* JobHopper.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = JobHopper.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -51,7 +51,7 @@
 		2FDD21492F5FC12D001E6C21 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				2FDD21482F5FC12D001E6C21 /* InterviewPilot.app */,
+				2FDD21482F5FC12D001E6C21 /* JobHopper.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -73,8 +73,8 @@
 				2FDD214A2F5FC12D001E6C21 /* InterviewPilot */,
 			);
 			name = InterviewPilot;
-			productName = InterviewPilot;
-			productReference = 2FDD21482F5FC12D001E6C21 /* InterviewPilot.app */;
+			productName = JobHopper;
+			productReference = 2FDD21482F5FC12D001E6C21 /* JobHopper.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -151,8 +151,8 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = Res.InterviewPilot;
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_BUNDLE_IDENTIFIER = com.res.jobhopperAI;
+				PRODUCT_NAME = JobHopper;
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -187,8 +187,8 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = Res.InterviewPilot;
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_BUNDLE_IDENTIFIER = com.res.jobhopperAI;
+				PRODUCT_NAME = JobHopper;
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;

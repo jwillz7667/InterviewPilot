@@ -2,14 +2,14 @@ import Foundation
 import Security
 
 enum KeychainKey: String {
-    case deepgramAPIKey = "com.interviewpilot.deepgram-api-key"
-    case openAIAPIKey = "com.interviewpilot.openai-api-key"
-    case accessToken = "com.interviewpilot.access-token"
-    case refreshToken = "com.interviewpilot.refresh-token"
-    case userEmail = "com.interviewpilot.user-email"
-    case userId = "com.interviewpilot.user-id"
-    case displayName = "com.interviewpilot.display-name"
-    case appAccountToken = "com.interviewpilot.app-account-token"
+    case deepgramAPIKey = "com.res.jobhopperAI.deepgram-api-key"
+    case openAIAPIKey = "com.res.jobhopperAI.openai-api-key"
+    case accessToken = "com.res.jobhopperAI.access-token"
+    case refreshToken = "com.res.jobhopperAI.refresh-token"
+    case userEmail = "com.res.jobhopperAI.user-email"
+    case userId = "com.res.jobhopperAI.user-id"
+    case displayName = "com.res.jobhopperAI.display-name"
+    case appAccountToken = "com.res.jobhopperAI.app-account-token"
 }
 
 struct KeychainService {

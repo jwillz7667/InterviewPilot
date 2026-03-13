@@ -9,6 +9,7 @@ struct SessionSetupView: View {
     @State private var showPaywall = false
     @State private var preparedSessionId: UUID?
     @State private var subscriptionService = SubscriptionService.shared
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         NavigationStack {
@@ -39,7 +40,7 @@ struct SessionSetupView: View {
                 }
                 .ipScrollablePage()
             }
-            .navigationTitle("Interview Pilot")
+            .navigationTitle("Job Hopper")
             .navigationBarTitleDisplayMode(.large)
             .safeAreaInset(edge: .bottom) {
                 startDock
@@ -95,13 +96,19 @@ struct SessionSetupView: View {
                     }
                 }
 
-                Text("Build a cleaner interview workspace")
-                    .font(IPTypography.headlineLarge)
-                    .foregroundStyle(IPTheme.textPrimary)
+                HStack(alignment: .top, spacing: 14) {
+                    IPBrandLogo(size: 60, cornerRadius: 20)
 
-                Text("Set up the live interview workspace with your resume, the job posting, and the response style you want on screen during the call.")
-                    .font(IPTypography.bodyLarge)
-                    .foregroundStyle(IPTheme.textSecondary)
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Build a cleaner interview workspace")
+                            .font(IPTypography.headlineLarge)
+                            .foregroundStyle(IPTheme.textPrimary)
+
+                        Text("Set up the live interview workspace with your resume, the job posting, and the response style you want on screen during the call.")
+                            .font(IPTypography.bodyLarge)
+                            .foregroundStyle(IPTheme.textSecondary)
+                    }
+                }
 
                 HStack(spacing: 10) {
                     summaryPill("Resume", isReady: viewModel.hasResume)
@@ -221,7 +228,7 @@ struct SessionSetupView: View {
                             }
                             .padding(14)
                             .background(
-                                (viewModel.sessionMode == mode ? IPTheme.accent.opacity(0.10) : Color.white.opacity(0.08)),
+                                IPTheme.selectionFill(for: colorScheme, selected: viewModel.sessionMode == mode),
                                 in: RoundedRectangle(cornerRadius: 18, style: .continuous)
                             )
                         }
@@ -261,7 +268,7 @@ struct SessionSetupView: View {
                             .frame(maxWidth: .infinity, minHeight: 78, alignment: .topLeading)
                             .padding(14)
                             .background(
-                                (viewModel.interviewType == type ? IPTheme.accent.opacity(0.10) : Color.white.opacity(0.08)),
+                                IPTheme.selectionFill(for: colorScheme, selected: viewModel.interviewType == type),
                                 in: RoundedRectangle(cornerRadius: 18, style: .continuous)
                             )
                         }
@@ -307,7 +314,7 @@ struct SessionSetupView: View {
                             }
                             .padding(14)
                             .background(
-                                (viewModel.responseFormat == format ? IPTheme.accent.opacity(0.10) : Color.white.opacity(0.08)),
+                                IPTheme.selectionFill(for: colorScheme, selected: viewModel.responseFormat == format),
                                 in: RoundedRectangle(cornerRadius: 18, style: .continuous)
                             )
                         }

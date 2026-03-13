@@ -97,6 +97,35 @@ struct IPPanel<Content: View>: View {
     }
 }
 
+struct IPBrandLogo: View {
+    var size: CGFloat = 60
+    var cornerRadius: CGFloat? = nil
+    var showShadow: Bool = true
+
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        Image("BrandLogo")
+            .resizable()
+            .scaledToFit()
+            .frame(width: size, height: size)
+            .clipShape(RoundedRectangle(cornerRadius: resolvedCornerRadius, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: resolvedCornerRadius, style: .continuous)
+                    .stroke(Color.white.opacity(colorScheme == .dark ? 0.18 : 0.50), lineWidth: 1)
+            }
+            .shadow(
+                color: showShadow ? IPTheme.accent.opacity(colorScheme == .dark ? 0.28 : 0.18) : .clear,
+                radius: showShadow ? 18 : 0,
+                y: showShadow ? 10 : 0
+            )
+    }
+
+    private var resolvedCornerRadius: CGFloat {
+        cornerRadius ?? size * 0.24
+    }
+}
+
 struct IPSectionHeader: View {
     let eyebrow: String?
     let title: String
@@ -227,6 +256,8 @@ struct IPPrimaryButtonStyle: ButtonStyle {
     var isEnabled: Bool = true
     var tint: Color = IPTheme.accent
 
+    @Environment(\.colorScheme) private var colorScheme
+
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(IPTypography.bodyLarge)
@@ -234,21 +265,21 @@ struct IPPrimaryButtonStyle: ButtonStyle {
             .frame(maxWidth: .infinity)
             .padding(.vertical, 16)
             .background(
-                LinearGradient(
-                    colors: isEnabled
-                        ? [tint.opacity(0.98), tint.opacity(0.82)]
-                        : [Color(uiColor: .systemGray3), Color(uiColor: .systemGray4)],
-                    startPoint: .top,
-                    endPoint: .bottom
-                ),
+                isEnabled
+                    ? IPTheme.buttonGradient(for: colorScheme)
+                    : LinearGradient(
+                        colors: [Color(uiColor: .systemGray3), Color(uiColor: .systemGray4)],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    ),
                 in: RoundedRectangle(cornerRadius: IPTheme.radiusMedium, style: .continuous)
             )
             .overlay {
                 RoundedRectangle(cornerRadius: IPTheme.radiusMedium, style: .continuous)
-                    .stroke(Color.white.opacity(isEnabled ? 0.18 : 0), lineWidth: 1)
+                    .stroke(Color.white.opacity(isEnabled ? 0.22 : 0), lineWidth: 1)
             }
             .scaleEffect(configuration.isPressed ? 0.985 : 1)
-            .shadow(color: isEnabled ? tint.opacity(0.24) : .clear, radius: 16, y: 12)
+            .shadow(color: isEnabled ? IPTheme.accent.opacity(0.28) : .clear, radius: 18, y: 12)
             .animation(IPAnimations.snappy, value: configuration.isPressed)
     }
 }
@@ -256,18 +287,24 @@ struct IPPrimaryButtonStyle: ButtonStyle {
 struct IPSecondaryButtonStyle: ButtonStyle {
     var tint: Color = IPTheme.accent
 
+    @Environment(\.colorScheme) private var colorScheme
+
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(IPTypography.bodyMedium)
-            .foregroundStyle(tint)
+            .foregroundStyle(Color.white.opacity(0.96))
             .padding(.horizontal, 14)
             .padding(.vertical, 10)
-            .background(tint.opacity(0.10), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .background(
+                IPTheme.secondaryButtonGradient(for: colorScheme),
+                in: RoundedRectangle(cornerRadius: 16, style: .continuous)
+            )
             .overlay {
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .stroke(tint.opacity(0.18), lineWidth: 1)
+                    .stroke(Color.white.opacity(colorScheme == .dark ? 0.16 : 0.28), lineWidth: 1)
             }
             .scaleEffect(configuration.isPressed ? 0.98 : 1)
+            .shadow(color: IPTheme.accent.opacity(0.16), radius: 10, y: 6)
             .animation(IPAnimations.snappy, value: configuration.isPressed)
     }
 }
@@ -286,21 +323,18 @@ struct IPTabAccessory: View {
     var body: some View {
         Group {
             if placement == .inline {
-                Label(compactTitle, systemImage: symbol)
-                    .font(IPTypography.labelSmall)
-                    .foregroundStyle(IPTheme.textPrimary)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
+                HStack(spacing: 8) {
+                    IPBrandLogo(size: 22, cornerRadius: 7, showShadow: false)
+
+                    Text(compactTitle)
+                        .font(IPTypography.labelSmall)
+                        .foregroundStyle(IPTheme.textPrimary)
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
             } else {
                 HStack(spacing: 12) {
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .fill(tint.opacity(0.14))
-                        .frame(width: 38, height: 38)
-                        .overlay {
-                            Image(systemName: symbol)
-                                .font(.system(size: 16, weight: .semibold))
-                                .foregroundStyle(tint)
-                        }
+                    IPBrandLogo(size: 38, cornerRadius: 12, showShadow: false)
 
                     VStack(alignment: .leading, spacing: 2) {
                         Text(title)

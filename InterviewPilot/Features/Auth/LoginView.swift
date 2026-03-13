@@ -10,6 +10,7 @@ struct LoginView: View {
     @State private var isRegistering = false
     @State private var authService = AuthService.shared
     @State private var currentNonce = ""
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         if !hasSeenOnboarding {
@@ -116,25 +117,10 @@ struct LoginView: View {
                 }
 
                 HStack(alignment: .top, spacing: 16) {
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 24, style: .continuous)
-                            .fill(
-                                LinearGradient(
-                                    colors: [IPTheme.accent, IPTheme.accentSecondary],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                )
-                            )
-                            .frame(width: 70, height: 70)
-
-                        Image(systemName: "mic.and.signal.meter.fill")
-                            .font(.system(size: 30, weight: .semibold))
-                            .foregroundStyle(.white)
-                            .symbolEffect(.pulse, isActive: true)
-                    }
+                    IPBrandLogo(size: 70, cornerRadius: 24)
 
                     VStack(alignment: .leading, spacing: 6) {
-                        Text("InterviewPilot")
+                        Text("Job Hopper")
                             .font(IPTypography.displayMedium)
                             .foregroundStyle(IPTheme.textPrimary)
 
@@ -160,7 +146,7 @@ struct LoginView: View {
             .foregroundStyle(IPTheme.textSecondary)
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
-            .background(Color.white.opacity(0.12), in: Capsule())
+            .background(IPTheme.selectionFill(for: colorScheme, selected: true), in: Capsule())
     }
 
     private var canSubmit: Bool {
@@ -209,6 +195,9 @@ struct LoginView: View {
                 authService.errorMessage = "Apple did not return a valid identity token."
                 return
             }
+            let authorizationCode = credential.authorizationCode.flatMap { code in
+                String(data: code, encoding: .utf8)
+            }
 
             let formatter = PersonNameComponentsFormatter()
             let displayName = credential.fullName.flatMap { components -> String? in
@@ -219,6 +208,7 @@ struct LoginView: View {
             Task {
                 await authService.signInWithApple(
                     identityToken: identityToken,
+                    authorizationCode: authorizationCode,
                     nonce: currentNonce,
                     displayName: displayName
                 )

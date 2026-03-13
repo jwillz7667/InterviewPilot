@@ -1,6 +1,12 @@
 import { createHash, randomBytes } from 'crypto';
 import * as argon2 from 'argon2';
-import { createRemoteJWKSet, jwtVerify, type JWTPayload } from 'jose';
+import {
+  createRemoteJWKSet,
+  importPKCS8,
+  jwtVerify,
+  SignJWT,
+  type JWTPayload,
+} from 'jose';
 import { getPrisma, withDatabaseRetry } from '../../config/database.js';
 import { getEnv } from '../../config/env.js';
 import {
@@ -29,6 +35,16 @@ type AppleIdentityTokenClaims = JWTPayload & {
   nonce?: string;
 };
 
+type AppleTokenResponse = {
+  access_token?: string;
+  expires_in?: number;
+  id_token?: string;
+  refresh_token?: string;
+  token_type?: string;
+  error?: string;
+  error_description?: string;
+};
+
 function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
 }
@@ -43,6 +59,77 @@ function hashAppleNonce(nonce: string): string {
 
 function isEmailVerified(value: AppleIdentityTokenClaims['email_verified']): boolean {
   return value === true || value === 'true';
+}
+
+function normalizeApplePrivateKey(privateKey: string): string {
+  return privateKey.replace(/\\n/g, '\n').trim();
+}
+
+function canUseAppleCodeExchange(): boolean {
+  const env = getEnv();
+  return Boolean(
+    env.APPLE_SIGN_IN_TEAM_ID &&
+      env.APPLE_SIGN_IN_KEY_ID &&
+      env.APPLE_SIGN_IN_PRIVATE_KEY &&
+      env.APP_STORE_BUNDLE_ID
+  );
+}
+
+async function buildAppleClientSecret(): Promise<string> {
+  const env = getEnv();
+
+  if (!canUseAppleCodeExchange()) {
+    throw new ValidationError('Apple Sign In code exchange is not fully configured');
+  }
+
+  const privateKey = normalizeApplePrivateKey(env.APPLE_SIGN_IN_PRIVATE_KEY!);
+  const signingKey = await importPKCS8(privateKey, 'ES256');
+  const issuedAt = Math.floor(Date.now() / 1000);
+
+  return new SignJWT({})
+    .setProtectedHeader({
+      alg: 'ES256',
+      kid: env.APPLE_SIGN_IN_KEY_ID!,
+    })
+    .setIssuer(env.APPLE_SIGN_IN_TEAM_ID!)
+    .setSubject(env.APP_STORE_BUNDLE_ID)
+    .setAudience('https://appleid.apple.com')
+    .setIssuedAt(issuedAt)
+    .setExpirationTime(issuedAt + 60 * 5)
+    .sign(signingKey);
+}
+
+async function exchangeAppleAuthorizationCode(
+  authorizationCode: string
+): Promise<AppleTokenResponse> {
+  const env = getEnv();
+  const clientSecret = await buildAppleClientSecret();
+
+  const response = await fetch('https://appleid.apple.com/auth/token', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: new URLSearchParams({
+      client_id: env.APP_STORE_BUNDLE_ID,
+      client_secret: clientSecret,
+      code: authorizationCode,
+      grant_type: 'authorization_code',
+    }),
+  });
+
+  const payload = (await response.json()) as AppleTokenResponse;
+  if (!response.ok || payload.error) {
+    throw new UnauthorizedError(
+      payload.error_description || payload.error || 'Apple authorization code exchange failed'
+    );
+  }
+
+  if (!payload.id_token) {
+    throw new ValidationError('Apple token response did not include an identity token');
+  }
+
+  return payload;
 }
 
 async function hashPassword(password: string): Promise<string> {
@@ -155,8 +242,17 @@ async function verifyAppleIdentityToken(
   return payload;
 }
 
+async function resolveAppleClaims(input: AppleLoginInput): Promise<AppleIdentityTokenClaims> {
+  if (input.authorizationCode && canUseAppleCodeExchange()) {
+    const tokenResponse = await exchangeAppleAuthorizationCode(input.authorizationCode);
+    return verifyAppleIdentityToken(tokenResponse.id_token!, input.nonce);
+  }
+
+  return verifyAppleIdentityToken(input.identityToken, input.nonce);
+}
+
 export async function authenticateWithApple(input: AppleLoginInput) {
-  const claims = await verifyAppleIdentityToken(input.identityToken, input.nonce);
+  const claims = await resolveAppleClaims(input);
   const email = claims.email ? normalizeEmail(claims.email) : null;
   const displayName = input.displayName?.trim() || null;
 

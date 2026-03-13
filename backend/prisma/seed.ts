@@ -7,8 +7,8 @@ async function main() {
   console.log('Seeding database...');
 
   // Test user
-  const testEmail = 'dev@interviewpilot.app';
-  const testPassword = 'InterviewPilot2026!';
+  const testEmail = 'dev@jobhopper.app';
+  const testPassword = 'JobHopper2026!';
 
   const passwordHash = await argon2.hash(testPassword, {
     type: argon2.argon2id,

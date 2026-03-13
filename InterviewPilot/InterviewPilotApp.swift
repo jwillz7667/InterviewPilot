@@ -2,7 +2,7 @@ import SwiftUI
 import SwiftData
 
 @main
-struct InterviewPilotApp: App {
+struct JobHopperApp: App {
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
             InterviewSession.self,

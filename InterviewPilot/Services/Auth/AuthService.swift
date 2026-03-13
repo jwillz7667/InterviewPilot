@@ -102,7 +102,12 @@ final class AuthService {
         }
     }
 
-    func signInWithApple(identityToken: String, nonce: String, displayName: String?) async {
+    func signInWithApple(
+        identityToken: String,
+        authorizationCode: String?,
+        nonce: String,
+        displayName: String?
+    ) async {
         isLoading = true
         errorMessage = nil
         defer { isLoading = false }
@@ -112,6 +117,9 @@ final class AuthService {
                 "identityToken": identityToken,
                 "nonce": nonce,
             ]
+            if let authorizationCode, !authorizationCode.isEmpty {
+                body["authorizationCode"] = authorizationCode
+            }
             if let displayName, !displayName.isEmpty {
                 body["displayName"] = displayName
             }

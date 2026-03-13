@@ -1,3 +1,7 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import dotenv from 'dotenv';
 import { z } from 'zod';
 
 const booleanish = z
@@ -16,23 +20,45 @@ const envSchema = z.object({
   CORS_ORIGIN: z.string().default('*'),
   DEEPGRAM_API_KEY: z.string().default(''),
   OPENAI_API_KEY: z.string().default(''),
-  APPLE_SIGN_IN_AUDIENCES: z.string().default('Res.InterviewPilot'),
-  APP_STORE_BUNDLE_ID: z.string().default('Res.InterviewPilot'),
+  APPLE_SIGN_IN_TEAM_ID: z.string().default('487LC4H9U4'),
+  APPLE_SIGN_IN_KEY_ID: z.string().default('H539ZPGG3B'),
+  APPLE_SIGN_IN_PRIVATE_KEY: z.string().optional(),
+  APPLE_SIGN_IN_AUDIENCES: z.string().default('com.res.jobhopperAI'),
+  APP_STORE_BUNDLE_ID: z.string().default('com.res.jobhopperAI'),
   APP_STORE_APPLE_ID: z.string().optional(),
   APP_STORE_ENABLE_ONLINE_CHECKS: booleanish.default(false),
-  APP_STORE_PLUS_MONTHLY_PRODUCT_ID: z.string().default('Res.InterviewPilot.plus.monthly'),
-  APP_STORE_PLUS_YEARLY_PRODUCT_ID: z.string().default('Res.InterviewPilot.plus.yearly'),
-  APP_STORE_PRO_MONTHLY_PRODUCT_ID: z.string().default('Res.InterviewPilot.pro.monthly'),
-  APP_STORE_PRO_YEARLY_PRODUCT_ID: z.string().default('Res.InterviewPilot.pro.yearly'),
+  APP_STORE_PLUS_MONTHLY_PRODUCT_ID: z.string().default('com.res.jobhopperAI.plus.monthly'),
+  APP_STORE_PLUS_YEARLY_PRODUCT_ID: z.string().default('com.res.jobhopperAI.plus.yearly'),
+  APP_STORE_PRO_MONTHLY_PRODUCT_ID: z.string().default('com.res.jobhopperAI.pro.monthly'),
+  APP_STORE_PRO_YEARLY_PRODUCT_ID: z.string().default('com.res.jobhopperAI.pro.yearly'),
   TRIAL_INTERVIEW_LIMIT: z.coerce.number().int().min(1).max(100).default(5),
 });
 
 export type Env = z.infer<typeof envSchema>;
 
 let _env: Env;
+let envFilesLoaded = false;
+
+function loadEnvFiles(): void {
+  if (envFilesLoaded) return;
+
+  const configDir = path.dirname(fileURLToPath(import.meta.url));
+  const projectRoot = path.resolve(configDir, '../..');
+  const stage = process.env.NODE_ENV ?? 'development';
+  const fileNames = ['.env', stage === 'production' ? '.env.production' : '.env.local'];
+
+  for (const fileName of fileNames) {
+    const filePath = path.join(projectRoot, fileName);
+    if (!fs.existsSync(filePath)) continue;
+    dotenv.config({ path: filePath, override: false });
+  }
+
+  envFilesLoaded = true;
+}
 
 export function loadEnv(): Env {
   if (_env) return _env;
+  loadEnvFiles();
   _env = envSchema.parse(process.env);
   return _env;
 }

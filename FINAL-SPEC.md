@@ -1,4 +1,4 @@
-# InterviewPilot — Real-Time AI Interview Assistant for iOS
+# Job Hopper — Real-Time AI Interview Assistant for iOS
 ## Final Technical Specification for Implementation
 
 **Version:** 1.0 FINAL
@@ -1895,7 +1895,7 @@ Capabilities required: Microphone
 Info.plist keys:
 ```xml
 <key>NSMicrophoneUsageDescription</key>
-<string>InterviewPilot needs microphone access to hear and transcribe the interviewer's questions in real-time.</string>
+<string>Job Hopper needs microphone access to hear and transcribe the interviewer's questions in real-time.</string>
 ```
 
 ---

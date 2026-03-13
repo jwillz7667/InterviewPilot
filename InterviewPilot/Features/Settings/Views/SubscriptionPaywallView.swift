@@ -3,6 +3,7 @@ import SwiftUI
 struct SubscriptionPaywallView: View {
     @State private var subscriptionService = SubscriptionService.shared
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         NavigationStack {
@@ -55,13 +56,19 @@ struct SubscriptionPaywallView: View {
                     }
                 }
 
-                Text("Unlock unlimited interview practice")
-                    .font(IPTypography.headlineLarge)
-                    .foregroundStyle(IPTheme.textPrimary)
+                HStack(alignment: .top, spacing: 14) {
+                    IPBrandLogo(size: 56, cornerRadius: 18)
 
-                Text(heroSubtitle)
-                    .font(IPTypography.bodyLarge)
-                    .foregroundStyle(IPTheme.textSecondary)
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Unlock unlimited interview practice")
+                            .font(IPTypography.headlineLarge)
+                            .foregroundStyle(IPTheme.textPrimary)
+
+                        Text(heroSubtitle)
+                            .font(IPTypography.bodyLarge)
+                            .foregroundStyle(IPTheme.textSecondary)
+                    }
+                }
             }
         }
     }
@@ -156,11 +163,14 @@ struct SubscriptionPaywallView: View {
             .disabled(subscriptionService.isPurchasing)
         }
         .padding(16)
-        .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .background(
+            IPTheme.selectionFill(for: colorScheme, selected: product.tier == "pro"),
+            in: RoundedRectangle(cornerRadius: 20, style: .continuous)
+        )
     }
 
     private var currentPlanTitle: String {
-        subscriptionService.entitlement?.planTitle ?? "InterviewPilot"
+        subscriptionService.entitlement?.planTitle ?? "Job Hopper"
     }
 
     private var heroSubtitle: String {

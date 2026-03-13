@@ -7,6 +7,7 @@ struct SettingsView: View {
     @State private var showPaywall = false
     @AppStorage("appAppearance") private var appearanceRawValue = AppAppearance.system.rawValue
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         NavigationStack {
@@ -26,17 +27,10 @@ struct SettingsView: View {
 
                                 if let user = authService.currentUser {
                                     HStack(spacing: 14) {
-                                        RoundedRectangle(cornerRadius: 18, style: .continuous)
-                                            .fill(IPTheme.accent.opacity(0.12))
-                                            .frame(width: 54, height: 54)
-                                            .overlay {
-                                                Image(systemName: "person.crop.circle.fill")
-                                                    .font(.system(size: 24))
-                                                    .foregroundStyle(IPTheme.accent)
-                                            }
+                                        IPBrandLogo(size: 54, cornerRadius: 18)
 
                                         VStack(alignment: .leading, spacing: 3) {
-                                            Text(user.displayName ?? "InterviewPilot User")
+                                            Text(user.displayName ?? "Job Hopper User")
                                                 .font(IPTypography.headlineSmall)
                                                 .foregroundStyle(IPTheme.textPrimary)
 
@@ -107,7 +101,7 @@ struct SettingsView: View {
                                         }
                                         .padding(14)
                                         .background(
-                                            (currentAppearance == appearance ? IPTheme.accent.opacity(0.10) : Color.white.opacity(0.08)),
+                                            IPTheme.selectionFill(for: colorScheme, selected: currentAppearance == appearance),
                                             in: RoundedRectangle(cornerRadius: 18, style: .continuous)
                                         )
                                     }
@@ -132,7 +126,7 @@ struct SettingsView: View {
                             Label("Sign Out", systemImage: "rectangle.portrait.and.arrow.right")
                                 .frame(maxWidth: .infinity)
                         }
-                        .buttonStyle(IPPrimaryButtonStyle(isEnabled: true, tint: IPTheme.error))
+                        .buttonStyle(IPPrimaryButtonStyle(isEnabled: true))
                         .padding(.top, 4)
                     }
                     .padding(.horizontal, IPTheme.spacing20)
