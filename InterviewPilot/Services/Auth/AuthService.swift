@@ -288,12 +288,33 @@ final class AuthService {
         }
 
         if httpResponse.statusCode >= 400 {
+            if let routeError = missingRouteErrorMessage(
+                path: path,
+                data: data,
+                statusCode: httpResponse.statusCode
+            ) {
+                throw AuthError.serverError(routeError)
+            }
+
             throw AuthError.serverError(
                 serverMessage(from: data, fallback: "Request failed (\(httpResponse.statusCode))")
             )
         }
 
         return try JSONDecoder().decode(T.self, from: data)
+    }
+
+    private func missingRouteErrorMessage(path: String, data: Data, statusCode: Int) -> String? {
+        guard statusCode == 404 else { return nil }
+
+        let message = serverMessage(from: data, fallback: "")
+        guard message.contains("Route POST:\(path) not found") else { return nil }
+
+        if path == "/api/v1/auth/apple" {
+            return "Apple sign-in is not enabled on the deployed backend yet. Deploy the latest backend so POST \(path) exists."
+        }
+
+        return "The backend is missing POST \(path). Deploy the latest backend and try again."
     }
 
     private func serverMessage(from data: Data, fallback: String) -> String {
