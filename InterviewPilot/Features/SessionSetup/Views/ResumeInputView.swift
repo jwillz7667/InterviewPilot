@@ -47,7 +47,7 @@ struct ResumeInputView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Done") { dismiss() }
-                        .foregroundStyle(IPTheme.accent)
+                        .foregroundStyle(IPTheme.accentForeground)
                 }
             }
             .fileImporter(

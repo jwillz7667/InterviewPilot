@@ -19,7 +19,7 @@ struct ExchangeDetailView: View {
                             .overlay {
                                 Image(systemName: "questionmark.circle.fill")
                                     .font(.system(size: 16, weight: .semibold))
-                                    .foregroundStyle(IPTheme.accent)
+                                    .foregroundStyle(IPTheme.accentForeground)
                             }
 
                         VStack(alignment: .leading, spacing: 6) {

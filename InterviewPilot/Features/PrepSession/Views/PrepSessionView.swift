@@ -57,7 +57,7 @@ struct PrepSessionView: View {
                 .buttonStyle(.plain)
 
                 AnimatedStatusBadge(text: "Voice Prep", color: IPTheme.accent, isActive: true)
-                IPStatusPill(title: viewModel.statusText, symbol: prepStateSymbol, tint: IPTheme.accent)
+                IPStatusPill(title: viewModel.statusText, symbol: prepStateSymbol, tint: IPTheme.accentForeground)
 
                 Spacer()
 
@@ -80,8 +80,8 @@ struct PrepSessionView: View {
                     title: "AI interviewer",
                     subtitle: "Realtime spoken question",
                     symbol: "person.wave.2.fill",
-                    tint: IPTheme.accent,
-                    trailing: AnyView(IPStatusPill(title: viewModel.statusText, symbol: prepStateSymbol, tint: IPTheme.accent))
+                    tint: IPTheme.accentForeground,
+                    trailing: AnyView(IPStatusPill(title: viewModel.statusText, symbol: prepStateSymbol, tint: IPTheme.accentForeground))
                 )
 
                 ScrollView {
@@ -113,8 +113,8 @@ struct PrepSessionView: View {
                     title: "Your spoken answer",
                     subtitle: viewModel.currentAnswerDraft.isEmpty ? "Waiting for your response" : "Live transcription",
                     symbol: "mic.fill",
-                    tint: IPTheme.accent,
-                    trailing: AnyView(IPStatusPill(title: viewModel.interviewType.displayName, symbol: "target", tint: IPTheme.accent))
+                    tint: IPTheme.accentForeground,
+                    trailing: AnyView(IPStatusPill(title: viewModel.interviewType.displayName, symbol: "target", tint: IPTheme.accentForeground))
                 )
 
                 if let error = viewModel.errorMessage {

@@ -20,7 +20,7 @@ struct IPAppBackground: View {
 
             RadialGradient(
                 colors: [
-                    IPTheme.accent.opacity(colorScheme == .dark ? 0.18 : 0.08),
+                    IPTheme.accent.opacity(colorScheme == .dark ? 0.10 : 0.08),
                     Color.clear
                 ],
                 center: .topTrailing,
@@ -131,7 +131,7 @@ struct IPSectionHeader: View {
     let title: String
     let subtitle: String?
     let symbol: String?
-    var tint: Color = IPTheme.accent
+    var tint: Color = IPTheme.accentForeground
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -174,7 +174,9 @@ struct IPSectionHeader: View {
 struct IPStatusPill: View {
     let title: String
     let symbol: String
-    var tint: Color = IPTheme.accent
+    var tint: Color = IPTheme.accentForeground
+
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         Label(title, systemImage: symbol)
@@ -182,7 +184,7 @@ struct IPStatusPill: View {
             .foregroundStyle(tint)
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
-            .background(tint.opacity(0.12), in: Capsule())
+            .background(tint.opacity(colorScheme == .dark ? 0.08 : 0.10), in: Capsule())
     }
 }
 
@@ -196,7 +198,7 @@ struct IPEmptyState: View {
             VStack(spacing: 16) {
                 Image(systemName: symbol)
                     .font(.system(size: 34, weight: .semibold))
-                    .foregroundStyle(IPTheme.accent)
+                    .foregroundStyle(IPTheme.accentForeground)
                     .symbolEffect(.breathe.pulse)
 
                 Text(title)
@@ -231,7 +233,7 @@ struct IPInputShell<Content: View>: View {
             HStack(spacing: 10) {
                 Image(systemName: icon)
                     .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(IPTheme.accent)
+                    .foregroundStyle(IPTheme.accentForeground)
                     .frame(width: 26, height: 26)
 
                 VStack(alignment: .leading, spacing: 2) {
@@ -254,14 +256,14 @@ struct IPInputShell<Content: View>: View {
 
 struct IPPrimaryButtonStyle: ButtonStyle {
     var isEnabled: Bool = true
-    var tint: Color = IPTheme.accent
+    var tint: Color = IPTheme.accentForeground
 
     @Environment(\.colorScheme) private var colorScheme
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(IPTypography.bodyLarge)
-            .foregroundStyle(Color.white.opacity(isEnabled ? 1 : 0.8))
+            .foregroundStyle(IPTheme.primaryButtonLabelColor(for: colorScheme).opacity(isEnabled ? 1 : 0.8))
             .frame(maxWidth: .infinity)
             .padding(.vertical, 16)
             .background(
@@ -285,14 +287,14 @@ struct IPPrimaryButtonStyle: ButtonStyle {
 }
 
 struct IPSecondaryButtonStyle: ButtonStyle {
-    var tint: Color = IPTheme.accent
+    var tint: Color = IPTheme.accentForeground
 
     @Environment(\.colorScheme) private var colorScheme
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(IPTypography.bodyMedium)
-            .foregroundStyle(Color.white.opacity(0.96))
+            .foregroundStyle(IPTheme.secondaryButtonLabelColor(for: colorScheme).opacity(0.98))
             .padding(.horizontal, 14)
             .padding(.vertical, 10)
             .background(

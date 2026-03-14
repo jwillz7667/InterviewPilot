@@ -84,7 +84,7 @@ struct SessionHistoryView: View {
                         .overlay {
                             Image(systemName: sessionIcon(for: session))
                                 .font(.system(size: 20, weight: .semibold))
-                                .foregroundStyle(IPTheme.accent)
+                                .foregroundStyle(IPTheme.accentForeground)
                         }
 
                     VStack(alignment: .leading, spacing: 4) {

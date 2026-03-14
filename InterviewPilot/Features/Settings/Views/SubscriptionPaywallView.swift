@@ -36,7 +36,7 @@ struct SubscriptionPaywallView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Done") { dismiss() }
-                        .foregroundStyle(IPTheme.accent)
+                        .foregroundStyle(IPTheme.accentForeground)
                 }
             }
             .task {
@@ -129,7 +129,7 @@ struct SubscriptionPaywallView: View {
 
                     Text(product.displayPrice)
                         .font(IPTypography.bodyLarge)
-                        .foregroundStyle(IPTheme.accent)
+                        .foregroundStyle(IPTheme.accentForeground)
                 }
 
                 Spacer()

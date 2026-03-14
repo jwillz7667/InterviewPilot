@@ -57,7 +57,7 @@ struct LiveSessionView: View {
                 .buttonStyle(.plain)
 
                 AnimatedStatusBadge(text: "Live", color: IPTheme.live, isActive: true)
-                IPStatusPill(title: liveStateTitle, symbol: liveStateSymbol, tint: IPTheme.accent)
+                IPStatusPill(title: liveStateTitle, symbol: liveStateSymbol, tint: IPTheme.accentForeground)
 
                 Spacer()
 
@@ -81,7 +81,7 @@ struct LiveSessionView: View {
                     title: "Interviewer",
                     subtitle: "Live transcript",
                     symbol: "waveform.and.mic",
-                    tint: IPTheme.accent,
+                    tint: IPTheme.accentForeground,
                     trailing: viewModel.sessionState == .interviewerSpeaking
                         ? AnyView(AnimatedStatusBadge(text: "Listening", color: IPTheme.accent, isActive: true))
                         : AnyView(IPStatusPill(title: "On standby", symbol: "ear", tint: IPTheme.textSecondary))
@@ -136,7 +136,7 @@ struct LiveSessionView: View {
 
                             if viewModel.responseGenerator.isGenerating {
                                 ProgressView()
-                                    .tint(IPTheme.accent)
+                                    .tint(IPTheme.accentForeground)
                             }
                         }
                     )
@@ -295,10 +295,11 @@ struct ControlButton: View {
     let icon: String
     let label: String
     let isActive: Bool
-    var tint: Color = IPTheme.accent
+    var tint: Color = IPTheme.accentForeground
     let action: () -> Void
 
     @State private var isPressed = false
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         Button(action: {
@@ -307,12 +308,12 @@ struct ControlButton: View {
         }) {
             VStack(spacing: 6) {
                 RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .fill((isActive ? tint : Color.white.opacity(0.10)))
+                    .fill(isActive ? IPTheme.controlFill(for: colorScheme, isActive: true) : IPTheme.controlFill(for: colorScheme, isActive: false))
                     .frame(width: 54, height: 54)
                     .overlay {
                         Image(systemName: icon)
                             .font(.system(size: 18, weight: .semibold))
-                            .foregroundStyle(isActive ? .white : IPTheme.textSecondary)
+                            .foregroundStyle(IPTheme.controlForeground(for: colorScheme, isActive: isActive))
                             .symbolEffect(.bounce, value: isPressed)
                     }
 

@@ -1,13 +1,37 @@
 import SwiftUI
 
 enum IPTheme {
-    static let accent = Color(red: 0.157, green: 0.482, blue: 0.973)
-    static let accentSecondary = Color(red: 0.114, green: 0.357, blue: 0.804)
+    private static func uiColor(hex: Int) -> UIColor {
+        UIColor(
+            red: CGFloat((hex >> 16) & 0xFF) / 255,
+            green: CGFloat((hex >> 8) & 0xFF) / 255,
+            blue: CGFloat(hex & 0xFF) / 255,
+            alpha: 1
+        )
+    }
+
+    private static func color(hex: Int) -> Color {
+        Color(uiColor: uiColor(hex: hex))
+    }
+
+    private static func dynamicColor(lightHex: Int, darkHex: Int) -> Color {
+        Color(
+            uiColor: UIColor { traits in
+                traits.userInterfaceStyle == .dark
+                    ? uiColor(hex: darkHex)
+                    : uiColor(hex: lightHex)
+            }
+        )
+    }
+
+    static let accent = dynamicColor(lightHex: 0x0369E3, darkHex: 0xFFFFFF)
+    static let accentForeground = dynamicColor(lightHex: 0x004391, darkHex: 0xFFFFFF)
+    static let accentSecondary = dynamicColor(lightHex: 0x005BC4, darkHex: 0xD8E8FF)
     static let accentWarm = Color(red: 0.984, green: 0.706, blue: 0.349)
 
     static let brand = accent
-    static let brandLight = accentSecondary
-    static let brandDark = Color(red: 0.114, green: 0.271, blue: 0.690)
+    static let brandLight = dynamicColor(lightHex: 0x1D76E0, darkHex: 0xEEF5FF)
+    static let brandDark = dynamicColor(lightHex: 0x003D84, darkHex: 0xBFD8FF)
 
     static let success = Color(uiColor: .systemGreen)
     static let warning = Color(uiColor: .systemOrange)
@@ -30,7 +54,7 @@ enum IPTheme {
     static let backgroundTop = Color(
         uiColor: UIColor { traits in
             traits.userInterfaceStyle == .dark
-                ? UIColor(red: 0.041, green: 0.047, blue: 0.067, alpha: 1)
+                ? uiColor(hex: 0x0141A2)
                 : UIColor(red: 0.959, green: 0.969, blue: 0.984, alpha: 1)
         }
     )
@@ -38,7 +62,7 @@ enum IPTheme {
     static let backgroundBottom = Color(
         uiColor: UIColor { traits in
             traits.userInterfaceStyle == .dark
-                ? UIColor(red: 0.067, green: 0.078, blue: 0.110, alpha: 1)
+                ? uiColor(hex: 0x012F79)
                 : UIColor(red: 0.923, green: 0.941, blue: 0.969, alpha: 1)
         }
     )
@@ -50,15 +74,15 @@ enum IPTheme {
     static func meshColors(for colorScheme: ColorScheme) -> [Color] {
         if colorScheme == .dark {
             return [
-                Color(red: 0.070, green: 0.136, blue: 0.255),
-                accent.opacity(0.95),
-                Color(red: 0.104, green: 0.333, blue: 0.420),
-                Color(red: 0.067, green: 0.137, blue: 0.215),
-                accentWarm.opacity(0.68),
-                Color(red: 0.102, green: 0.239, blue: 0.392),
-                Color(red: 0.031, green: 0.067, blue: 0.129),
-                accentSecondary.opacity(0.85),
-                Color(red: 0.043, green: 0.094, blue: 0.173)
+                color(hex: 0x0141A2),
+                color(hex: 0x0A52B7),
+                Color.white.opacity(0.20),
+                color(hex: 0x073A8C),
+                color(hex: 0x0B4FB2),
+                color(hex: 0x032E73),
+                color(hex: 0x01245D),
+                accentSecondary.opacity(0.62),
+                Color.white.opacity(0.10)
             ]
         }
 
@@ -79,12 +103,13 @@ enum IPTheme {
         let boost = min(max(emphasis, 0), 0.12)
 
         if colorScheme == .dark {
+            let leadingOpacity = min(1.0, 0.96 + boost)
             return AnyShapeStyle(
                 LinearGradient(
                     colors: [
-                        Color(red: 0.112, green: 0.180, blue: 0.322).opacity(0.94 + boost),
-                        Color(red: 0.075, green: 0.129, blue: 0.251).opacity(0.98),
-                        Color(red: 0.047, green: 0.086, blue: 0.180).opacity(0.99)
+                        color(hex: 0x0B4FB2).opacity(leadingOpacity),
+                        color(hex: 0x083F9A).opacity(0.98),
+                        color(hex: 0x022B6D).opacity(0.99)
                     ],
                     startPoint: .topLeading,
                     endPoint: .bottomTrailing
@@ -109,6 +134,20 @@ enum IPTheme {
         let fillTint = tint ?? accent
 
         if tint != nil {
+            if colorScheme == .dark {
+                return AnyShapeStyle(
+                    LinearGradient(
+                        colors: [
+                            color(hex: 0x0A52B7),
+                            color(hex: 0x0847A7),
+                            color(hex: 0x032E73)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+            }
+
             return AnyShapeStyle(
                 LinearGradient(
                     colors: [
@@ -126,9 +165,9 @@ enum IPTheme {
             LinearGradient(
                 colors: colorScheme == .dark
                     ? [
-                        fillTint.opacity(0.24),
-                        accentSecondary.opacity(0.20),
-                        Color(red: 0.050, green: 0.094, blue: 0.188).opacity(0.98)
+                        color(hex: 0x063E9B),
+                        color(hex: 0x03357F),
+                        color(hex: 0x01245D)
                     ]
                     : [
                         Color(red: 0.940, green: 0.973, blue: 1.000),
@@ -147,14 +186,14 @@ enum IPTheme {
                 LinearGradient(
                     colors: selected
                         ? [
-                            accent.opacity(0.34),
-                            accentSecondary.opacity(0.28),
-                            Color(red: 0.053, green: 0.098, blue: 0.188).opacity(0.98)
+                            color(hex: 0x0A52B7),
+                            color(hex: 0x0847A7),
+                            color(hex: 0x032E73)
                         ]
                         : [
-                            Color(red: 0.102, green: 0.152, blue: 0.271).opacity(0.92),
-                            Color(red: 0.062, green: 0.102, blue: 0.196).opacity(0.96),
-                            Color(red: 0.048, green: 0.078, blue: 0.149).opacity(0.98)
+                            color(hex: 0x063684).opacity(0.92),
+                            color(hex: 0x022E73).opacity(0.96),
+                            color(hex: 0x01245D).opacity(0.98)
                         ],
                     startPoint: .topLeading,
                     endPoint: .bottomTrailing
@@ -185,14 +224,14 @@ enum IPTheme {
         LinearGradient(
             colors: colorScheme == .dark
                 ? [
-                    accent.opacity(0.98),
-                    accentSecondary.opacity(0.96),
-                    brandDark.opacity(0.98)
+                    Color.white,
+                    color(hex: 0xF5F9FF),
+                    color(hex: 0xDCE9FF)
                 ]
                 : [
-                    Color(red: 0.262, green: 0.600, blue: 1.000),
-                    accent.opacity(0.98),
-                    accentSecondary.opacity(0.94)
+                    color(hex: 0x0050AD),
+                    color(hex: 0x004A9F),
+                    color(hex: 0x003D84)
                 ],
             startPoint: .topLeading,
             endPoint: .bottomTrailing
@@ -203,18 +242,42 @@ enum IPTheme {
         LinearGradient(
             colors: colorScheme == .dark
                 ? [
-                    accent.opacity(0.42),
-                    accentSecondary.opacity(0.34),
-                    brandDark.opacity(0.30)
+                    color(hex: 0x0A52B7),
+                    color(hex: 0x0847A7),
+                    color(hex: 0x032E73)
                 ]
                 : [
-                    Color(red: 0.650, green: 0.826, blue: 1.000).opacity(0.92),
-                    accent.opacity(0.34),
-                    accentSecondary.opacity(0.24)
+                    color(hex: 0xEEF4FF),
+                    color(hex: 0xE3EDF9),
+                    color(hex: 0xD4E3F7)
                 ],
             startPoint: .topLeading,
             endPoint: .bottomTrailing
         )
+    }
+
+    static func primaryButtonLabelColor(for colorScheme: ColorScheme) -> Color {
+        colorScheme == .dark ? color(hex: 0x0141A2) : .white
+    }
+
+    static func secondaryButtonLabelColor(for colorScheme: ColorScheme) -> Color {
+        colorScheme == .dark ? .white : accentForeground
+    }
+
+    static func controlFill(for colorScheme: ColorScheme, isActive: Bool) -> Color {
+        if isActive {
+            return colorScheme == .dark ? .white : accentForeground
+        }
+
+        return colorScheme == .dark ? .white.opacity(0.10) : accentForeground.opacity(0.08)
+    }
+
+    static func controlForeground(for colorScheme: ColorScheme, isActive: Bool) -> Color {
+        if isActive {
+            return colorScheme == .dark ? color(hex: 0x0141A2) : .white
+        }
+
+        return textSecondary
     }
 
     static func borderColor(for colorScheme: ColorScheme) -> Color {

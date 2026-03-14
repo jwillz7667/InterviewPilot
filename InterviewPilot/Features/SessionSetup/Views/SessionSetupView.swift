@@ -87,7 +87,7 @@ struct SessionSetupView: View {
                         IPStatusPill(
                             title: entitlement.planTitle,
                             symbol: entitlement.sandboxFullAccess ? "checkmark.seal.fill" : "creditcard.fill",
-                            tint: entitlement.sandboxFullAccess ? IPTheme.success : IPTheme.accent
+                            tint: entitlement.sandboxFullAccess ? IPTheme.success : IPTheme.accentForeground
                         )
                     }
                     Spacer()
@@ -113,7 +113,7 @@ struct SessionSetupView: View {
                 HStack(spacing: 10) {
                     summaryPill("Resume", isReady: viewModel.hasResume)
                     summaryPill("Job post", isReady: viewModel.hasJobDescription)
-                    summaryPill(viewModel.interviewType.displayName, isReady: true, tint: IPTheme.accent)
+                    summaryPill(viewModel.interviewType.displayName, isReady: true, tint: IPTheme.accentForeground)
                 }
             }
         }
@@ -206,7 +206,7 @@ struct SessionSetupView: View {
                             HStack(spacing: 12) {
                                 Image(systemName: viewModel.sessionMode == mode ? "checkmark.circle.fill" : (isLocked ? "lock.circle" : "circle"))
                                     .font(.system(size: 18, weight: .semibold))
-                                    .foregroundStyle(viewModel.sessionMode == mode ? IPTheme.accent : IPTheme.textTertiary)
+                                    .foregroundStyle(viewModel.sessionMode == mode ? IPTheme.accentForeground : IPTheme.textTertiary)
 
                                 VStack(alignment: .leading, spacing: 3) {
                                     HStack(spacing: 8) {
@@ -215,7 +215,7 @@ struct SessionSetupView: View {
                                             .foregroundStyle(IPTheme.textPrimary)
 
                                         if isLocked {
-                                            IPStatusPill(title: "Pro", symbol: "sparkles", tint: IPTheme.accent)
+                                            IPStatusPill(title: "Pro", symbol: "sparkles", tint: IPTheme.accentForeground)
                                         }
                                     }
 
@@ -259,7 +259,7 @@ struct SessionSetupView: View {
                             VStack(alignment: .leading, spacing: 10) {
                                 Image(systemName: interviewTypeIcon(for: type))
                                     .font(.system(size: 17, weight: .semibold))
-                                    .foregroundStyle(viewModel.interviewType == type ? IPTheme.accent : IPTheme.textSecondary)
+                                    .foregroundStyle(viewModel.interviewType == type ? IPTheme.accentForeground : IPTheme.textSecondary)
 
                                 Text(type.displayName)
                                     .font(IPTypography.bodyLarge)
@@ -299,7 +299,7 @@ struct SessionSetupView: View {
                             HStack(spacing: 12) {
                                 Image(systemName: viewModel.responseFormat == format ? "checkmark.circle.fill" : "circle")
                                     .font(.system(size: 18, weight: .semibold))
-                                    .foregroundStyle(viewModel.responseFormat == format ? IPTheme.accent : IPTheme.textTertiary)
+                                    .foregroundStyle(viewModel.responseFormat == format ? IPTheme.accentForeground : IPTheme.textTertiary)
 
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(format.displayName)
@@ -388,7 +388,7 @@ struct SessionSetupView: View {
         }
     }
 
-    private func summaryPill(_ title: String, isReady: Bool, tint: Color = IPTheme.accent) -> some View {
+    private func summaryPill(_ title: String, isReady: Bool, tint: Color = IPTheme.accentForeground) -> some View {
         Label(title, systemImage: isReady ? "checkmark.circle.fill" : "circle")
             .font(IPTypography.labelSmall)
             .foregroundStyle(isReady ? tint : IPTheme.textSecondary)

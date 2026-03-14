@@ -14,7 +14,7 @@ struct InterviewTypePickerView: View {
                     VStack(alignment: .leading, spacing: 10) {
                         Image(systemName: iconForType(type))
                             .font(.system(size: 18, weight: .semibold))
-                            .foregroundStyle(selectedType == type ? IPTheme.accent : IPTheme.textSecondary)
+                            .foregroundStyle(selectedType == type ? IPTheme.accentForeground : IPTheme.textSecondary)
 
                         Text(type.displayName)
                             .font(IPTypography.bodyMedium)

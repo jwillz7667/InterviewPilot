@@ -31,7 +31,7 @@ struct SessionReviewView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Done") { dismiss() }
-                        .foregroundStyle(IPTheme.accent)
+                        .foregroundStyle(IPTheme.accentForeground)
                 }
             }
         }
@@ -69,7 +69,7 @@ struct SessionReviewView: View {
             VStack(spacing: 10) {
                 Image(systemName: icon)
                     .font(.system(size: 17, weight: .semibold))
-                    .foregroundStyle(IPTheme.accent)
+                    .foregroundStyle(IPTheme.accentForeground)
 
                 Text(value)
                     .font(IPTypography.headlineSmall)

@@ -17,7 +17,7 @@ struct TranscriptView: View {
                                 HStack(spacing: 8) {
                                     Image(systemName: segment.speaker == .interviewer ? "person.fill" : "sparkles")
                                         .font(.system(size: 11, weight: .semibold))
-                                        .foregroundStyle(segment.speaker == .interviewer ? IPTheme.accent : IPTheme.accentWarm)
+                                        .foregroundStyle(segment.speaker == .interviewer ? IPTheme.accentForeground : IPTheme.accentWarm)
 
                                     Text(segment.speaker == .interviewer ? "Interviewer" : "AI Response")
                                         .font(IPTypography.labelSmall)

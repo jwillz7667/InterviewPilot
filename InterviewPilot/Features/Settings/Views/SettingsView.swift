@@ -81,7 +81,7 @@ struct SettingsView: View {
                                                 .overlay {
                                                     Image(systemName: appearance.symbol)
                                                         .font(.system(size: 17, weight: .semibold))
-                                                        .foregroundStyle(currentAppearance == appearance ? IPTheme.accent : IPTheme.textSecondary)
+                                                        .foregroundStyle(currentAppearance == appearance ? IPTheme.accentForeground : IPTheme.textSecondary)
                                                 }
 
                                             VStack(alignment: .leading, spacing: 2) {
@@ -97,7 +97,7 @@ struct SettingsView: View {
 
                                             Image(systemName: currentAppearance == appearance ? "checkmark.circle.fill" : "circle")
                                                 .font(.system(size: 18, weight: .semibold))
-                                                .foregroundStyle(currentAppearance == appearance ? IPTheme.accent : IPTheme.textTertiary)
+                                                .foregroundStyle(currentAppearance == appearance ? IPTheme.accentForeground : IPTheme.textTertiary)
                                         }
                                         .padding(14)
                                         .background(
@@ -139,7 +139,7 @@ struct SettingsView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Done") { dismiss() }
-                        .foregroundStyle(IPTheme.accent)
+                        .foregroundStyle(IPTheme.accentForeground)
                 }
             }
             .confirmationDialog("Sign Out", isPresented: $showSignOutConfirm) {
@@ -170,7 +170,7 @@ struct SettingsView: View {
                 .overlay {
                     Image(systemName: icon)
                         .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(IPTheme.accent)
+                        .foregroundStyle(IPTheme.accentForeground)
                 }
 
             VStack(alignment: .leading, spacing: 2) {

@@ -113,7 +113,7 @@ struct LoginView: View {
                 HStack {
                     IPStatusPill(title: isRegistering ? "Create workspace" : "Secure sign in", symbol: "lock.fill")
                     Spacer()
-                    IPStatusPill(title: "Live Interview", symbol: "waveform.and.mic", tint: IPTheme.accent)
+                    IPStatusPill(title: "Live Interview", symbol: "waveform.and.mic", tint: IPTheme.accentForeground)
                 }
 
                 HStack(alignment: .top, spacing: 16) {

@@ -11,7 +11,7 @@ struct PreGenerationView: View {
                 VStack(spacing: IPTheme.spacing12) {
                     ProgressView()
                         .progressViewStyle(.circular)
-                        .tint(IPTheme.accent)
+                        .tint(IPTheme.accentForeground)
                         .scaleEffect(1.1)
 
                     Text("Building your Q&A bank...")
@@ -20,7 +20,7 @@ struct PreGenerationView: View {
 
                     if progress.total > 0 {
                         ProgressView(value: Double(progress.current), total: Double(progress.total))
-                            .tint(IPTheme.accent)
+                            .tint(IPTheme.accentForeground)
 
                         Text("\(progress.current) of \(progress.total) questions prepared")
                             .font(IPTypography.bodySmall)
