@@ -2,6 +2,7 @@ import SwiftUI
 
 struct PerformanceView: View {
     let exchanges: [Exchange]
+    let summary: SessionTelemetrySummary?
 
     var body: some View {
         IPPanel {
@@ -10,19 +11,50 @@ struct PerformanceView: View {
                     .font(IPTypography.headlineSmall)
                     .foregroundStyle(IPTheme.textPrimary)
 
+                if let firstToken = summary?.averageLiveTimeToFirstTokenMs ?? summary?.averageTimeToFirstTokenMs {
+                    metricRow(
+                        title: "Average first token",
+                        value: formatLatency(firstToken),
+                        icon: "timer",
+                        color: latencyColor(firstToken, successThreshold: 900, warningThreshold: 1500)
+                    )
+                }
+
                 metricRow(
-                    title: "Average response time",
-                    value: "\(averageLatency)ms",
+                    title: "Average full completion",
+                    value: formatLatency(summary?.averageLiveGenerationDurationMs ?? summary?.averageGenerationDurationMs ?? averageLatency),
                     icon: "bolt.fill",
-                    color: averageLatency < 2000 ? IPTheme.success : IPTheme.warning
+                    color: latencyColor(
+                        summary?.averageLiveGenerationDurationMs ?? summary?.averageGenerationDurationMs ?? averageLatency,
+                        successThreshold: 1800,
+                        warningThreshold: 3200
+                    )
                 )
+
+                if let p95Live = summary?.p95LiveGenerationDurationMs {
+                    metricRow(
+                        title: "P95 live completion",
+                        value: formatLatency(p95Live),
+                        icon: "waveform.path.ecg",
+                        color: latencyColor(p95Live, successThreshold: 2400, warningThreshold: 4000)
+                    )
+                }
 
                 metricRow(
                     title: "Cache hit rate",
-                    value: String(format: "%.0f%%", cacheHitRate),
+                    value: String(format: "%.0f%%", summary?.cacheHitRate ?? cacheHitRate),
                     icon: "arrow.triangle.2.circlepath",
-                    color: cacheHitRate > 50 ? IPTheme.success : IPTheme.accent
+                    color: (summary?.cacheHitRate ?? cacheHitRate) > 50 ? IPTheme.success : IPTheme.accent
                 )
+
+                if let predictiveFireRate = summary?.predictiveFireRate {
+                    metricRow(
+                        title: "Predictive fire rate",
+                        value: String(format: "%.0f%%", predictiveFireRate),
+                        icon: "bolt.badge.clock.fill",
+                        color: predictiveFireRate > 40 ? IPTheme.success : IPTheme.accentForeground
+                    )
+                }
 
                 metricRow(
                     title: "Questions answered",
@@ -67,5 +99,29 @@ struct PerformanceView: View {
         guard !exchanges.isEmpty else { return 0 }
         let cached = exchanges.filter(\.wasPreComputed).count
         return Double(cached) / Double(exchanges.count) * 100
+    }
+
+    private func formatLatency(_ latencyMs: Int) -> String {
+        if latencyMs < 1000 {
+            return "\(latencyMs)ms"
+        }
+
+        return String(format: "%.1fs", Double(latencyMs) / 1000)
+    }
+
+    private func latencyColor(
+        _ latencyMs: Int,
+        successThreshold: Int,
+        warningThreshold: Int
+    ) -> Color {
+        if latencyMs <= successThreshold {
+            return IPTheme.success
+        }
+
+        if latencyMs <= warningThreshold {
+            return IPTheme.accent
+        }
+
+        return IPTheme.warning
     }
 }

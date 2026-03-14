@@ -3,6 +3,18 @@ import { authenticate } from '../../middleware/authenticate.js';
 import { withDatabaseRetry } from '../../config/database.js';
 import { z } from 'zod';
 
+const exchangeTelemetrySchema = z.object({
+  questionDurationMs: z.number().int().nonnegative().nullable().optional(),
+  speechEndToFireMs: z.number().int().nonnegative().nullable().optional(),
+  timeToFirstTokenMs: z.number().int().nonnegative().nullable().optional(),
+  generationDurationMs: z.number().int().nonnegative().nullable().optional(),
+  questionEndToCompletionMs: z.number().int().nonnegative().nullable().optional(),
+  cacheLookupMs: z.number().int().nonnegative().nullable().optional(),
+  classificationMs: z.number().int().nonnegative().nullable().optional(),
+  streamChunkCount: z.number().int().nonnegative(),
+  usedPredictiveFire: z.boolean(),
+}).strict();
+
 const exchangeSchema = z.object({
   clientId: z.string().uuid(),
   timestamp: z.string().datetime(),
@@ -11,6 +23,7 @@ const exchangeSchema = z.object({
   generatedResponse: z.string(),
   responseLatencyMs: z.number().int(),
   wasPreComputed: z.boolean().default(false),
+  telemetry: exchangeTelemetrySchema.optional(),
   sequenceOrder: z.number().int(),
 });
 
@@ -66,11 +79,14 @@ export async function exchangesRoutes(app: FastifyInstance) {
               ...exchange,
               timestamp: new Date(exchange.timestamp),
               sessionId: request.params.sessionId,
+              telemetry: exchange.telemetry,
             },
             update: {
               questionTranscript: exchange.questionTranscript,
               generatedResponse: exchange.generatedResponse,
               responseLatencyMs: exchange.responseLatencyMs,
+              wasPreComputed: exchange.wasPreComputed,
+              telemetry: exchange.telemetry,
             },
           })
         );

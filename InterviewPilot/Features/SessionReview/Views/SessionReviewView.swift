@@ -13,7 +13,7 @@ struct SessionReviewView: View {
                     VStack(spacing: IPTheme.spacing20) {
                         headerSection
                         statsSection
-                        PerformanceView(exchanges: viewModel.exchanges)
+                        PerformanceView(exchanges: viewModel.exchanges, summary: viewModel.telemetrySummary)
 
                         if !viewModel.questionTypeBreakdown.isEmpty {
                             questionTypeSection
@@ -50,7 +50,11 @@ struct SessionReviewView: View {
                 HStack(spacing: 10) {
                     IPStatusPill(title: viewModel.formattedDuration, symbol: "clock.fill")
                     IPStatusPill(title: "\(viewModel.exchanges.count) exchanges", symbol: "text.bubble.fill")
-                    IPStatusPill(title: "\(viewModel.averageLatency) ms avg", symbol: "bolt.fill", tint: IPTheme.accentWarm)
+                    IPStatusPill(
+                        title: viewModel.averageFirstTokenLatency.map { "\($0) ms 1st token" } ?? "\(viewModel.averageLatency) ms avg",
+                        symbol: "bolt.fill",
+                        tint: IPTheme.accentWarm
+                    )
                 }
             }
         }
@@ -60,7 +64,11 @@ struct SessionReviewView: View {
         HStack(spacing: 12) {
             statCard(title: "Duration", value: viewModel.formattedDuration, icon: "clock.fill")
             statCard(title: "Questions", value: "\(viewModel.exchanges.count)", icon: "questionmark.bubble.fill")
-            statCard(title: "Avg Latency", value: "\(viewModel.averageLatency)ms", icon: "bolt.fill")
+            statCard(
+                title: "First Token",
+                value: viewModel.averageFirstTokenLatency.map { "\($0)ms" } ?? "\(viewModel.averageLatency)ms",
+                icon: "bolt.fill"
+            )
         }
     }
 

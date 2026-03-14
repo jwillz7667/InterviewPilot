@@ -52,6 +52,7 @@ final class AnswerBankService {
         resume: String,
         jobDescription: String,
         interviewType: InterviewType,
+        qualityMode: ResponseQualityMode,
         apiKey: String,
         onProgress: @escaping (Int, Int) -> Void
     ) async throws {
@@ -61,7 +62,8 @@ final class AnswerBankService {
         let prompt = PromptBuilder.buildPreGenerationPrompt(
             resume: resume,
             jobDescription: jobDescription,
-            interviewType: interviewType
+            interviewType: interviewType,
+            qualityMode: qualityMode
         )
 
         var request = URLRequest(url: URL(string: "https://api.openai.com/v1/chat/completions")!)

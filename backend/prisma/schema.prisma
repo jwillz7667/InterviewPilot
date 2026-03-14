@@ -234,6 +234,7 @@ model InterviewSession {
   modelUsed       String
   totalTokensUsed Int        @default(0)
   estimatedCost   Float      @default(0)
+  telemetrySummary Json?
 
   exchanges       Exchange[]
 
@@ -256,6 +257,7 @@ model Exchange {
   generatedResponse  String
   responseLatencyMs  Int
   wasPreComputed     Boolean          @default(false)
+  telemetry          Json?
   sequenceOrder      Int
 
   createdAt          DateTime         @default(now())

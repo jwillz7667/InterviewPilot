@@ -6,14 +6,7 @@ import { z } from 'zod';
 const updateSettingsSchema = z.object({
   defaultInterviewType: z.string().optional(),
   defaultResponseFormat: z.string().optional(),
-  defaultModel: z.string().optional(),
   shouldPreGenerate: z.boolean().optional(),
-  responseTemperature: z.number().min(0).max(2).optional(),
-  maxResponseTokens: z.number().min(100).max(4000).optional(),
-  maxPreComputedQs: z.number().min(5).max(50).optional(),
-  utteranceEndMs: z.number().min(500).max(5000).optional(),
-  endpointingMs: z.number().min(100).max(2000).optional(),
-  predictiveFireMinWords: z.number().min(3).max(20).optional(),
 });
 
 export async function settingsRoutes(app: FastifyInstance) {

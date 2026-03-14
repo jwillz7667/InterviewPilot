@@ -11,6 +11,7 @@ struct SessionSyncSnapshot: Sendable {
     let modelUsed: String
     let totalTokensUsed: Int
     let estimatedCost: Double
+    let telemetrySummary: SessionTelemetrySummary?
     let exchanges: [ExchangeSyncSnapshot]
 }
 
@@ -22,6 +23,7 @@ struct ExchangeSyncSnapshot: Sendable {
     let generatedResponse: String
     let responseLatencyMs: Int
     let wasPreComputed: Bool
+    let telemetry: ExchangeTelemetry?
     let sequenceOrder: Int
 }
 
@@ -159,6 +161,7 @@ private struct CreateSessionRequest: Encodable, Sendable {
     let modelUsed: String
     let totalTokensUsed: Int
     let estimatedCost: Double
+    let telemetrySummary: SessionTelemetrySummary?
 
     nonisolated init(snapshot: SessionSyncSnapshot) {
         self.clientId = snapshot.clientId
@@ -171,6 +174,7 @@ private struct CreateSessionRequest: Encodable, Sendable {
         self.modelUsed = snapshot.modelUsed
         self.totalTokensUsed = snapshot.totalTokensUsed
         self.estimatedCost = snapshot.estimatedCost
+        self.telemetrySummary = snapshot.telemetrySummary
     }
 }
 
@@ -190,6 +194,7 @@ private struct ExchangeRequest: Encodable, Sendable {
     let generatedResponse: String
     let responseLatencyMs: Int
     let wasPreComputed: Bool
+    let telemetry: ExchangeTelemetry?
     let sequenceOrder: Int
 
     nonisolated init(snapshot: ExchangeSyncSnapshot) {
@@ -200,6 +205,7 @@ private struct ExchangeRequest: Encodable, Sendable {
         self.generatedResponse = snapshot.generatedResponse
         self.responseLatencyMs = snapshot.responseLatencyMs
         self.wasPreComputed = snapshot.wasPreComputed
+        self.telemetry = snapshot.telemetry
         self.sequenceOrder = snapshot.sequenceOrder
     }
 }

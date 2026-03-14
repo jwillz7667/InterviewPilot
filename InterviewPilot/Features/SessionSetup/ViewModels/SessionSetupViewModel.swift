@@ -17,17 +17,67 @@ final class SessionSetupViewModel {
     var responseBehavior: ResponseBehavior = .analytical
     var responseTone: ResponseTone = .natural
     var responseEmphasis: ResponseEmphasis = .technicalDepth
+    var responseQualityMode: ResponseQualityMode = .standard
     var showResumeInput: Bool = false
     var shouldPresentPaywall: Bool = false
+    var shouldPreGenerate: Bool = true
+    var isLoadingDefaults: Bool = false
+    var isPreparingSession: Bool = false
+    var isGeneratingAnswerBank: Bool = false
+    var preparedAnswers: [PreComputedAnswer] = []
+    var preparedAnswerBankName: String?
+    var preparedAnswerBankIsCached: Bool = false
+    var preGenerationProgress: (current: Int, total: Int) = (0, 0)
 
     var errorMessage: String?
 
     private let authService = AuthService.shared
     private let subscriptionService = SubscriptionService.shared
+    private let settingsService = UserSettingsService.shared
+    private let answerBankService = AnswerBankAPIService.shared
+    private var hasLoadedDefaults = false
+    private var preparedFingerprint: String?
 
     var hasResume: Bool { !resumeText.isEmpty }
     var hasJobDescription: Bool { !jobDescription.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
     var isReady: Bool { hasResume && hasJobDescription }
+    var hasPreparedAnswers: Bool { !preparedAnswers.isEmpty }
+    var prepSummary: String {
+        if isGeneratingAnswerBank {
+            return responseQualityMode == .premium
+                ? "Building a top-tier prep bank for this role."
+                : "Building a personalized question bank for this role."
+        }
+
+        guard hasPreparedAnswers else {
+            return shouldPreGenerate
+                ? "Generate likely questions and fast reusable answers before starting."
+                : "Skip prep generation and start immediately with live processing only."
+        }
+
+        let sourceLabel = preparedAnswerBankIsCached ? "reused" : "generated"
+        let bankName = preparedAnswerBankName ?? "prep bank"
+        return "\(preparedAnswers.count) prepared questions \(sourceLabel) from \(bankName)."
+    }
+
+    func loadIfNeeded() async {
+        guard !hasLoadedDefaults else { return }
+
+        isLoadingDefaults = true
+        defer {
+            isLoadingDefaults = false
+            hasLoadedDefaults = true
+        }
+
+        do {
+            let settings = try await settingsService.fetchSettings()
+            interviewType = settings.interviewType
+            responseFormat = settings.responseFormat
+            shouldPreGenerate = settings.shouldPreGenerate
+        } catch {
+            // Keep local defaults if the backend is unavailable.
+        }
+    }
 
     func handleResumeFile(result: Result<URL, Error>) {
         switch result {
@@ -43,13 +93,69 @@ final class SessionSetupViewModel {
         }
     }
 
-    func prepareSession() async -> SessionLaunchDestination? {
-        guard isReady else { return nil }
-
+    func updateShouldPreGenerate(_ enabled: Bool) async {
+        shouldPreGenerate = enabled
         errorMessage = nil
-        shouldPresentPaywall = false
 
         do {
+            let settings = try await settingsService.updateSettings(
+                UserSettingsUpdate(shouldPreGenerate: enabled)
+            )
+            shouldPreGenerate = settings.shouldPreGenerate
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    func invalidatePreparedAnswerBankIfNeeded() {
+        let fingerprint = currentPreparationFingerprint
+        guard preparedFingerprint != nil, preparedFingerprint != fingerprint else { return }
+
+        preparedAnswers = []
+        preparedAnswerBankName = nil
+        preparedAnswerBankIsCached = false
+        preGenerationProgress = (0, 0)
+        preparedFingerprint = nil
+    }
+
+    func generatePreparedAnswers(force: Bool = false) async {
+        guard isReady else { return }
+
+        do {
+            try await prepareAnswerBankIfNeeded(force: force)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    func prepareSession() async -> SessionLaunchDestination? {
+        guard isReady, !isPreparingSession else { return nil }
+
+        isPreparingSession = true
+        errorMessage = nil
+        shouldPresentPaywall = false
+        defer { isPreparingSession = false }
+
+        do {
+            if shouldPreGenerate {
+                do {
+                    try await prepareAnswerBankIfNeeded()
+                } catch {
+                    errorMessage = "Prep generation failed. Starting without saved prep assets."
+                    preparedAnswers = []
+                    preparedAnswerBankName = nil
+                    preparedAnswerBankIsCached = false
+                    preGenerationProgress = (0, 0)
+                }
+            }
+
+            if responseQualityMode.requiresPriorityModels,
+               !(subscriptionService.entitlement?.hasPriorityModels ?? false) {
+                errorMessage = "Top Tier mode requires a Pro subscription."
+                shouldPresentPaywall = true
+                return nil
+            }
+
             try await ensureRuntimeKeys(for: sessionMode)
 
             let sessionId = UUID()
@@ -91,7 +197,8 @@ final class SessionSetupViewModel {
             responseBehavior: responseBehavior,
             responseTone: responseTone,
             responseEmphasis: responseEmphasis,
-            preComputedAnswers: [],
+            responseQualityMode: responseQualityMode,
+            preComputedAnswers: shouldPreGenerate ? preparedAnswers : [],
             deepgramKey: deepgramKey,
             openAIKey: openAIKey
         )
@@ -130,6 +237,39 @@ final class SessionSetupViewModel {
                 throw missingAccessError()
             }
         }
+    }
+
+    private var currentPreparationFingerprint: String {
+        [
+            resumeText.trimmingCharacters(in: .whitespacesAndNewlines),
+            jobDescription.trimmingCharacters(in: .whitespacesAndNewlines),
+            interviewType.rawValue,
+            responseQualityMode.rawValue,
+        ].joined(separator: "::")
+    }
+
+    private func prepareAnswerBankIfNeeded(force: Bool = false) async throws {
+        let fingerprint = currentPreparationFingerprint
+        if !force, preparedFingerprint == fingerprint, !preparedAnswers.isEmpty {
+            return
+        }
+
+        isGeneratingAnswerBank = true
+        preGenerationProgress = (0, 0)
+        defer { isGeneratingAnswerBank = false }
+
+        let bank = try await answerBankService.generateOrReuseAnswerBank(
+            resume: resumeText,
+            jobDescription: jobDescription,
+            interviewType: interviewType,
+            qualityMode: responseQualityMode
+        )
+
+        preparedAnswers = bank.answers
+        preparedAnswerBankName = bank.name
+        preparedAnswerBankIsCached = bank.fromCache
+        preparedFingerprint = fingerprint
+        preGenerationProgress = (bank.answers.count, bank.answers.count)
     }
 
     private func missingAccessError() -> BillingClientError {

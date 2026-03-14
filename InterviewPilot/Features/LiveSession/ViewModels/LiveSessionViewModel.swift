@@ -24,6 +24,7 @@ final class LiveSessionViewModel {
     var exchangeCount: Int = 0
     var isResponseFromCache: Bool = false
     var errorMessage: String?
+    var syncState: SyncState = .idle
 
     // Session config
     let sessionId: UUID
@@ -34,6 +35,7 @@ final class LiveSessionViewModel {
     let responseBehavior: ResponseBehavior
     let responseTone: ResponseTone
     let responseEmphasis: ResponseEmphasis
+    let responseQualityMode: ResponseQualityMode
     let preComputedAnswers: [PreComputedAnswer]
 
     // Private state
@@ -50,6 +52,19 @@ final class LiveSessionViewModel {
     private var exchanges: [Exchange] = []
     private var persistedSession: InterviewSession?
     private var modelsUsed: Set<String> = []
+    private var syncTask: Task<Void, Never>?
+    private var pendingExchangeMetrics = PendingExchangeMetrics()
+
+    private struct PendingExchangeMetrics {
+        var questionStartedAt: Date?
+        var questionEndedAt: Date?
+        var responseStartedAt: Date?
+        var firstTokenAt: Date?
+        var cacheLookupMs: Int?
+        var classificationMs: Int?
+        var streamChunkCount: Int = 0
+        var usedPredictiveFire = false
+    }
 
     enum SessionState: Equatable {
         case idle
@@ -58,6 +73,26 @@ final class LiveSessionViewModel {
         case generating
         case responseReady
         case postResponseSpeech
+    }
+
+    enum SyncState: Equatable {
+        case idle
+        case syncing
+        case synced
+        case failed
+
+        var title: String {
+            switch self {
+            case .idle:
+                return "Local"
+            case .syncing:
+                return "Syncing"
+            case .synced:
+                return "Synced"
+            case .failed:
+                return "Sync Pending"
+            }
+        }
     }
 
     init(
@@ -69,6 +104,7 @@ final class LiveSessionViewModel {
         responseBehavior: ResponseBehavior,
         responseTone: ResponseTone,
         responseEmphasis: ResponseEmphasis,
+        responseQualityMode: ResponseQualityMode,
         preComputedAnswers: [PreComputedAnswer],
         deepgramKey: String,
         openAIKey: String
@@ -81,6 +117,7 @@ final class LiveSessionViewModel {
         self.responseBehavior = responseBehavior
         self.responseTone = responseTone
         self.responseEmphasis = responseEmphasis
+        self.responseQualityMode = responseQualityMode
         self.preComputedAnswers = preComputedAnswers
 
         self.audioCapture = AudioCaptureService()
@@ -146,6 +183,7 @@ final class LiveSessionViewModel {
 
         deepgram.onSpeechStarted = { [weak self] in
             guard let self else { return }
+            let now = Date()
 
             if self.sessionState == .generating || self.sessionState == .idle {
                 return
@@ -162,16 +200,25 @@ final class LiveSessionViewModel {
             if self.sessionState == .listening {
                 self.sessionState = .interviewerSpeaking
                 if self.currentExchangeStart == nil {
-                    self.currentExchangeStart = Date()
+                    self.currentExchangeStart = now
+                }
+                if self.pendingExchangeMetrics.questionStartedAt == nil {
+                    self.pendingExchangeMetrics.questionStartedAt = self.currentExchangeStart ?? now
                 }
             }
         }
 
         deepgram.onSpeechEnded = { [weak self] in
             guard let self else { return }
+            let speechEndedAt = Date()
+            self.pendingExchangeMetrics.questionEndedAt = self.pendingExchangeMetrics.questionEndedAt ?? speechEndedAt
 
             if self.sessionState == .postResponseSpeech {
                 self.handlePostResponseUtterance()
+                return
+            }
+
+            if self.sessionState == .generating {
                 return
             }
 
@@ -191,11 +238,18 @@ final class LiveSessionViewModel {
             self.errorMessage = message
             self.sessionState = .listening
             self.hasFiredResponse = false  // Allow retry
+            self.pendingExchangeMetrics.responseStartedAt = nil
+            self.pendingExchangeMetrics.firstTokenAt = nil
+            self.pendingExchangeMetrics.streamChunkCount = 0
         }
 
         // Response generator → Display
         responseGenerator.onTokenReceived = { [weak self] token in
             guard let self else { return }
+            if self.pendingExchangeMetrics.firstTokenAt == nil {
+                self.pendingExchangeMetrics.firstTokenAt = Date()
+            }
+            self.pendingExchangeMetrics.streamChunkCount += 1
             self.currentResponse += token
             self.responseTokens.append(token)
         }
@@ -231,6 +285,7 @@ final class LiveSessionViewModel {
         audioCapture.stopCapture()
         deepgram.disconnect()
         responseGenerator.cancelGeneration()
+        syncTask?.cancel()
         timer?.invalidate()
         timer = nil
         persistSessionSnapshot(endedAt: endedAt)
@@ -247,42 +302,70 @@ final class LiveSessionViewModel {
         let wordCount = fullText.split(separator: " ").count
         guard wordCount >= APIConfig.predictiveFireMinWords else { return }
 
+        let predictiveFire = pendingExchangeMetrics.questionEndedAt == nil
+
         // Check answer bank first
+        let cacheLookupStartedAt = Date()
         if let cachedAnswer = answerBank.findMatch(
             query: fullText,
             threshold: APIConfig.cacheMatchThreshold
         ) {
+            pendingExchangeMetrics.cacheLookupMs = elapsedMilliseconds(
+                from: cacheLookupStartedAt,
+                to: Date()
+            )
+            pendingExchangeMetrics.usedPredictiveFire = predictiveFire
+            pendingExchangeMetrics.responseStartedAt = Date()
             hasFiredResponse = true
             isResponseFromCache = true
             sessionState = .generating
             currentExchangeStart = currentExchangeStart ?? Date()
+            pendingExchangeMetrics.questionStartedAt = pendingExchangeMetrics.questionStartedAt ?? currentExchangeStart
             accumulatedTranscript = fullText.trimmingCharacters(in: .whitespacesAndNewlines)
             interviewerTranscript = accumulatedTranscript
             modelsUsed.insert(currentSessionModelName)
             displayCachedAnswer(cachedAnswer)
             return
         }
+        pendingExchangeMetrics.cacheLookupMs = elapsedMilliseconds(
+            from: cacheLookupStartedAt,
+            to: Date()
+        )
 
         // Classify question type
+        let classificationStartedAt = Date()
         let classification = classifier.classify(fullText)
+        pendingExchangeMetrics.classificationMs = elapsedMilliseconds(
+            from: classificationStartedAt,
+            to: Date()
+        )
         self.questionType = classification
 
         // Fire if enough confidence — lowered word count threshold for faster triggering
         if classification.confidence > APIConfig.predictiveFireConfidence && wordCount >= 8 {
-            fireResponse(question: fullText)
+            fireResponse(question: fullText, triggeredPredictively: predictiveFire)
         }
     }
 
-    private func fireResponse(question: String) {
+    private func fireResponse(question: String, triggeredPredictively: Bool = false) {
         guard !hasFiredResponse else { return }
         hasFiredResponse = true
         isResponseFromCache = false
         sessionState = .generating
-        currentExchangeStart = currentExchangeStart ?? Date()
+        let responseStartedAt = Date()
+        currentExchangeStart = currentExchangeStart ?? responseStartedAt
+        pendingExchangeMetrics.questionStartedAt = pendingExchangeMetrics.questionStartedAt ?? currentExchangeStart
+        pendingExchangeMetrics.responseStartedAt = responseStartedAt
+        pendingExchangeMetrics.usedPredictiveFire = pendingExchangeMetrics.usedPredictiveFire || triggeredPredictively
 
         // Classify if not already done
         if questionType == nil {
+            let classificationStartedAt = Date()
             questionType = classifier.classify(question)
+            pendingExchangeMetrics.classificationMs = elapsedMilliseconds(
+                from: classificationStartedAt,
+                to: Date()
+            )
         }
 
         let classification = questionType
@@ -304,11 +387,23 @@ final class LiveSessionViewModel {
             behavior: responseBehavior,
             tone: responseTone,
             emphasis: responseEmphasis,
+            qualityMode: responseQualityMode,
             model: model
         )
     }
 
     private func selectModel(for classification: QuestionClassification?) -> String {
+        if responseQualityMode == .premium {
+            switch classification?.type {
+            case .coding:
+                return APIConfig.premiumCodingResponseModel
+            case .technical, .systemDesign:
+                return APIConfig.premiumTechnicalResponseModel
+            default:
+                return APIConfig.premiumResponseModel
+            }
+        }
+
         switch classification?.type {
         case .technical, .systemDesign:
             return APIConfig.technicalResponseModel
@@ -334,6 +429,7 @@ final class LiveSessionViewModel {
         responseGenerator.cancelGeneration()
         sessionState = .listening
         clearPostResponseBuffers()
+        pendingExchangeMetrics = PendingExchangeMetrics()
     }
 
     func resumeListeningForNextQuestion() {
@@ -350,6 +446,10 @@ final class LiveSessionViewModel {
         Task {
             for (index, word) in words.enumerated() {
                 if Task.isCancelled { break }
+                if self.pendingExchangeMetrics.firstTokenAt == nil {
+                    self.pendingExchangeMetrics.firstTokenAt = Date()
+                }
+                self.pendingExchangeMetrics.streamChunkCount += 1
                 let token = (index == 0 ? "" : " ") + word
                 self.currentResponse += token
                 self.responseTokens.append(token)
@@ -374,17 +474,21 @@ final class LiveSessionViewModel {
         }
 
         if shouldTreatAsInterviewerQuestion(utterance, speechStartedAt: speechStartedAt) {
-            beginNextQuestion(with: utterance)
+            beginNextQuestion(with: utterance, speechStartedAt: speechStartedAt)
         } else {
             sessionState = .responseReady
         }
     }
 
-    private func beginNextQuestion(with question: String) {
+    private func beginNextQuestion(with question: String, speechStartedAt: Date? = nil) {
         resetForNewQuestion()
         interviewerTranscript = question
         accumulatedTranscript = question
-        currentExchangeStart = Date()
+        let endedAt = Date()
+        let startedAt = speechStartedAt ?? endedAt
+        currentExchangeStart = startedAt
+        pendingExchangeMetrics.questionStartedAt = startedAt
+        pendingExchangeMetrics.questionEndedAt = endedAt
         sessionState = .interviewerSpeaking
         checkForPredictiveFire(fullText: question)
         if !hasFiredResponse {
@@ -588,16 +692,68 @@ final class LiveSessionViewModel {
             timestamp: completedAt
         ))
 
-        let latency = Int((completedAt.timeIntervalSince(currentExchangeStart ?? completedAt)) * 1000)
+        let latency = elapsedMilliseconds(
+            from: pendingExchangeMetrics.questionStartedAt ?? currentExchangeStart ?? completedAt,
+            to: completedAt
+        )
+        let telemetry = buildExchangeTelemetry(
+            completedAt: completedAt,
+            fallbackFirstTokenAt: finalizedResponse.isEmpty ? nil : completedAt
+        )
         exchanges.append(Exchange(
             question: finalizedQuestion,
             response: finalizedResponse,
             type: questionType?.type ?? .unknown,
             latencyMs: latency,
-            cached: isResponseFromCache
+            cached: isResponseFromCache,
+            telemetry: telemetry
         ))
 
         persistSessionSnapshot()
+    }
+
+    private func buildExchangeTelemetry(
+        completedAt: Date,
+        fallbackFirstTokenAt: Date?
+    ) -> ExchangeTelemetry {
+        let firstTokenAt = pendingExchangeMetrics.firstTokenAt ?? fallbackFirstTokenAt
+
+        return ExchangeTelemetry(
+            questionDurationMs: optionalElapsedMilliseconds(
+                from: pendingExchangeMetrics.questionStartedAt,
+                to: pendingExchangeMetrics.questionEndedAt
+            ),
+            speechEndToFireMs: optionalElapsedMilliseconds(
+                from: pendingExchangeMetrics.questionEndedAt,
+                to: pendingExchangeMetrics.responseStartedAt
+            ),
+            timeToFirstTokenMs: optionalElapsedMilliseconds(
+                from: pendingExchangeMetrics.responseStartedAt,
+                to: firstTokenAt
+            ),
+            generationDurationMs: optionalElapsedMilliseconds(
+                from: pendingExchangeMetrics.responseStartedAt,
+                to: completedAt
+            ),
+            questionEndToCompletionMs: optionalElapsedMilliseconds(
+                from: pendingExchangeMetrics.questionEndedAt,
+                to: completedAt
+            ),
+            cacheLookupMs: pendingExchangeMetrics.cacheLookupMs,
+            classificationMs: pendingExchangeMetrics.classificationMs,
+            streamChunkCount: pendingExchangeMetrics.streamChunkCount,
+            usedPredictiveFire: pendingExchangeMetrics.usedPredictiveFire
+        )
+    }
+
+    private func elapsedMilliseconds(from start: Date?, to end: Date?) -> Int {
+        guard let start, let end else { return 0 }
+        return max(Int(end.timeIntervalSince(start) * 1000), 0)
+    }
+
+    private func optionalElapsedMilliseconds(from start: Date?, to end: Date?) -> Int? {
+        guard let start, let end else { return nil }
+        return max(Int(end.timeIntervalSince(start) * 1000), 0)
     }
 
     private var currentQuestionTranscript: String {
@@ -668,6 +824,7 @@ final class LiveSessionViewModel {
             modelUsed: session.modelUsed,
             totalTokensUsed: session.totalTokensUsed,
             estimatedCost: session.estimatedCost,
+            telemetrySummary: SessionTelemetrySummary.build(from: exchanges),
             exchanges: exchanges.enumerated().map { index, exchange in
                 ExchangeSyncSnapshot(
                     clientId: exchange.id,
@@ -677,13 +834,25 @@ final class LiveSessionViewModel {
                     generatedResponse: exchange.generatedResponse,
                     responseLatencyMs: exchange.responseLatencyMs,
                     wasPreComputed: exchange.wasPreComputed,
+                    telemetry: exchange.telemetry,
                     sequenceOrder: index
                 )
             }
         )
 
-        Task {
-            try? await self.remoteSync.syncSession(snapshot)
+        syncTask?.cancel()
+        syncState = .syncing
+        syncTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+
+            do {
+                try await self.remoteSync.syncSession(snapshot)
+                self.syncState = .synced
+            } catch {
+                if !Task.isCancelled {
+                    self.syncState = .failed
+                }
+            }
         }
     }
 

@@ -9,10 +9,16 @@ enum PromptBuilder {
         format: ResponseFormat,
         behavior: ResponseBehavior,
         tone: ResponseTone,
-        emphasis: ResponseEmphasis
+        emphasis: ResponseEmphasis,
+        qualityMode: ResponseQualityMode
     ) -> String {
         let categoryLabel = questionType?.displayName ?? "General"
         let categoryInstruction = responseCategoryInstruction(for: questionType)
+        let liveDeliveryInstruction = liveDeliveryInstruction(
+            format: format,
+            emphasis: emphasis,
+            questionType: questionType
+        )
 
         return """
         You are generating the exact answer a candidate should say next in a live interview.
@@ -42,6 +48,14 @@ enum PromptBuilder {
         PRIMARY EMPHASIS:
         \(emphasis.promptInstruction)
 
+        RESPONSE QUALITY MODE:
+        \(qualityMode.promptInstruction)
+
+        \(premiumQualityStandards(for: qualityMode))
+
+        LIVE DELIVERY CONSTRAINTS:
+        \(liveDeliveryInstruction)
+
         CRITICAL RULES:
         1. Answer directly in the first sentence.
         2. Use first person and sound spoken, conversational, and human. Contractions are good when natural.
@@ -54,14 +68,57 @@ enum PromptBuilder {
         9. For follow-ups, answer the missing detail immediately instead of restating the original answer.
         10. Avoid generic fillers like "great question", "I am passionate about", "I would say", or "as an AI".
         11. Do not repeat the question or add headings unless the format explicitly calls for bullets.
-        12. Stop as soon as the answer feels complete and credible.
+        12. Stop as soon as the answer feels complete and credible. Do not spend extra words polishing.
         """
+    }
+
+    private static func premiumQualityStandards(for qualityMode: ResponseQualityMode) -> String {
+        guard qualityMode == .premium else { return "" }
+
+        return """
+        TOP-TIER INTERVIEW STANDARDS:
+        - For behavioral questions, implicitly use STAR/R: minimal setup, action-heavy middle, concrete result, and brief reflection or lesson when it adds signal
+        - Make the candidate's individual contribution unmistakable: what they owned, what choice they made, and why
+        - Quantify impact only when the resume or prompt supports it; never invent numbers
+        - For technical answers, state the mechanism, tradeoff, and production risk or safeguard clearly
+        - For ambiguous questions, make one reasonable assumption explicit and answer decisively from there
+        - Make the answer feel like a strong real candidate, not a memorized template
+        """
+    }
+
+    private static func liveDeliveryInstruction(
+        format: ResponseFormat,
+        emphasis: ResponseEmphasis,
+        questionType: QuestionType?
+    ) -> String {
+        let maxWords = format.maxWords(for: emphasis, questionType: questionType)
+        let maxSentences = format.maxSentences(for: emphasis, questionType: questionType)
+        let maxBullets = format.maxBullets(for: emphasis)
+        let maxBulletWords = format.maxBulletWords(for: emphasis)
+
+        switch format {
+        case .bulletPoints:
+            return """
+            - Give the most useful point first
+            - Use no more than \(maxBullets) bullets
+            - Keep each bullet under \(maxBulletWords) words
+            - Keep the full response under \(maxWords) words
+            """
+        case .fullAnswer, .hybrid, .deepDive:
+            return """
+            - The first sentence must answer the question immediately in under 14 words
+            - Keep the full response under \(maxWords) words
+            - Use no more than \(maxSentences) sentences
+            - Prefer one or two high-signal supporting details over exhaustive coverage
+            """
+        }
     }
 
     static func buildPreGenerationPrompt(
         resume: String,
         jobDescription: String,
-        interviewType: InterviewType
+        interviewType: InterviewType,
+        qualityMode: ResponseQualityMode
     ) -> String {
         return """
         You are a senior engineering interviewer preparing a candidate for a demanding live interview.
@@ -75,6 +132,9 @@ enum PromptBuilder {
         \(jobDescription)
 
         INTERVIEW TYPE: \(interviewType.displayName)
+
+        RESPONSE QUALITY MODE:
+        \(qualityMode.preGenerationInstruction)
 
         For each Q&A pair, output JSON in this exact format:
         [
@@ -91,6 +151,7 @@ enum PromptBuilder {
         - Use first person and natural spoken language, not textbook prose
         - Make answers specific: include one concrete technical detail, tradeoff, metric, or implementation choice when relevant
         - Behavioral answers should be compressed STAR with ownership and result
+        - In premium mode, make the answer feel interviewer-caliber: strong headline, action-heavy evidence, real judgment, and meaningful impact
         - Technical and system design answers should mention architecture or mechanism, the main tradeoff, and one production concern
         - Coding answers should mention the approach, complexity, and one edge case
         - Reference relevant technologies, scope, or projects from the resume naturally

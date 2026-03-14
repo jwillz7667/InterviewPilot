@@ -25,6 +25,7 @@ final class ResponseGeneratorService {
         behavior: ResponseBehavior,
         tone: ResponseTone,
         emphasis: ResponseEmphasis,
+        qualityMode: ResponseQualityMode,
         model: String = APIConfig.defaultResponseModel
     ) {
         currentTask?.cancel()
@@ -37,7 +38,8 @@ final class ResponseGeneratorService {
             format: format,
             behavior: behavior,
             tone: tone,
-            emphasis: emphasis
+            emphasis: emphasis,
+            qualityMode: qualityMode
         )
 
         currentTask = Task { [weak self] in
@@ -53,10 +55,14 @@ final class ResponseGeneratorService {
                 request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
                 request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
+                let tokenLimit = qualityMode.liveTokenLimit(
+                    baseTokens: format.maxTokens(for: emphasis, questionType: questionType)
+                )
+
                 let body: [String: Any] = [
                     "model": model,
                     "stream": true,
-                    "max_tokens": max(APIConfig.maxResponseTokens, format.maxTokens(for: emphasis, questionType: questionType)),
+                    "max_tokens": tokenLimit,
                     "temperature": tone.temperature,
                     "frequency_penalty": APIConfig.responseFrequencyPenalty,
                     "presence_penalty": APIConfig.responsePresencePenalty,

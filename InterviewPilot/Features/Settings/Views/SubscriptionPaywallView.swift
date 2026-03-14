@@ -79,7 +79,7 @@ struct SubscriptionPaywallView: View {
                 IPSectionHeader(
                     eyebrow: "Plans",
                     title: "Subscription tiers",
-                    subtitle: "Plus unlocks unlimited live interviews. Pro adds the full voice-prep workflow and premium AI modes.",
+                    subtitle: "Plus unlocks unlimited live interviews. Pro adds the full voice-prep workflow and Top Tier answer mode.",
                     symbol: "sparkles.rectangle.stack"
                 )
 
@@ -217,7 +217,7 @@ struct SubscriptionPaywallView: View {
         case "voice_prep":
             return "Voice Prep"
         case "priority_models":
-            return "Priority AI"
+            return "Top Tier mode"
         default:
             return value.replacingOccurrences(of: "_", with: " ").capitalized
         }

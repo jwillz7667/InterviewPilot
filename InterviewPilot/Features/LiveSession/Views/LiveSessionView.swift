@@ -58,6 +58,11 @@ struct LiveSessionView: View {
 
                 AnimatedStatusBadge(text: "Live", color: IPTheme.live, isActive: true)
                 IPStatusPill(title: liveStateTitle, symbol: liveStateSymbol, tint: IPTheme.accentForeground)
+                IPStatusPill(
+                    title: viewModel.syncState.title,
+                    symbol: syncStateSymbol,
+                    tint: syncStateTint
+                )
 
                 Spacer()
 
@@ -281,6 +286,32 @@ struct LiveSessionView: View {
         case .generating: return "sparkles"
         case .responseReady: return "checkmark.circle.fill"
         case .postResponseSpeech: return "person.fill.wave.2"
+        }
+    }
+
+    private var syncStateSymbol: String {
+        switch viewModel.syncState {
+        case .idle:
+            return "tray"
+        case .syncing:
+            return "arrow.triangle.2.circlepath"
+        case .synced:
+            return "checkmark.icloud.fill"
+        case .failed:
+            return "icloud.slash"
+        }
+    }
+
+    private var syncStateTint: Color {
+        switch viewModel.syncState {
+        case .idle:
+            return IPTheme.textSecondary
+        case .syncing:
+            return IPTheme.accentForeground
+        case .synced:
+            return IPTheme.success
+        case .failed:
+            return IPTheme.warning
         }
     }
 

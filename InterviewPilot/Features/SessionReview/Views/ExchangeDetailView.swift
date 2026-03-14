@@ -59,6 +59,11 @@ struct ExchangeDetailView: View {
 
                 if isExpanded {
                     VStack(alignment: .leading, spacing: 8) {
+                        if let telemetry = exchange.telemetry {
+                            telemetryGrid(telemetry)
+                                .padding(.bottom, 4)
+                        }
+
                         Text("Generated response")
                             .font(IPTypography.labelSmall)
                             .tracking(0.8)
@@ -74,5 +79,51 @@ struct ExchangeDetailView: View {
                 }
             }
         }
+    }
+
+    private func telemetryGrid(_ telemetry: ExchangeTelemetry) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Latency breakdown")
+                .font(IPTypography.labelSmall)
+                .tracking(0.8)
+                .foregroundStyle(IPTheme.textSecondary)
+
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
+                telemetryChip(title: "First token", value: formattedLatency(telemetry.timeToFirstTokenMs))
+                telemetryChip(title: "Completion", value: formattedLatency(telemetry.generationDurationMs))
+                telemetryChip(title: "Question capture", value: formattedLatency(telemetry.questionDurationMs))
+                telemetryChip(title: "Turn detect", value: formattedLatency(telemetry.speechEndToFireMs))
+            }
+
+            if telemetry.usedPredictiveFire {
+                Label("Predictive fire used", systemImage: "bolt.badge.clock.fill")
+                    .font(IPTypography.labelSmall)
+                    .foregroundStyle(IPTheme.accentForeground)
+            }
+        }
+    }
+
+    private func telemetryChip(title: String, value: String) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title)
+                .font(IPTypography.labelSmall)
+                .foregroundStyle(IPTheme.textSecondary)
+            Text(value)
+                .font(IPTypography.bodyMedium)
+                .foregroundStyle(IPTheme.textPrimary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+
+    private func formattedLatency(_ value: Int?) -> String {
+        guard let value else { return "n/a" }
+        if value < 1000 {
+            return "\(value)ms"
+        }
+
+        return String(format: "%.1fs", Double(value) / 1000)
     }
 }

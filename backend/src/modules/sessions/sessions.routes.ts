@@ -6,6 +6,21 @@ import { z } from 'zod';
 import { getSessionAccessGrant } from '../billing/billing.service.js';
 import { SessionMode } from '@prisma/client';
 
+const sessionTelemetrySummarySchema = z.object({
+  exchangeCount: z.number().int().nonnegative(),
+  cachedExchangeCount: z.number().int().nonnegative(),
+  predictiveFireCount: z.number().int().nonnegative(),
+  averageTotalLatencyMs: z.number().int().nonnegative(),
+  averageTimeToFirstTokenMs: z.number().int().nonnegative().nullable().optional(),
+  averageGenerationDurationMs: z.number().int().nonnegative().nullable().optional(),
+  averageLiveTimeToFirstTokenMs: z.number().int().nonnegative().nullable().optional(),
+  averageLiveGenerationDurationMs: z.number().int().nonnegative().nullable().optional(),
+  p95LiveTimeToFirstTokenMs: z.number().int().nonnegative().nullable().optional(),
+  p95LiveGenerationDurationMs: z.number().int().nonnegative().nullable().optional(),
+  averageQuestionDurationMs: z.number().int().nonnegative().nullable().optional(),
+  averageSpeechEndToFireMs: z.number().int().nonnegative().nullable().optional(),
+}).strict();
+
 const createSessionSchema = z.object({
   clientId: z.string().uuid(),
   sessionMode: z.enum(['liveInterview', 'voicePrep']).default('liveInterview'),
@@ -18,12 +33,14 @@ const createSessionSchema = z.object({
   modelUsed: z.string(),
   totalTokensUsed: z.number().int().default(0),
   estimatedCost: z.number().default(0),
+  telemetrySummary: sessionTelemetrySummarySchema.optional(),
 });
 
 const updateSessionSchema = z.object({
   endedAt: z.string().datetime().optional(),
   totalTokensUsed: z.number().int().optional(),
   estimatedCost: z.number().optional(),
+  telemetrySummary: sessionTelemetrySummarySchema.optional(),
 });
 
 const listQuerySchema = z.object({
@@ -88,11 +105,13 @@ export async function sessionsRoutes(app: FastifyInstance) {
           accessSource: accessGrant.accessSource,
           accessTier: accessGrant.accessTier,
           trialInterviewNumber: accessGrant.trialInterviewNumber ?? undefined,
+          telemetrySummary: input.telemetrySummary,
         },
         update: {
           endedAt: input.endedAt ? new Date(input.endedAt) : undefined,
           totalTokensUsed: input.totalTokensUsed,
           estimatedCost: input.estimatedCost,
+          telemetrySummary: input.telemetrySummary,
         },
       })
     );

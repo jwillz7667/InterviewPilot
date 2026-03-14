@@ -40,6 +40,10 @@ struct BillingEntitlement: Codable, Sendable {
         featureFlags["voice_prep"] == true
     }
 
+    var hasPriorityModels: Bool {
+        featureFlags["priority_models"] == true
+    }
+
     var hasUnlimitedInterviews: Bool {
         hasActiveSubscription || sandboxFullAccess
     }

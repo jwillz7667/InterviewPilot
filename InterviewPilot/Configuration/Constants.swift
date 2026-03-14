@@ -5,6 +5,9 @@ enum APIConfig {
     static let defaultResponseModel = "gpt-4.1-nano"
     static let technicalResponseModel = "gpt-4.1-mini"
     static let codingResponseModel = "o4-mini"
+    static let premiumResponseModel = "gpt-4.1-mini"
+    static let premiumTechnicalResponseModel = "gpt-4.1-mini"
+    static let premiumCodingResponseModel = "o4-mini"
     static let prepModel = "gpt-4.1"
 
     // Deepgram
@@ -32,8 +35,8 @@ enum APIConfig {
 
     // Limits
     static let maxResponseTokens = 220
+    static let maxPremiumResponseTokens = 240
     static let maxPreComputedQuestions = 25
-    static let responseTemperature = 0.62
     static let responseFrequencyPenalty = 0.15
     static let responsePresencePenalty = 0.05
     static let answerBankTemperature = 0.65

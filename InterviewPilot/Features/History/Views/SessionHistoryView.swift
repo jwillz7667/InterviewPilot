@@ -10,12 +10,15 @@ struct SessionHistoryView: View {
         ZStack {
             IPAppBackground()
 
-            if viewModel.sessions.isEmpty {
+            if viewModel.isLoading && viewModel.sessions.isEmpty {
+                ProgressView()
+                    .tint(IPTheme.accent)
+            } else if viewModel.sessions.isEmpty {
                 VStack {
                     Spacer()
                     IPEmptyState(
                         title: "No sessions yet",
-                        subtitle: "Run a live interview session and your recap will appear here with duration, latency, and question breakdowns.",
+                        subtitle: "Run a live interview or practice session and your recap will appear here with duration, latency, and question breakdowns.",
                         symbol: "clock.arrow.trianglehead.counterclockwise.rotate.90"
                     )
                     .padding(.horizontal, IPTheme.spacing20)
@@ -30,23 +33,25 @@ struct SessionHistoryView: View {
                                     .font(IPTypography.headlineLarge)
                                     .foregroundStyle(IPTheme.textPrimary)
 
-                                Text("Open any session to review response latency, question mix, and generated answers.")
+                                Text("Open any synced session to review response latency, question mix, and generated answers.")
                                     .font(IPTypography.bodyMedium)
                                     .foregroundStyle(IPTheme.textSecondary)
                             }
                         }
 
+                        if let error = viewModel.errorMessage {
+                            Label(error, systemImage: "exclamationmark.triangle.fill")
+                                .font(IPTypography.bodySmall)
+                                .foregroundStyle(IPTheme.error)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(14)
+                                .background(IPTheme.error.opacity(0.10), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                        }
+
                         LazyVStack(spacing: 14) {
                             ForEach(viewModel.sessions) { session in
                                 NavigationLink {
-                                    SessionReviewView(
-                                        viewModel: SessionReviewViewModel(
-                                            exchanges: session.exchanges,
-                                            transcript: [],
-                                            duration: session.duration,
-                                            interviewType: InterviewType(rawValue: session.interviewType) ?? .general
-                                        )
-                                    )
+                                    SessionReviewLoaderView(item: session)
                                     .navigationTransition(.zoom(sourceID: session.id, in: reviewTransition))
                                 } label: {
                                     sessionCard(session)
@@ -55,7 +60,9 @@ struct SessionHistoryView: View {
                                 .buttonStyle(.plain)
                                 .swipeActions(edge: .trailing) {
                                     Button(role: .destructive) {
-                                        viewModel.deleteSession(session)
+                                        Task {
+                                            await viewModel.deleteSession(session)
+                                        }
                                     } label: {
                                         Label("Delete", systemImage: "trash")
                                     }
@@ -67,14 +74,18 @@ struct SessionHistoryView: View {
                     .padding(.vertical, IPTheme.spacing20)
                 }
                 .ipScrollablePage()
+                .refreshable {
+                    await viewModel.loadSessions()
+                }
             }
         }
-        .onAppear {
+        .task {
             viewModel.configure(with: modelContext)
+            await viewModel.loadSessions()
         }
     }
 
-    private func sessionCard(_ session: InterviewSession) -> some View {
+    private func sessionCard(_ session: SessionHistoryItem) -> some View {
         IPPanel(tone: .primary) {
             VStack(alignment: .leading, spacing: 16) {
                 HStack(alignment: .top, spacing: 14) {
@@ -88,7 +99,7 @@ struct SessionHistoryView: View {
                         }
 
                     VStack(alignment: .leading, spacing: 4) {
-                        Text(InterviewType(rawValue: session.interviewType)?.displayName ?? "Interview")
+                        Text(session.reviewInterviewType.displayName)
                             .font(IPTypography.headlineSmall)
                             .foregroundStyle(IPTheme.textPrimary)
 
@@ -106,8 +117,17 @@ struct SessionHistoryView: View {
 
                 HStack(spacing: 10) {
                     statPill(viewModel.formatDuration(session.duration), symbol: "clock.fill")
-                    statPill("\(session.exchanges.count) prompts", symbol: "questionmark.bubble.fill")
+                    statPill("\(session.exchangeCount) prompts", symbol: "questionmark.bubble.fill")
                     statPill("\(session.totalTokensUsed) tokens", symbol: "sparkles")
+                }
+
+                if let summary = session.effectiveTelemetrySummary {
+                    Text(
+                        "First token \(viewModel.formatLatency(summary.averageLiveTimeToFirstTokenMs ?? summary.averageTimeToFirstTokenMs ?? summary.averageTotalLatencyMs)) avg • "
+                        + "\(Int(summary.cacheHitRate.rounded()))% cached"
+                    )
+                    .font(IPTypography.bodySmall)
+                    .foregroundStyle(IPTheme.textSecondary)
                 }
 
                 if session.estimatedCost > 0 {
@@ -128,8 +148,8 @@ struct SessionHistoryView: View {
             .background(Color.white.opacity(0.10), in: Capsule())
     }
 
-    private func sessionIcon(for session: InterviewSession) -> String {
-        switch InterviewType(rawValue: session.interviewType) ?? .general {
+    private func sessionIcon(for session: SessionHistoryItem) -> String {
+        switch session.reviewInterviewType {
         case .behavioral: return "person.2.fill"
         case .technical: return "terminal.fill"
         case .systemDesign: return "server.rack"
