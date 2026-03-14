@@ -1,4 +1,4 @@
-import { createHash, randomBytes } from 'crypto';
+import { createHash, randomBytes, randomUUID } from 'crypto';
 import * as argon2 from 'argon2';
 import {
   createRemoteJWKSet,
@@ -153,12 +153,14 @@ export async function registerUser(input: RegisterInput) {
 
   const passwordHash = await hashPassword(input.password);
   const prisma = getPrisma();
+  const appAccountToken = randomUUID();
 
-  return prisma.user.create({
+  const user = await prisma.user.create({
     data: {
       email,
       passwordHash,
       displayName: input.displayName,
+      appAccountToken,
       lastLoginAt: new Date(),
       settings: { create: {} },
       entitlement: {
@@ -169,6 +171,14 @@ export async function registerUser(input: RegisterInput) {
     },
     select: authUserSelect,
   });
+
+  return {
+    id: user.id,
+    email: user.email,
+    displayName: user.displayName,
+    appAccountToken,
+    createdAt: user.createdAt,
+  };
 }
 
 export async function loginUser(input: LoginInput) {
@@ -195,18 +205,27 @@ export async function loginUser(input: LoginInput) {
     throw new UnauthorizedError('Invalid email or password');
   }
 
-  await withDatabaseRetry((prisma) =>
+  const appAccountToken = user.appAccountToken ?? randomUUID();
+  const updated = await withDatabaseRetry((prisma) =>
     prisma.user.update({
       where: { id: user.id },
-      data: { lastLoginAt: new Date() },
+      data: {
+        lastLoginAt: new Date(),
+        ...(user.appAccountToken ? {} : { appAccountToken }),
+      },
+      select: {
+        id: true,
+        email: true,
+        displayName: true,
+      },
     })
   );
 
   return {
-    id: user.id,
-    email: user.email,
-    displayName: user.displayName,
-    appAccountToken: user.appAccountToken,
+    id: updated.id,
+    email: updated.email,
+    displayName: updated.displayName,
+    appAccountToken,
   };
 }
 
@@ -270,14 +289,24 @@ export async function authenticateWithApple(input: AppleLoginInput) {
     });
 
     if (existingByAppleId) {
-      return tx.user.update({
+      const appAccountToken = existingByAppleId.appAccountToken ?? randomUUID();
+      const user = await tx.user.update({
         where: { id: existingByAppleId.id },
         data: {
           lastLoginAt: new Date(),
+          ...(existingByAppleId.appAccountToken ? {} : { appAccountToken }),
           ...(displayName && !existingByAppleId.displayName ? { displayName } : {}),
         },
         select: authUserSelect,
       });
+
+      return {
+        id: user.id,
+        email: user.email,
+        displayName: user.displayName,
+        appAccountToken,
+        createdAt: user.createdAt,
+      };
     }
 
     if (!email) {
@@ -290,6 +319,7 @@ export async function authenticateWithApple(input: AppleLoginInput) {
         id: true,
         appleId: true,
         displayName: true,
+        appAccountToken: true,
       },
     });
 
@@ -298,24 +328,36 @@ export async function authenticateWithApple(input: AppleLoginInput) {
     }
 
     if (existingByEmail) {
-      return tx.user.update({
+      const appAccountToken = existingByEmail.appAccountToken ?? randomUUID();
+      const user = await tx.user.update({
         where: { id: existingByEmail.id },
         data: {
           appleId: claims.sub,
+          ...(existingByEmail.appAccountToken ? {} : { appAccountToken }),
           emailVerified: isEmailVerified(claims.email_verified),
           lastLoginAt: new Date(),
           ...(displayName && !existingByEmail.displayName ? { displayName } : {}),
         },
         select: authUserSelect,
       });
+
+      return {
+        id: user.id,
+        email: user.email,
+        displayName: user.displayName,
+        appAccountToken,
+        createdAt: user.createdAt,
+      };
     }
 
-    return tx.user.create({
+    const appAccountToken = randomUUID();
+    const user = await tx.user.create({
       data: {
         email,
         passwordHash: null,
         appleId: claims.sub,
         displayName,
+        appAccountToken,
         emailVerified: isEmailVerified(claims.email_verified),
         lastLoginAt: new Date(),
         settings: { create: {} },
@@ -327,6 +369,14 @@ export async function authenticateWithApple(input: AppleLoginInput) {
       },
       select: authUserSelect,
     });
+
+    return {
+      id: user.id,
+      email: user.email,
+      displayName: user.displayName,
+      appAccountToken,
+      createdAt: user.createdAt,
+    };
   });
 
   return user;
@@ -350,8 +400,9 @@ export async function rotateRefreshToken(
   oldToken: string
 ): Promise<{ userId: string; newToken: string }> {
   const oldTokenHash = hashRefreshToken(oldToken);
-  const existing = await withDatabaseRetry((prisma) =>
-    prisma.refreshToken.findUnique({ where: { tokenHash: oldTokenHash } })
+  const existing = await withDatabaseRetry(async (prisma) =>
+    (await prisma.refreshToken.findUnique({ where: { tokenHash: oldTokenHash } })) ??
+    prisma.refreshToken.findUnique({ where: { token: oldToken } })
   );
 
   if (!existing || existing.revokedAt || existing.expiresAt < new Date()) {
@@ -375,7 +426,10 @@ export async function revokeRefreshToken(token: string): Promise<void> {
 
   await withDatabaseRetry((prisma) =>
     prisma.refreshToken.updateMany({
-      where: { tokenHash, revokedAt: null },
+      where: {
+        revokedAt: null,
+        OR: [{ tokenHash }, { token }],
+      },
       data: { revokedAt: new Date() },
     })
   );

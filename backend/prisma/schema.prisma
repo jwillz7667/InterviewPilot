@@ -60,7 +60,7 @@ model User {
   passwordHash  String?
   displayName   String?
   avatarUrl     String?
-  appAccountToken String  @unique @default(uuid())
+  appAccountToken String? @unique @default(uuid())
 
   appleId       String?   @unique
   googleId      String?   @unique
@@ -85,7 +85,8 @@ model User {
 
 model RefreshToken {
   id        String    @id @default(cuid())
-  tokenHash String    @unique
+  token     String?   @unique
+  tokenHash String?   @unique
   userId    String
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   deviceId  String?
@@ -94,6 +95,7 @@ model RefreshToken {
   revokedAt DateTime?
 
   @@index([userId])
+  @@index([token])
   @@index([tokenHash])
   @@map("refresh_tokens")
 }

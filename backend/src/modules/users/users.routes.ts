@@ -1,6 +1,7 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { authenticate } from '../../middleware/authenticate.js';
 import { withDatabaseRetry } from '../../config/database.js';
+import { ensureAppAccountToken } from './app-account-token.js';
 import { z } from 'zod';
 
 const updateProfileSchema = z.object({
@@ -12,8 +13,8 @@ export async function usersRoutes(app: FastifyInstance) {
   app.addHook('onRequest', authenticate);
 
   app.get('/api/v1/users/me', async (request: FastifyRequest, reply: FastifyReply) => {
-    const user = await withDatabaseRetry((prisma) =>
-      prisma.user.findUniqueOrThrow({
+    const user = await withDatabaseRetry(async (prisma) => {
+      const userRecord = await prisma.user.findUniqueOrThrow({
         where: { id: request.user.sub },
         select: {
           id: true,
@@ -26,8 +27,14 @@ export async function usersRoutes(app: FastifyInstance) {
           lastLoginAt: true,
           emailVerified: true,
         },
-      })
-    );
+      });
+
+      return {
+        ...userRecord,
+        appAccountToken: await ensureAppAccountToken(prisma, userRecord),
+      };
+    });
+
     reply.send({ user });
   });
 

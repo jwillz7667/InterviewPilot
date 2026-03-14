@@ -22,6 +22,7 @@ import {
 } from '@prisma/client';
 import { getEnv } from '../../config/env.js';
 import { getPrisma, withDatabaseRetry, type DatabaseClient } from '../../config/database.js';
+import { ensureAppAccountToken } from '../users/app-account-token.js';
 import {
   ForbiddenError,
   NotFoundError,
@@ -213,7 +214,7 @@ async function ensureBillingContext(
     user: {
       id: user.id,
       email: user.email,
-      appAccountToken: user.appAccountToken,
+      appAccountToken: await ensureAppAccountToken(prisma, user),
       isSandboxTester: user.isSandboxTester,
     },
     entitlement,
