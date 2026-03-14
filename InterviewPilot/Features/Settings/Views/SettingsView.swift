@@ -201,7 +201,7 @@ struct SettingsView: View {
                     .foregroundStyle(IPTheme.textSecondary)
 
                 VStack(alignment: .leading, spacing: 10) {
-                    Text("Default interview focus")
+                    Text("Default interview track")
                         .font(IPTypography.labelMedium)
                         .foregroundStyle(IPTheme.textSecondary)
 

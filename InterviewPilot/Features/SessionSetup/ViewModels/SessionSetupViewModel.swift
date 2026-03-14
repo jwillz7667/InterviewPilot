@@ -10,19 +10,22 @@ enum SessionLaunchDestination {
 @Observable
 final class SessionSetupViewModel {
     var resumeText: String = ""
-    var jobDescription: String = ""
+    var resumeDocumentName: String?
+    var jobListingURL: String = ""
+    var jobListingTitle: String?
+    var jobListingText: String = ""
     var sessionMode: SessionMode = .liveInterview
     var interviewType: InterviewType = .general
+    var jobCategory: JobCategory?
+    var positionLevel: PositionLevel?
     var responseFormat: ResponseFormat = .hybrid
-    var responseBehavior: ResponseBehavior = .analytical
-    var responseTone: ResponseTone = .natural
-    var responseEmphasis: ResponseEmphasis = .technicalDepth
     var responseQualityMode: ResponseQualityMode = .standard
     var showResumeInput: Bool = false
     var shouldPresentPaywall: Bool = false
     var shouldPreGenerate: Bool = true
     var isLoadingDefaults: Bool = false
     var isPreparingSession: Bool = false
+    var isAnalyzingJobListing: Bool = false
     var isGeneratingAnswerBank: Bool = false
     var preparedAnswers: [PreComputedAnswer] = []
     var preparedAnswerBankName: String?
@@ -36,12 +39,59 @@ final class SessionSetupViewModel {
     private let settingsService = UserSettingsService.shared
     private let answerBankService = AnswerBankAPIService.shared
     private var hasLoadedDefaults = false
+    private var analyzedJobListingURL: String?
     private var preparedFingerprint: String?
 
     var hasResume: Bool { !resumeText.isEmpty }
-    var hasJobDescription: Bool { !jobDescription.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
-    var isReady: Bool { hasResume && hasJobDescription }
+    var hasJobListingURL: Bool { !jobListingURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+    var hasJobListing: Bool { !jobListingText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+    var isReady: Bool { hasResume && hasJobListing && jobCategory != nil && positionLevel != nil }
     var hasPreparedAnswers: Bool { !preparedAnswers.isEmpty }
+    var derivedProfile: RoleResponseProfile {
+        RoleResponseProfile.derive(
+            jobCategory: jobCategory ?? .generalBusiness,
+            positionLevel: positionLevel ?? .midLevel
+        )
+    }
+    var jobDescription: String {
+        guard hasJobListing else { return "" }
+
+        var sections: [String] = []
+        if let jobListingTitle, !jobListingTitle.isEmpty {
+            sections.append("ROLE TITLE:\n\(jobListingTitle)")
+        }
+
+        let normalizedURL = jobListingURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !normalizedURL.isEmpty {
+            sections.append("JOB LISTING URL:\n\(normalizedURL)")
+        }
+
+        if let jobCategory {
+            sections.append("JOB CATEGORY:\n\(jobCategory.displayName)")
+        }
+
+        if let positionLevel {
+            sections.append("POSITION LEVEL:\n\(positionLevel.displayName)")
+        }
+
+        sections.append("TARGET INTERVIEW TRACK:\n\(interviewType.displayName)")
+        sections.append("JOB LISTING CONTENT:\n\(jobListingText)")
+        return sections.joined(separator: "\n\n")
+    }
+    var resumeStatusLabel: String {
+        if let resumeDocumentName, !resumeDocumentName.isEmpty {
+            return resumeDocumentName
+        }
+
+        return "Resume ready"
+    }
+    var jobListingStatusLabel: String {
+        if let jobListingTitle, !jobListingTitle.isEmpty {
+            return jobListingTitle
+        }
+
+        return "Listing analyzed"
+    }
     var prepSummary: String {
         if isGeneratingAnswerBank {
             return responseQualityMode == .premium
@@ -87,9 +137,53 @@ final class SessionSetupViewModel {
 
             if let text = ResumeParserService.extractText(from: url) {
                 resumeText = text
+                resumeDocumentName = url.lastPathComponent
             }
         case .failure(let error):
             errorMessage = "Failed to load resume: \(error.localizedDescription)"
+        }
+    }
+
+    func handleJobListingURLChange() {
+        let trimmed = jobListingURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty {
+            clearAnalyzedJobListing()
+            return
+        }
+
+        if analyzedJobListingURL == trimmed, hasJobListing {
+            return
+        }
+
+        clearAnalyzedJobListing(clearURL: false)
+    }
+
+    func analyzeJobListing() async {
+        guard !isAnalyzingJobListing else { return }
+
+        let trimmed = jobListingURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            errorMessage = "Add a job listing URL first."
+            return
+        }
+
+        isAnalyzingJobListing = true
+        errorMessage = nil
+        defer { isAnalyzingJobListing = false }
+
+        do {
+            let analysis = try await JobListingAnalysisService.analyze(urlText: trimmed)
+            analyzedJobListingURL = analysis.url.absoluteString
+            jobListingURL = analysis.url.absoluteString
+            jobListingTitle = analysis.title
+            jobListingText = analysis.extractedText
+            jobCategory = analysis.jobCategory
+            positionLevel = analysis.positionLevel
+            interviewType = derivedProfile.interviewType
+            invalidatePreparedAnswerBankIfNeeded()
+        } catch {
+            clearAnalyzedJobListing(clearURL: false)
+            errorMessage = error.localizedDescription
         }
     }
 
@@ -187,16 +281,19 @@ final class SessionSetupViewModel {
     func createLiveViewModel(sessionId: UUID) -> LiveSessionViewModel {
         let deepgramKey = KeychainService.load(key: .deepgramAPIKey) ?? ""
         let openAIKey = KeychainService.load(key: .openAIAPIKey) ?? ""
+        let profile = derivedProfile
 
         return LiveSessionViewModel(
             sessionId: sessionId,
             resume: resumeText,
             jobDescription: jobDescription,
             interviewType: interviewType,
+            jobCategory: jobCategory ?? .generalBusiness,
+            positionLevel: positionLevel ?? .midLevel,
             responseFormat: responseFormat,
-            responseBehavior: responseBehavior,
-            responseTone: responseTone,
-            responseEmphasis: responseEmphasis,
+            responseBehavior: profile.responseBehavior,
+            responseTone: profile.responseTone,
+            responseEmphasis: profile.responseEmphasis,
             responseQualityMode: responseQualityMode,
             preComputedAnswers: shouldPreGenerate ? preparedAnswers : [],
             deepgramKey: deepgramKey,
@@ -212,6 +309,8 @@ final class SessionSetupViewModel {
             resume: resumeText,
             jobDescription: jobDescription,
             interviewType: interviewType,
+            jobCategory: jobCategory ?? .generalBusiness,
+            positionLevel: positionLevel ?? .midLevel,
             openAIKey: openAIKey
         )
     }
@@ -243,6 +342,9 @@ final class SessionSetupViewModel {
         [
             resumeText.trimmingCharacters(in: .whitespacesAndNewlines),
             jobDescription.trimmingCharacters(in: .whitespacesAndNewlines),
+            jobListingURL.trimmingCharacters(in: .whitespacesAndNewlines),
+            jobCategory?.rawValue ?? "",
+            positionLevel?.rawValue ?? "",
             interviewType.rawValue,
             responseQualityMode.rawValue,
         ].joined(separator: "::")
@@ -270,6 +372,19 @@ final class SessionSetupViewModel {
         preparedAnswerBankIsCached = bank.fromCache
         preparedFingerprint = fingerprint
         preGenerationProgress = (bank.answers.count, bank.answers.count)
+    }
+
+    private func clearAnalyzedJobListing(clearURL: Bool = true) {
+        if clearURL {
+            jobListingURL = ""
+        }
+
+        jobListingTitle = nil
+        jobListingText = ""
+        jobCategory = nil
+        positionLevel = nil
+        analyzedJobListingURL = nil
+        invalidatePreparedAnswerBankIfNeeded()
     }
 
     private func missingAccessError() -> BillingClientError {

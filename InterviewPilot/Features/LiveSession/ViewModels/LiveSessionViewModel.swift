@@ -31,6 +31,8 @@ final class LiveSessionViewModel {
     let resume: String
     let jobDescription: String
     let interviewType: InterviewType
+    let jobCategory: JobCategory
+    let positionLevel: PositionLevel
     let responseFormat: ResponseFormat
     let responseBehavior: ResponseBehavior
     let responseTone: ResponseTone
@@ -100,6 +102,8 @@ final class LiveSessionViewModel {
         resume: String,
         jobDescription: String,
         interviewType: InterviewType,
+        jobCategory: JobCategory,
+        positionLevel: PositionLevel,
         responseFormat: ResponseFormat,
         responseBehavior: ResponseBehavior,
         responseTone: ResponseTone,
@@ -113,6 +117,8 @@ final class LiveSessionViewModel {
         self.resume = resume
         self.jobDescription = jobDescription
         self.interviewType = interviewType
+        self.jobCategory = jobCategory
+        self.positionLevel = positionLevel
         self.responseFormat = responseFormat
         self.responseBehavior = responseBehavior
         self.responseTone = responseTone
@@ -382,6 +388,8 @@ final class LiveSessionViewModel {
             resume: resume,
             jobDescription: jobDescription,
             interviewType: interviewType.rawValue,
+            jobCategory: jobCategory,
+            positionLevel: positionLevel,
             questionType: classification?.type,
             format: responseFormat,
             behavior: responseBehavior,

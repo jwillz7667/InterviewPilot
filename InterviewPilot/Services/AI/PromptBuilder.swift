@@ -5,6 +5,8 @@ enum PromptBuilder {
         resume: String,
         jobDescription: String,
         interviewType: String,
+        jobCategory: JobCategory,
+        positionLevel: PositionLevel,
         questionType: QuestionType?,
         format: ResponseFormat,
         behavior: ResponseBehavior,
@@ -19,10 +21,14 @@ enum PromptBuilder {
             emphasis: emphasis,
             questionType: questionType
         )
+        let roleProfile = RoleResponseProfile.derive(
+            jobCategory: jobCategory,
+            positionLevel: positionLevel
+        )
 
         return """
         You are generating the exact answer a candidate should say next in a live interview.
-        Sound like a strong senior engineer speaking naturally under pressure.
+        Sound like a strong real candidate speaking naturally under pressure.
         Write the candidate's words only, not coaching notes or analysis.
 
         CANDIDATE'S RESUME:
@@ -32,20 +38,25 @@ enum PromptBuilder {
         \(jobDescription)
 
         INTERVIEW TYPE: \(interviewType)
+        JOB CATEGORY: \(jobCategory.displayName)
+        POSITION LEVEL: \(positionLevel.displayName)
 
         QUESTION CATEGORY: \(categoryLabel)
         \(categoryInstruction)
 
+        ROLE CALIBRATION:
+        \(roleProfile.rolePromptInstruction)
+
         RESPONSE FORMAT:
         \(format.promptInstruction)
 
-        RESPONSE BEHAVIOR:
+        INTERNAL STRUCTURE BIAS:
         \(behavior.promptInstruction)
 
-        RESPONSE TONE:
+        INTERNAL TONE BIAS:
         \(tone.promptInstruction)
 
-        PRIMARY EMPHASIS:
+        PRIMARY SIGNAL TO PRIORITIZE:
         \(emphasis.promptInstruction)
 
         RESPONSE QUALITY MODE:
@@ -59,16 +70,17 @@ enum PromptBuilder {
         CRITICAL RULES:
         1. Answer directly in the first sentence.
         2. Use first person and sound spoken, conversational, and human. Contractions are good when natural.
-        3. Prefer concrete nouns over generic buzzwords: name the system, tool, tradeoff, failure mode, metric, or customer impact when relevant.
-        4. Ground the answer in one plausible example from the resume or one clear requirement from the job description whenever possible.
-        5. Do not invent experience that the resume does not support. If needed, use a closely related example and say it plainly.
-        6. For technical answers, include the mechanism, the key tradeoff, and one production consideration such as latency, reliability, observability, security, or rollback.
-        7. For behavioral answers, keep a tight STAR arc: context, action, result, and why your choice mattered.
-        8. For coding answers, mention the approach, data structure, complexity, and one edge case or test.
-        9. For follow-ups, answer the missing detail immediately instead of restating the original answer.
-        10. Avoid generic fillers like "great question", "I am passionate about", "I would say", or "as an AI".
-        11. Do not repeat the question or add headings unless the format explicitly calls for bullets.
-        12. Stop as soon as the answer feels complete and credible. Do not spend extra words polishing.
+        3. Keep the scope appropriate for the stated position level. Do not make an entry-level answer sound like an executive, and do not make an executive answer sound narrowly tactical.
+        4. Prefer concrete nouns over generic buzzwords: name the system, tool, tradeoff, failure mode, metric, or customer impact when relevant.
+        5. Ground the answer in one plausible example from the resume or one clear requirement from the job description whenever possible.
+        6. Do not invent experience that the resume does not support. If needed, use a closely related example and say it plainly.
+        7. For technical answers, include the mechanism, the key tradeoff, and one production consideration such as latency, reliability, observability, security, or rollback.
+        8. For behavioral answers, keep a tight STAR arc: context, action, result, and why your choice mattered.
+        9. For coding answers, mention the approach, data structure, complexity, and one edge case or test.
+        10. For follow-ups, answer the missing detail immediately instead of restating the original answer.
+        11. Avoid generic fillers like "great question", "I am passionate about", "I would say", or "as an AI".
+        12. Do not repeat the question or add headings unless the format explicitly calls for bullets.
+        13. Stop as soon as the answer feels complete and credible. Do not spend extra words polishing.
         """
     }
 
@@ -118,10 +130,18 @@ enum PromptBuilder {
         resume: String,
         jobDescription: String,
         interviewType: InterviewType,
+        jobCategory: JobCategory? = nil,
+        positionLevel: PositionLevel? = nil,
         qualityMode: ResponseQualityMode
     ) -> String {
+        let roleContext = [
+            jobCategory.map { "JOB CATEGORY: \($0.displayName)" },
+            positionLevel.map { "POSITION LEVEL: \($0.displayName)" }
+        ].compactMap { $0 }.joined(separator: "\n")
+        let roleBlock = roleContext.isEmpty ? "" : "\(roleContext)\n\n"
+
         return """
-        You are a senior engineering interviewer preparing a candidate for a demanding live interview.
+        You are a senior interviewer preparing a candidate for a demanding live interview.
         Based on the candidate's resume and the job description, generate \(APIConfig.maxPreComputedQuestions)
         likely interview questions and candidate-ready answers that sound human, specific, and technically credible.
 
@@ -131,7 +151,7 @@ enum PromptBuilder {
         JOB DESCRIPTION:
         \(jobDescription)
 
-        INTERVIEW TYPE: \(interviewType.displayName)
+        \(roleBlock)INTERVIEW TYPE: \(interviewType.displayName)
 
         RESPONSE QUALITY MODE:
         \(qualityMode.preGenerationInstruction)
@@ -150,6 +170,7 @@ enum PromptBuilder {
         - Lead with the direct answer, then add the most important supporting detail
         - Use first person and natural spoken language, not textbook prose
         - Make answers specific: include one concrete technical detail, tradeoff, metric, or implementation choice when relevant
+        - Keep the answer scope aligned with the role level and category in the job description
         - Behavioral answers should be compressed STAR with ownership and result
         - In premium mode, make the answer feel interviewer-caliber: strong headline, action-heavy evidence, real judgment, and meaningful impact
         - Technical and system design answers should mention architecture or mechanism, the main tradeoff, and one production concern
@@ -163,9 +184,16 @@ enum PromptBuilder {
     static func buildVoicePrepPrompt(
         resume: String,
         jobDescription: String,
-        interviewType: InterviewType
+        interviewType: InterviewType,
+        jobCategory: JobCategory,
+        positionLevel: PositionLevel
     ) -> String {
-        """
+        let roleProfile = RoleResponseProfile.derive(
+            jobCategory: jobCategory,
+            positionLevel: positionLevel
+        )
+
+        return """
         You are conducting a realistic mock interview for a candidate.
         Stay in the role of the interviewer for the entire conversation.
 
@@ -176,6 +204,11 @@ enum PromptBuilder {
         \(jobDescription)
 
         TARGET INTERVIEW TYPE: \(interviewType.displayName)
+        JOB CATEGORY: \(jobCategory.displayName)
+        POSITION LEVEL: \(positionLevel.displayName)
+
+        ROLE CALIBRATION:
+        \(roleProfile.rolePromptInstruction)
 
         GOALS:
         1. Ask the questions most likely to come up for this exact resume and job posting.
@@ -183,6 +216,7 @@ enum PromptBuilder {
         3. Keep each spoken turn concise and natural, like a real interviewer.
         4. After the candidate answers, either ask one targeted follow-up or move to the next likely question.
         5. Prioritize realistic behavioral, technical, and resume-specific questions over trivia.
+        6. Keep the seniority of the questions aligned with the stated level. Executive and senior-management interviews should emphasize leadership, scope, judgment, and tradeoffs.
 
         RULES:
         1. Do not answer on behalf of the candidate.

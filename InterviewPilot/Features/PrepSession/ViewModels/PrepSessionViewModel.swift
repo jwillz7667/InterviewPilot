@@ -22,6 +22,8 @@ final class PrepSessionViewModel {
     let resume: String
     let jobDescription: String
     let interviewType: InterviewType
+    let jobCategory: JobCategory
+    let positionLevel: PositionLevel
 
     var sessionState: SessionState = .idle
     var currentQuestion: String = ""
@@ -42,12 +44,16 @@ final class PrepSessionViewModel {
         resume: String,
         jobDescription: String,
         interviewType: InterviewType,
+        jobCategory: JobCategory,
+        positionLevel: PositionLevel,
         openAIKey: String
     ) {
         self.sessionId = sessionId
         self.resume = resume
         self.jobDescription = jobDescription
         self.interviewType = interviewType
+        self.jobCategory = jobCategory
+        self.positionLevel = positionLevel
         self.openAIKey = openAIKey
         self.audioCapture = AudioCaptureService(
             targetSampleRate: Double(APIConfig.realtimePrepSampleRate),
@@ -99,7 +105,9 @@ final class PrepSessionViewModel {
         try await realtimeService.connect(
             resume: resume,
             jobDescription: jobDescription,
-            interviewType: interviewType
+            interviewType: interviewType,
+            jobCategory: jobCategory,
+            positionLevel: positionLevel
         )
 
         let startedAt = Date()

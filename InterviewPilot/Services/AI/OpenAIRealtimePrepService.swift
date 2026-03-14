@@ -6,6 +6,8 @@ final class OpenAIRealtimePrepService {
         let resume: String
         let jobDescription: String
         let interviewType: InterviewType
+        let jobCategory: JobCategory
+        let positionLevel: PositionLevel
     }
 
     private let apiKey: String
@@ -41,7 +43,9 @@ final class OpenAIRealtimePrepService {
     func connect(
         resume: String,
         jobDescription: String,
-        interviewType: InterviewType
+        interviewType: InterviewType,
+        jobCategory: JobCategory,
+        positionLevel: PositionLevel
     ) async throws {
         guard !apiKey.isEmpty else {
             throw NSError(
@@ -54,7 +58,9 @@ final class OpenAIRealtimePrepService {
         pendingConfiguration = SessionConfiguration(
             resume: resume,
             jobDescription: jobDescription,
-            interviewType: interviewType
+            interviewType: interviewType,
+            jobCategory: jobCategory,
+            positionLevel: positionLevel
         )
         hasSentSessionUpdate = false
         hasStartedInterview = false
@@ -242,7 +248,9 @@ final class OpenAIRealtimePrepService {
                 "instructions": PromptBuilder.buildVoicePrepPrompt(
                     resume: configuration.resume,
                     jobDescription: configuration.jobDescription,
-                    interviewType: configuration.interviewType
+                    interviewType: configuration.interviewType,
+                    jobCategory: configuration.jobCategory,
+                    positionLevel: configuration.positionLevel
                 ),
                 "output_modalities": ["audio"],
                 "audio": [
