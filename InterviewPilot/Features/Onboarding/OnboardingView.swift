@@ -55,20 +55,21 @@ struct OnboardingView: View {
                         IPPanel(tone: .accent(page.accent), padding: IPTheme.spacing24) {
                             VStack(alignment: .leading, spacing: 24) {
                                 RoundedRectangle(cornerRadius: 30, style: .continuous)
-                                    .fill(IPTheme.selectionFill(for: colorScheme, selected: true))
+                                    .fill(Color.clear)
                                     .frame(height: 180)
+                                    .ipInsetSurface(cornerRadius: 30)
                                     .overlay {
                                         ZStack(alignment: .bottomTrailing) {
                                             IPBrandLogo(size: 104, cornerRadius: 30)
 
                                             ZStack {
                                                 Circle()
-                                                    .fill(Color.white.opacity(0.18))
+                                                    .fill(IPTheme.accent.opacity(0.12))
                                                     .frame(width: 56, height: 56)
 
                                                 Image(systemName: page.icon)
                                                     .font(.system(size: 24, weight: .semibold))
-                                                    .foregroundStyle(.white)
+                                                    .foregroundStyle(IPTheme.insetSurfacePrimaryText(for: colorScheme))
                                             }
                                             .offset(x: 34, y: 22)
                                         }

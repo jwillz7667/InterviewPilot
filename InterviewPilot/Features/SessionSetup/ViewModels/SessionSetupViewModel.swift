@@ -14,6 +14,9 @@ final class SessionSetupViewModel {
     var sessionMode: SessionMode = .liveInterview
     var interviewType: InterviewType = .general
     var responseFormat: ResponseFormat = .hybrid
+    var responseBehavior: ResponseBehavior = .analytical
+    var responseTone: ResponseTone = .natural
+    var responseEmphasis: ResponseEmphasis = .technicalDepth
     var showResumeInput: Bool = false
     var shouldPresentPaywall: Bool = false
 
@@ -85,6 +88,9 @@ final class SessionSetupViewModel {
             jobDescription: jobDescription,
             interviewType: interviewType,
             responseFormat: responseFormat,
+            responseBehavior: responseBehavior,
+            responseTone: responseTone,
+            responseEmphasis: responseEmphasis,
             preComputedAnswers: [],
             deepgramKey: deepgramKey,
             openAIKey: openAIKey

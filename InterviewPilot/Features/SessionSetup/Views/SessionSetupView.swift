@@ -24,6 +24,9 @@ struct SessionSetupView: View {
                         sessionModeSection
                         interviewTypeSection
                         responseFormatSection
+                        responseBehaviorSection
+                        responseToneSection
+                        responseEmphasisSection
 
                         if let error = viewModel.errorMessage {
                             Label(error, systemImage: "exclamationmark.triangle.fill")
@@ -110,10 +113,11 @@ struct SessionSetupView: View {
                     }
                 }
 
-                HStack(spacing: 10) {
+                FlowLayout(spacing: 10) {
                     summaryPill("Resume", isReady: viewModel.hasResume)
                     summaryPill("Job post", isReady: viewModel.hasJobDescription)
                     summaryPill(viewModel.interviewType.displayName, isReady: true, tint: IPTheme.accentForeground)
+                    summaryPill(viewModel.responseTone.displayName, isReady: true, tint: IPTheme.accentForeground)
                 }
             }
         }
@@ -142,11 +146,11 @@ struct SessionSetupView: View {
 
                 TextEditor(text: $viewModel.resumeText)
                     .font(IPTypography.bodyMedium)
-                    .foregroundStyle(IPTheme.textPrimary)
+                    .foregroundStyle(IPTheme.insetSurfacePrimaryText(for: colorScheme))
                     .scrollContentBackground(.hidden)
                     .frame(minHeight: 160)
                     .padding(12)
-                    .background(Color.white.opacity(0.16), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+                    .ipInsetSurface(cornerRadius: 20)
             }
         }
     }
@@ -163,11 +167,11 @@ struct SessionSetupView: View {
 
                 TextEditor(text: $viewModel.jobDescription)
                     .font(IPTypography.bodyMedium)
-                    .foregroundStyle(IPTheme.textPrimary)
+                    .foregroundStyle(IPTheme.insetSurfacePrimaryText(for: colorScheme))
                     .scrollContentBackground(.hidden)
                     .frame(minHeight: 180)
                     .padding(12)
-                    .background(Color.white.opacity(0.16), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+                    .ipInsetSurface(cornerRadius: 20)
 
                 if !viewModel.jobDescription.isEmpty {
                     let keywords = Array(JobDescriptionService.extractKeywords(from: viewModel.jobDescription).prefix(8))
@@ -176,10 +180,14 @@ struct SessionSetupView: View {
                             ForEach(keywords, id: \.self) { keyword in
                                 Text(keyword)
                                     .font(IPTypography.labelSmall)
-                                    .foregroundStyle(IPTheme.textPrimary)
+                                    .foregroundStyle(IPTheme.insetSurfacePrimaryText(for: colorScheme))
                                     .padding(.horizontal, 12)
                                     .padding(.vertical, 8)
-                                    .background(IPTheme.accent.opacity(0.10), in: Capsule())
+                                    .background(Color.white, in: Capsule())
+                                    .overlay {
+                                        Capsule()
+                                            .stroke(IPTheme.insetSurfaceBorder(for: colorScheme, selected: false), lineWidth: 1)
+                                    }
                             }
                         }
                     }
@@ -206,31 +214,32 @@ struct SessionSetupView: View {
                             HStack(spacing: 12) {
                                 Image(systemName: viewModel.sessionMode == mode ? "checkmark.circle.fill" : (isLocked ? "lock.circle" : "circle"))
                                     .font(.system(size: 18, weight: .semibold))
-                                    .foregroundStyle(viewModel.sessionMode == mode ? IPTheme.accentForeground : IPTheme.textTertiary)
+                                    .foregroundStyle(
+                                        viewModel.sessionMode == mode
+                                            ? IPTheme.insetSurfacePrimaryText(for: colorScheme)
+                                            : IPTheme.insetSurfaceTertiaryText(for: colorScheme)
+                                    )
 
                                 VStack(alignment: .leading, spacing: 3) {
                                     HStack(spacing: 8) {
                                         Text(mode.displayName)
                                             .font(IPTypography.bodyLarge)
-                                            .foregroundStyle(IPTheme.textPrimary)
+                                            .foregroundStyle(IPTheme.insetSurfacePrimaryText(for: colorScheme))
 
                                         if isLocked {
-                                            IPStatusPill(title: "Pro", symbol: "sparkles", tint: IPTheme.accentForeground)
+                                            IPStatusPill(title: "Pro", symbol: "sparkles", tint: IPTheme.insetSurfacePrimaryText(for: colorScheme))
                                         }
                                     }
 
                                     Text(mode.subtitle)
                                         .font(IPTypography.bodySmall)
-                                        .foregroundStyle(IPTheme.textSecondary)
+                                        .foregroundStyle(IPTheme.insetSurfaceSecondaryText(for: colorScheme))
                                 }
 
                                 Spacer()
                             }
                             .padding(14)
-                            .background(
-                                IPTheme.selectionFill(for: colorScheme, selected: viewModel.sessionMode == mode),
-                                in: RoundedRectangle(cornerRadius: 18, style: .continuous)
-                            )
+                            .ipInsetSurface(selected: viewModel.sessionMode == mode, cornerRadius: 18)
                         }
                         .buttonStyle(.plain)
                     }
@@ -259,18 +268,19 @@ struct SessionSetupView: View {
                             VStack(alignment: .leading, spacing: 10) {
                                 Image(systemName: interviewTypeIcon(for: type))
                                     .font(.system(size: 17, weight: .semibold))
-                                    .foregroundStyle(viewModel.interviewType == type ? IPTheme.accentForeground : IPTheme.textSecondary)
+                                    .foregroundStyle(
+                                        viewModel.interviewType == type
+                                            ? IPTheme.insetSurfacePrimaryText(for: colorScheme)
+                                            : IPTheme.insetSurfaceSecondaryText(for: colorScheme)
+                                    )
 
                                 Text(type.displayName)
                                     .font(IPTypography.bodyLarge)
-                                    .foregroundStyle(IPTheme.textPrimary)
+                                    .foregroundStyle(IPTheme.insetSurfacePrimaryText(for: colorScheme))
                             }
                             .frame(maxWidth: .infinity, minHeight: 78, alignment: .topLeading)
                             .padding(14)
-                            .background(
-                                IPTheme.selectionFill(for: colorScheme, selected: viewModel.interviewType == type),
-                                in: RoundedRectangle(cornerRadius: 18, style: .continuous)
-                            )
+                            .ipInsetSurface(selected: viewModel.interviewType == type, cornerRadius: 18)
                         }
                         .buttonStyle(.plain)
                     }
@@ -284,8 +294,8 @@ struct SessionSetupView: View {
             VStack(alignment: .leading, spacing: 14) {
                 IPSectionHeader(
                     eyebrow: "Step 5",
-                    title: "Choose how answers are shown",
-                    subtitle: "Live mode can render complete scripts, compact bullets, or a hybrid blend.",
+                    title: "Choose the answer layout",
+                    subtitle: "Pick the on-screen answer shape: a spoken script, talking points, or a deeper technical answer.",
                     symbol: "text.alignleft"
                 )
 
@@ -299,24 +309,163 @@ struct SessionSetupView: View {
                             HStack(spacing: 12) {
                                 Image(systemName: viewModel.responseFormat == format ? "checkmark.circle.fill" : "circle")
                                     .font(.system(size: 18, weight: .semibold))
-                                    .foregroundStyle(viewModel.responseFormat == format ? IPTheme.accentForeground : IPTheme.textTertiary)
+                                    .foregroundStyle(
+                                        viewModel.responseFormat == format
+                                            ? IPTheme.insetSurfacePrimaryText(for: colorScheme)
+                                            : IPTheme.insetSurfaceTertiaryText(for: colorScheme)
+                                    )
 
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(format.displayName)
                                         .font(IPTypography.bodyLarge)
-                                        .foregroundStyle(IPTheme.textPrimary)
+                                        .foregroundStyle(IPTheme.insetSurfacePrimaryText(for: colorScheme))
                                     Text(format.description)
                                         .font(IPTypography.bodySmall)
-                                        .foregroundStyle(IPTheme.textSecondary)
+                                        .foregroundStyle(IPTheme.insetSurfaceSecondaryText(for: colorScheme))
                                 }
 
                                 Spacer()
                             }
                             .padding(14)
-                            .background(
-                                IPTheme.selectionFill(for: colorScheme, selected: viewModel.responseFormat == format),
-                                in: RoundedRectangle(cornerRadius: 18, style: .continuous)
-                            )
+                            .ipInsetSurface(selected: viewModel.responseFormat == format, cornerRadius: 18)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+        }
+    }
+
+    private var responseBehaviorSection: some View {
+        IPPanel {
+            VStack(alignment: .leading, spacing: 14) {
+                IPSectionHeader(
+                    eyebrow: "Step 6",
+                    title: "Set the answer behavior",
+                    subtitle: "Control whether answers feel more direct, analytical, story-led, or collaborative.",
+                    symbol: "slider.horizontal.3"
+                )
+
+                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+                    ForEach(ResponseBehavior.allCases, id: \.self) { behavior in
+                        Button(action: {
+                            withAnimation(IPAnimations.snappy) {
+                                viewModel.responseBehavior = behavior
+                            }
+                        }) {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Image(systemName: responseBehaviorIcon(for: behavior))
+                                    .font(.system(size: 17, weight: .semibold))
+                                    .foregroundStyle(
+                                        viewModel.responseBehavior == behavior
+                                            ? IPTheme.insetSurfacePrimaryText(for: colorScheme)
+                                            : IPTheme.insetSurfaceSecondaryText(for: colorScheme)
+                                    )
+
+                                Text(behavior.displayName)
+                                    .font(IPTypography.bodyLarge)
+                                    .foregroundStyle(IPTheme.insetSurfacePrimaryText(for: colorScheme))
+
+                                Text(behavior.description)
+                                    .font(IPTypography.bodySmall)
+                                    .foregroundStyle(IPTheme.insetSurfaceSecondaryText(for: colorScheme))
+                            }
+                            .frame(maxWidth: .infinity, minHeight: 112, alignment: .topLeading)
+                            .padding(14)
+                            .ipInsetSurface(selected: viewModel.responseBehavior == behavior, cornerRadius: 18)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+        }
+    }
+
+    private var responseToneSection: some View {
+        IPPanel {
+            VStack(alignment: .leading, spacing: 14) {
+                IPSectionHeader(
+                    eyebrow: "Step 7",
+                    title: "Tune the tone",
+                    subtitle: "Make answers sound more natural, more confident, warmer, or more executive depending on the room.",
+                    symbol: "waveform.badge.mic"
+                )
+
+                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+                    ForEach(ResponseTone.allCases, id: \.self) { tone in
+                        Button(action: {
+                            withAnimation(IPAnimations.snappy) {
+                                viewModel.responseTone = tone
+                            }
+                        }) {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Image(systemName: responseToneIcon(for: tone))
+                                    .font(.system(size: 17, weight: .semibold))
+                                    .foregroundStyle(
+                                        viewModel.responseTone == tone
+                                            ? IPTheme.insetSurfacePrimaryText(for: colorScheme)
+                                            : IPTheme.insetSurfaceSecondaryText(for: colorScheme)
+                                    )
+
+                                Text(tone.displayName)
+                                    .font(IPTypography.bodyLarge)
+                                    .foregroundStyle(IPTheme.insetSurfacePrimaryText(for: colorScheme))
+
+                                Text(tone.description)
+                                    .font(IPTypography.bodySmall)
+                                    .foregroundStyle(IPTheme.insetSurfaceSecondaryText(for: colorScheme))
+                            }
+                            .frame(maxWidth: .infinity, minHeight: 112, alignment: .topLeading)
+                            .padding(14)
+                            .ipInsetSurface(selected: viewModel.responseTone == tone, cornerRadius: 18)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+        }
+    }
+
+    private var responseEmphasisSection: some View {
+        IPPanel {
+            VStack(alignment: .leading, spacing: 14) {
+                IPSectionHeader(
+                    eyebrow: "Step 8",
+                    title: "Choose the emphasis",
+                    subtitle: "Bias answers toward technical depth, business impact, leadership, or product judgment.",
+                    symbol: "scope"
+                )
+
+                VStack(spacing: 10) {
+                    ForEach(ResponseEmphasis.allCases, id: \.self) { emphasis in
+                        Button(action: {
+                            withAnimation(IPAnimations.snappy) {
+                                viewModel.responseEmphasis = emphasis
+                            }
+                        }) {
+                            HStack(spacing: 12) {
+                                Image(systemName: viewModel.responseEmphasis == emphasis ? "checkmark.circle.fill" : emphasisIcon(for: emphasis))
+                                    .font(.system(size: 18, weight: .semibold))
+                                    .foregroundStyle(
+                                        viewModel.responseEmphasis == emphasis
+                                            ? IPTheme.insetSurfacePrimaryText(for: colorScheme)
+                                            : IPTheme.insetSurfaceTertiaryText(for: colorScheme)
+                                    )
+
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(emphasis.displayName)
+                                        .font(IPTypography.bodyLarge)
+                                        .foregroundStyle(IPTheme.insetSurfacePrimaryText(for: colorScheme))
+
+                                    Text(emphasis.description)
+                                        .font(IPTypography.bodySmall)
+                                        .foregroundStyle(IPTheme.insetSurfaceSecondaryText(for: colorScheme))
+                                }
+
+                                Spacer()
+                            }
+                            .padding(14)
+                            .ipInsetSurface(selected: viewModel.responseEmphasis == emphasis, cornerRadius: 18)
                         }
                         .buttonStyle(.plain)
                     }
@@ -405,6 +554,34 @@ struct SessionSetupView: View {
         case .caseStudy: return "doc.text.magnifyingglass"
         case .hrScreen: return "person.text.rectangle.fill"
         case .general: return "square.grid.2x2.fill"
+        }
+    }
+
+    private func responseBehaviorIcon(for behavior: ResponseBehavior) -> String {
+        switch behavior {
+        case .direct: return "bolt.fill"
+        case .analytical: return "chart.bar.doc.horizontal.fill"
+        case .storyLed: return "text.book.closed.fill"
+        case .collaborative: return "person.2.wave.2.fill"
+        }
+    }
+
+    private func responseToneIcon(for tone: ResponseTone) -> String {
+        switch tone {
+        case .natural: return "person.fill"
+        case .confident: return "checkmark.seal.fill"
+        case .warm: return "sun.max.fill"
+        case .executive: return "briefcase.fill"
+        }
+    }
+
+    private func emphasisIcon(for emphasis: ResponseEmphasis) -> String {
+        switch emphasis {
+        case .balanced: return "dial.medium.fill"
+        case .technicalDepth: return "cpu.fill"
+        case .businessImpact: return "chart.line.uptrend.xyaxis"
+        case .leadership: return "person.3.fill"
+        case .productThinking: return "lightbulb.max.fill"
         }
     }
 }

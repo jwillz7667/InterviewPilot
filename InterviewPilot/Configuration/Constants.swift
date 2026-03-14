@@ -31,7 +31,10 @@ enum APIConfig {
     static let postResponseGracePeriodSeconds: TimeInterval = 8
 
     // Limits
-    static let maxResponseTokens = 160
+    static let maxResponseTokens = 220
     static let maxPreComputedQuestions = 25
-    static let responseTemperature = 0.7
+    static let responseTemperature = 0.62
+    static let responseFrequencyPenalty = 0.15
+    static let responsePresencePenalty = 0.05
+    static let answerBankTemperature = 0.65
 }

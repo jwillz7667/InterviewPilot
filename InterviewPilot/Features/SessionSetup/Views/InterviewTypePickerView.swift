@@ -2,6 +2,7 @@ import SwiftUI
 
 struct InterviewTypePickerView: View {
     @Binding var selectedType: InterviewType
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
@@ -14,18 +15,19 @@ struct InterviewTypePickerView: View {
                     VStack(alignment: .leading, spacing: 10) {
                         Image(systemName: iconForType(type))
                             .font(.system(size: 18, weight: .semibold))
-                            .foregroundStyle(selectedType == type ? IPTheme.accentForeground : IPTheme.textSecondary)
+                            .foregroundStyle(
+                                selectedType == type
+                                    ? IPTheme.insetSurfacePrimaryText(for: colorScheme)
+                                    : IPTheme.insetSurfaceSecondaryText(for: colorScheme)
+                            )
 
                         Text(type.displayName)
                             .font(IPTypography.bodyMedium)
-                            .foregroundStyle(IPTheme.textPrimary)
+                            .foregroundStyle(IPTheme.insetSurfacePrimaryText(for: colorScheme))
                     }
                     .frame(maxWidth: .infinity, minHeight: 74, alignment: .topLeading)
                     .padding(14)
-                    .background(
-                        (selectedType == type ? IPTheme.accent.opacity(0.10) : Color.white.opacity(0.08)),
-                        in: RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    )
+                    .ipInsetSurface(selected: selectedType == type, cornerRadius: 18)
                 }
                 .buttonStyle(.plain)
             }

@@ -72,9 +72,10 @@ final class AnswerBankService {
         let body: [String: Any] = [
             "model": APIConfig.prepModel,
             "max_tokens": 4000,
-            "temperature": 0.8,
+            "temperature": APIConfig.answerBankTemperature,
+            "frequency_penalty": APIConfig.responseFrequencyPenalty,
             "messages": [
-                ["role": "system", "content": "You are an expert interview preparation coach."],
+                ["role": "system", "content": "You are an expert engineering interview coach who writes candidate-ready answers that sound specific, credible, and natural out loud."],
                 ["role": "user", "content": prompt]
             ]
         ]

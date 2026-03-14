@@ -20,7 +20,7 @@ struct IPAppBackground: View {
 
             RadialGradient(
                 colors: [
-                    IPTheme.accent.opacity(colorScheme == .dark ? 0.10 : 0.08),
+                    colorScheme == .dark ? IPTheme.accent.opacity(0.10) : Color.clear,
                     Color.clear
                 ],
                 center: .topTrailing,
@@ -31,9 +31,9 @@ struct IPAppBackground: View {
 
             LinearGradient(
                 colors: [
-                    Color.white.opacity(colorScheme == .dark ? 0.02 : 0.12),
+                    Color.white.opacity(colorScheme == .dark ? 0.02 : 0.00),
                     Color.clear,
-                    Color.black.opacity(colorScheme == .dark ? 0.18 : 0.02)
+                    Color.black.opacity(colorScheme == .dark ? 0.18 : 0.00)
                 ],
                 startPoint: .top,
                 endPoint: .bottom
@@ -75,7 +75,6 @@ struct IPPanel<Content: View>: View {
                             .stroke(IPTheme.borderColor(for: colorScheme), lineWidth: 1)
                     }
             }
-            .glassEffect(.regular, in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
             .shadow(color: IPTheme.shadowColor(for: colorScheme), radius: 22, y: 16)
             .scrollTransition(.interactive, axis: .vertical) { view, phase in
                 view
@@ -321,6 +320,7 @@ extension View {
 struct IPTabAccessory: View {
     let selectedTab: Int
     @Environment(\.tabViewBottomAccessoryPlacement) private var placement
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         Group {
@@ -330,7 +330,7 @@ struct IPTabAccessory: View {
 
                     Text(compactTitle)
                         .font(IPTypography.labelSmall)
-                        .foregroundStyle(IPTheme.textPrimary)
+                        .foregroundStyle(accessoryPrimaryText)
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
@@ -341,11 +341,11 @@ struct IPTabAccessory: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(title)
                             .font(IPTypography.labelLarge)
-                            .foregroundStyle(IPTheme.textPrimary)
+                            .foregroundStyle(accessoryPrimaryText)
 
                         Text(subtitle)
                             .font(IPTypography.bodySmall)
-                            .foregroundStyle(IPTheme.textSecondary)
+                            .foregroundStyle(accessorySecondaryText)
                     }
 
                     Spacer(minLength: 0)
@@ -354,9 +354,24 @@ struct IPTabAccessory: View {
                 .padding(.vertical, 12)
             }
         }
-        .background(.thinMaterial, in: Capsule())
-        .glassEffect(.regular, in: Capsule())
+        .background {
+            Capsule()
+                .fill(IPTheme.tabAccessoryFill(for: colorScheme))
+        }
+        .overlay {
+            Capsule()
+                .stroke(IPTheme.borderColor(for: colorScheme), lineWidth: 1)
+        }
+        .shadow(color: IPTheme.shadowColor(for: colorScheme), radius: 12, y: 8)
         .animation(IPAnimations.snappy, value: selectedTab)
+    }
+
+    private var accessoryPrimaryText: Color {
+        colorScheme == .dark ? IPTheme.pageTextPrimary : IPTheme.textPrimary
+    }
+
+    private var accessorySecondaryText: Color {
+        colorScheme == .dark ? IPTheme.pageTextSecondary : IPTheme.textSecondary
     }
 
     private var compactTitle: String {

@@ -81,29 +81,34 @@ struct SettingsView: View {
                                                 .overlay {
                                                     Image(systemName: appearance.symbol)
                                                         .font(.system(size: 17, weight: .semibold))
-                                                        .foregroundStyle(currentAppearance == appearance ? IPTheme.accentForeground : IPTheme.textSecondary)
+                                                        .foregroundStyle(
+                                                            currentAppearance == appearance
+                                                                ? IPTheme.insetSurfacePrimaryText(for: colorScheme)
+                                                                : IPTheme.insetSurfaceSecondaryText(for: colorScheme)
+                                                        )
                                                 }
 
                                             VStack(alignment: .leading, spacing: 2) {
                                                 Text(appearance.title)
                                                     .font(IPTypography.bodyLarge)
-                                                    .foregroundStyle(IPTheme.textPrimary)
+                                                    .foregroundStyle(IPTheme.insetSurfacePrimaryText(for: colorScheme))
                                                 Text(appearance.subtitle)
                                                     .font(IPTypography.bodySmall)
-                                                    .foregroundStyle(IPTheme.textSecondary)
+                                                    .foregroundStyle(IPTheme.insetSurfaceSecondaryText(for: colorScheme))
                                             }
 
                                             Spacer()
 
                                             Image(systemName: currentAppearance == appearance ? "checkmark.circle.fill" : "circle")
                                                 .font(.system(size: 18, weight: .semibold))
-                                                .foregroundStyle(currentAppearance == appearance ? IPTheme.accentForeground : IPTheme.textTertiary)
+                                                .foregroundStyle(
+                                                    currentAppearance == appearance
+                                                        ? IPTheme.insetSurfacePrimaryText(for: colorScheme)
+                                                        : IPTheme.insetSurfaceTertiaryText(for: colorScheme)
+                                                )
                                         }
                                         .padding(14)
-                                        .background(
-                                            IPTheme.selectionFill(for: colorScheme, selected: currentAppearance == appearance),
-                                            in: RoundedRectangle(cornerRadius: 18, style: .continuous)
-                                        )
+                                        .ipInsetSurface(selected: currentAppearance == appearance, cornerRadius: 18)
                                     }
                                     .buttonStyle(.plain)
                                 }
@@ -139,7 +144,7 @@ struct SettingsView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Done") { dismiss() }
-                        .foregroundStyle(IPTheme.accentForeground)
+                        .foregroundStyle(IPTheme.accent)
                 }
             }
             .confirmationDialog("Sign Out", isPresented: $showSignOutConfirm) {
@@ -170,19 +175,21 @@ struct SettingsView: View {
                 .overlay {
                     Image(systemName: icon)
                         .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(IPTheme.accentForeground)
+                        .foregroundStyle(IPTheme.insetSurfacePrimaryText(for: colorScheme))
                 }
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
                     .font(IPTypography.bodyLarge)
-                    .foregroundStyle(IPTheme.textPrimary)
+                    .foregroundStyle(IPTheme.insetSurfacePrimaryText(for: colorScheme))
                 Text(detail)
                     .font(IPTypography.bodySmall)
-                    .foregroundStyle(IPTheme.textSecondary)
+                    .foregroundStyle(IPTheme.insetSurfaceSecondaryText(for: colorScheme))
             }
 
             Spacer()
         }
+        .padding(14)
+        .ipInsetSurface(cornerRadius: 18)
     }
 }

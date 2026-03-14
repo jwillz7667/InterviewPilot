@@ -20,7 +20,11 @@ final class ResponseGeneratorService {
         resume: String,
         jobDescription: String,
         interviewType: String,
+        questionType: QuestionType?,
         format: ResponseFormat,
+        behavior: ResponseBehavior,
+        tone: ResponseTone,
+        emphasis: ResponseEmphasis,
         model: String = APIConfig.defaultResponseModel
     ) {
         currentTask?.cancel()
@@ -29,7 +33,11 @@ final class ResponseGeneratorService {
             resume: resume,
             jobDescription: jobDescription,
             interviewType: interviewType,
-            format: format
+            questionType: questionType,
+            format: format,
+            behavior: behavior,
+            tone: tone,
+            emphasis: emphasis
         )
 
         currentTask = Task { [weak self] in
@@ -48,11 +56,13 @@ final class ResponseGeneratorService {
                 let body: [String: Any] = [
                     "model": model,
                     "stream": true,
-                    "max_tokens": APIConfig.maxResponseTokens,
-                    "temperature": APIConfig.responseTemperature,
+                    "max_tokens": max(APIConfig.maxResponseTokens, format.maxTokens(for: emphasis, questionType: questionType)),
+                    "temperature": tone.temperature,
+                    "frequency_penalty": APIConfig.responseFrequencyPenalty,
+                    "presence_penalty": APIConfig.responsePresencePenalty,
                     "messages": [
                         ["role": "system", "content": systemPrompt],
-                        ["role": "user", "content": "Interview question: \"\(question)\"\n\nGenerate the ideal response."]
+                        ["role": "user", "content": "Interview question: \"\(question)\"\n\nGenerate the next answer the candidate should say out loud."]
                     ]
                 ]
 

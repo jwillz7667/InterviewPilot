@@ -5,6 +5,7 @@ struct ResumeInputView: View {
     @Binding var resumeText: String
     @State private var showFilePicker = false
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         NavigationStack {
@@ -29,11 +30,11 @@ struct ResumeInputView: View {
 
                                 TextEditor(text: $resumeText)
                                     .font(IPTypography.bodyMedium)
-                                    .foregroundStyle(IPTheme.textPrimary)
+                                    .foregroundStyle(IPTheme.insetSurfacePrimaryText(for: colorScheme))
                                     .scrollContentBackground(.hidden)
                                     .frame(minHeight: 260)
                                     .padding(12)
-                                    .background(Color.white.opacity(0.16), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+                                    .ipInsetSurface(cornerRadius: 20)
                             }
                         }
                     }
@@ -47,7 +48,7 @@ struct ResumeInputView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Done") { dismiss() }
-                        .foregroundStyle(IPTheme.accentForeground)
+                        .foregroundStyle(IPTheme.accent)
                 }
             }
             .fileImporter(

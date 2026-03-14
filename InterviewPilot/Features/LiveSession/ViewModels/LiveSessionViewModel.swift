@@ -31,6 +31,9 @@ final class LiveSessionViewModel {
     let jobDescription: String
     let interviewType: InterviewType
     let responseFormat: ResponseFormat
+    let responseBehavior: ResponseBehavior
+    let responseTone: ResponseTone
+    let responseEmphasis: ResponseEmphasis
     let preComputedAnswers: [PreComputedAnswer]
 
     // Private state
@@ -63,6 +66,9 @@ final class LiveSessionViewModel {
         jobDescription: String,
         interviewType: InterviewType,
         responseFormat: ResponseFormat,
+        responseBehavior: ResponseBehavior,
+        responseTone: ResponseTone,
+        responseEmphasis: ResponseEmphasis,
         preComputedAnswers: [PreComputedAnswer],
         deepgramKey: String,
         openAIKey: String
@@ -72,6 +78,9 @@ final class LiveSessionViewModel {
         self.jobDescription = jobDescription
         self.interviewType = interviewType
         self.responseFormat = responseFormat
+        self.responseBehavior = responseBehavior
+        self.responseTone = responseTone
+        self.responseEmphasis = responseEmphasis
         self.preComputedAnswers = preComputedAnswers
 
         self.audioCapture = AudioCaptureService()
@@ -276,7 +285,8 @@ final class LiveSessionViewModel {
             questionType = classifier.classify(question)
         }
 
-        let model = selectModel(for: questionType)
+        let classification = questionType
+        let model = selectModel(for: classification)
         let normalizedQuestion = question.trimmingCharacters(in: .whitespacesAndNewlines)
         if !normalizedQuestion.isEmpty {
             accumulatedTranscript = normalizedQuestion
@@ -289,7 +299,11 @@ final class LiveSessionViewModel {
             resume: resume,
             jobDescription: jobDescription,
             interviewType: interviewType.rawValue,
+            questionType: classification?.type,
             format: responseFormat,
+            behavior: responseBehavior,
+            tone: responseTone,
+            emphasis: responseEmphasis,
             model: model
         )
     }
@@ -500,13 +514,19 @@ final class LiveSessionViewModel {
 
         guard !normalized.isEmpty else { return normalized }
 
+        let activeQuestionType = questionType?.type
+        let maxWords = responseFormat.maxWords(for: responseEmphasis, questionType: activeQuestionType)
+        let maxSentences = responseFormat.maxSentences(for: responseEmphasis, questionType: activeQuestionType)
+        let maxBullets = responseFormat.maxBullets(for: responseEmphasis)
+        let maxBulletWords = responseFormat.maxBulletWords(for: responseEmphasis)
+
         if normalized.contains("•") {
             let bullets = normalized
                 .components(separatedBy: "•")
                 .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
                 .filter { !$0.isEmpty }
-                .prefix(2)
-                .map { "• " + shortenToWordLimit($0, maxWords: 12) }
+                .prefix(maxBullets)
+                .map { "• " + shortenToWordLimit($0, maxWords: maxBulletWords) }
 
             if !bullets.isEmpty {
                 return bullets.joined(separator: "\n")
@@ -523,7 +543,7 @@ final class LiveSessionViewModel {
 
         for sentence in sentences {
             let sentenceWords = sentence.split(separator: " ").count
-            if selected.isEmpty || (selected.count < 2 && wordCount + sentenceWords <= 55) {
+            if selected.isEmpty || (selected.count < maxSentences && wordCount + sentenceWords <= maxWords) {
                 selected.append(sentence)
                 wordCount += sentenceWords
             } else {
@@ -535,7 +555,7 @@ final class LiveSessionViewModel {
             return selected.joined(separator: ". ") + "."
         }
 
-        return shortenToWordLimit(normalized, maxWords: 55)
+        return shortenToWordLimit(normalized, maxWords: maxWords)
     }
 
     private func shortenToWordLimit(_ text: String, maxWords: Int) -> String {

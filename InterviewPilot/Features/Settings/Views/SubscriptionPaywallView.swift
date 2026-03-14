@@ -125,33 +125,38 @@ struct SubscriptionPaywallView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(product.displayName)
                         .font(IPTypography.headlineSmall)
-                        .foregroundStyle(IPTheme.textPrimary)
+                        .foregroundStyle(IPTheme.insetSurfacePrimaryText(for: colorScheme))
 
                     Text(product.displayPrice)
                         .font(IPTypography.bodyLarge)
-                        .foregroundStyle(IPTheme.accentForeground)
+                        .foregroundStyle(IPTheme.insetSurfacePrimaryText(for: colorScheme))
                 }
 
                 Spacer()
 
                 IPStatusPill(
                     title: product.tier == "pro" ? "Pro" : "Plus",
-                    symbol: product.tier == "pro" ? "person.wave.2.fill" : "waveform.and.mic"
+                    symbol: product.tier == "pro" ? "person.wave.2.fill" : "waveform.and.mic",
+                    tint: IPTheme.insetSurfacePrimaryText(for: colorScheme)
                 )
             }
 
             Text(product.description)
                 .font(IPTypography.bodySmall)
-                .foregroundStyle(IPTheme.textSecondary)
+                .foregroundStyle(IPTheme.insetSurfaceSecondaryText(for: colorScheme))
 
             FlowLayout(spacing: 8) {
                 ForEach(product.features, id: \.self) { feature in
                     Text(featureLabel(feature))
                         .font(IPTypography.labelSmall)
-                        .foregroundStyle(IPTheme.textPrimary)
+                        .foregroundStyle(IPTheme.insetSurfacePrimaryText(for: colorScheme))
                         .padding(.horizontal, 12)
                         .padding(.vertical, 8)
-                        .background(IPTheme.accent.opacity(0.10), in: Capsule())
+                        .background(Color.white, in: Capsule())
+                        .overlay {
+                            Capsule()
+                                .stroke(IPTheme.insetSurfaceBorder(for: colorScheme, selected: false), lineWidth: 1)
+                        }
                 }
             }
 
@@ -163,10 +168,7 @@ struct SubscriptionPaywallView: View {
             .disabled(subscriptionService.isPurchasing)
         }
         .padding(16)
-        .background(
-            IPTheme.selectionFill(for: colorScheme, selected: product.tier == "pro"),
-            in: RoundedRectangle(cornerRadius: 20, style: .continuous)
-        )
+        .ipInsetSurface(selected: product.tier == "pro", cornerRadius: 20)
     }
 
     private var currentPlanTitle: String {

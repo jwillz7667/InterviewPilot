@@ -143,10 +143,14 @@ struct LoginView: View {
     private func featurePill(_ title: String, symbol: String) -> some View {
         Label(title, systemImage: symbol)
             .font(IPTypography.labelSmall)
-            .foregroundStyle(IPTheme.textSecondary)
+            .foregroundStyle(IPTheme.insetSurfacePrimaryText(for: colorScheme))
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
-            .background(IPTheme.selectionFill(for: colorScheme, selected: true), in: Capsule())
+            .background(Color.white, in: Capsule())
+            .overlay {
+                Capsule()
+                    .stroke(IPTheme.insetSurfaceBorder(for: colorScheme, selected: false), lineWidth: 1)
+            }
     }
 
     private var canSubmit: Bool {
@@ -250,11 +254,11 @@ struct LoginView: View {
         IPInputShell(icon: icon, title: title, subtitle: nil) {
             TextField(placeholder, text: text)
                 .font(IPTypography.bodyMedium)
-                .foregroundStyle(IPTheme.textPrimary)
+                .foregroundStyle(IPTheme.insetSurfacePrimaryText(for: colorScheme))
                 .autocorrectionDisabled()
                 .padding(.horizontal, 14)
                 .padding(.vertical, 14)
-                .background(Color.white.opacity(0.16), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .ipInsetSurface(cornerRadius: 18)
         }
     }
 
@@ -267,11 +271,11 @@ struct LoginView: View {
         IPInputShell(icon: icon, title: title, subtitle: nil) {
             SecureField(placeholder, text: text)
                 .font(IPTypography.bodyMedium)
-                .foregroundStyle(IPTheme.textPrimary)
+                .foregroundStyle(IPTheme.insetSurfacePrimaryText(for: colorScheme))
                 .autocorrectionDisabled()
                 .padding(.horizontal, 14)
                 .padding(.vertical, 14)
-                .background(Color.white.opacity(0.16), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .ipInsetSurface(cornerRadius: 18)
         }
     }
 }

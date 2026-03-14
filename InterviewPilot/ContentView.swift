@@ -28,7 +28,7 @@ struct ContentView: View {
                                         Button(action: { showSettings = true }) {
                                             Image(systemName: "gearshape.2.fill")
                                                 .font(.system(size: 16, weight: .semibold))
-                                                .foregroundStyle(IPTheme.textSecondary)
+                                                .foregroundStyle(IPTheme.pageTextSecondary)
                                         }
                                     }
                                 }

@@ -6,6 +6,9 @@ enum DependencyContainer {
         jobDescription: String,
         interviewType: InterviewType,
         responseFormat: ResponseFormat,
+        responseBehavior: ResponseBehavior = .analytical,
+        responseTone: ResponseTone = .natural,
+        responseEmphasis: ResponseEmphasis = .technicalDepth,
         preComputedAnswers: [PreComputedAnswer]
     ) -> LiveSessionViewModel {
         let deepgramKey = KeychainService.load(key: .deepgramAPIKey) ?? ""
@@ -17,6 +20,9 @@ enum DependencyContainer {
             jobDescription: jobDescription,
             interviewType: interviewType,
             responseFormat: responseFormat,
+            responseBehavior: responseBehavior,
+            responseTone: responseTone,
+            responseEmphasis: responseEmphasis,
             preComputedAnswers: preComputedAnswers,
             deepgramKey: deepgramKey,
             openAIKey: openAIKey

@@ -3,6 +3,7 @@ import SwiftUI
 struct JobDescriptionInputView: View {
     @Binding var jobDescription: String
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         NavigationStack {
@@ -22,11 +23,11 @@ struct JobDescriptionInputView: View {
 
                                 TextEditor(text: $jobDescription)
                                     .font(IPTypography.bodyMedium)
-                                    .foregroundStyle(IPTheme.textPrimary)
+                                    .foregroundStyle(IPTheme.insetSurfacePrimaryText(for: colorScheme))
                                     .scrollContentBackground(.hidden)
                                     .frame(minHeight: 280)
                                     .padding(12)
-                                    .background(Color.white.opacity(0.16), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+                                    .ipInsetSurface(cornerRadius: 20)
 
                                 let keywords = JobDescriptionService.extractKeywords(from: jobDescription)
                                 if !keywords.isEmpty {
@@ -34,10 +35,14 @@ struct JobDescriptionInputView: View {
                                         ForEach(keywords, id: \.self) { keyword in
                                             Text(keyword)
                                                 .font(IPTypography.labelSmall)
-                                                .foregroundStyle(IPTheme.textPrimary)
+                                                .foregroundStyle(IPTheme.insetSurfacePrimaryText(for: colorScheme))
                                                 .padding(.horizontal, 12)
                                                 .padding(.vertical, 8)
-                                                .background(IPTheme.accent.opacity(0.10), in: Capsule())
+                                                .background(Color.white, in: Capsule())
+                                                .overlay {
+                                                    Capsule()
+                                                        .stroke(IPTheme.insetSurfaceBorder(for: colorScheme, selected: false), lineWidth: 1)
+                                                }
                                         }
                                     }
                                 }
@@ -54,7 +59,7 @@ struct JobDescriptionInputView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Done") { dismiss() }
-                        .foregroundStyle(IPTheme.accentForeground)
+                        .foregroundStyle(IPTheme.accent)
                 }
             }
         }
