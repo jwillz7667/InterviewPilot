@@ -12,8 +12,14 @@ struct LoginView: View {
     @State private var currentNonce = ""
     @Environment(\.colorScheme) private var colorScheme
 
+    private let hasSeenOnboardingOverride: Bool?
+
+    init(hasSeenOnboardingOverride: Bool? = nil) {
+        self.hasSeenOnboardingOverride = hasSeenOnboardingOverride
+    }
+
     var body: some View {
-        if !hasSeenOnboarding {
+        if !(hasSeenOnboardingOverride ?? hasSeenOnboarding) {
             OnboardingView {
                 withAnimation(IPAnimations.hero) {
                     hasSeenOnboarding = true
@@ -30,112 +36,145 @@ struct LoginView: View {
                 IPAppBackground()
 
                 ScrollView {
-                    VStack(spacing: IPTheme.spacing24) {
+                    VStack(alignment: .leading, spacing: IPTheme.spacing24) {
+                        topUtilityBar
                         heroSection
-
-                        IPPanel(tone: .accent(IPTheme.accent)) {
-                            VStack(spacing: 18) {
-                                if isRegistering {
-                                    authField(
-                                        title: "Display name",
-                                        placeholder: "How should we label your sessions?",
-                                        text: $displayName,
-                                        icon: "person.text.rectangle"
-                                    )
-                                }
-
-                                authField(
-                                    title: "Email",
-                                    placeholder: "name@company.com",
-                                    text: $email,
-                                    icon: "envelope.badge"
-                                )
-                                .textInputAutocapitalization(.never)
-                                .keyboardType(.emailAddress)
-
-                                secureAuthField(
-                                    title: "Password",
-                                    placeholder: "At least 8 characters",
-                                    text: $password,
-                                    icon: "lock.shield"
-                                )
-
-                                if let error = authService.errorMessage {
-                                    Label(error, systemImage: "exclamationmark.triangle.fill")
-                                        .font(IPTypography.bodySmall)
-                                        .foregroundStyle(IPTheme.error)
-                                        .frame(maxWidth: .infinity, alignment: .leading)
-                                        .padding(12)
-                                        .background(IPTheme.error.opacity(0.10), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                                }
-
-                                Button(action: submit) {
-                                    HStack(spacing: 10) {
-                                        if authService.isLoading {
-                                            ProgressView()
-                                                .tint(.white)
-                                        } else {
-                                            Image(systemName: isRegistering ? "person.crop.circle.badge.plus" : "arrow.right.circle.fill")
-                                                .symbolEffect(.bounce, value: isRegistering)
-
-                                            Text(isRegistering ? "Create Account" : "Sign In")
-                                        }
-                                    }
-                                }
-                                .buttonStyle(IPPrimaryButtonStyle(isEnabled: canSubmit && !authService.isLoading))
-                                .disabled(!canSubmit || authService.isLoading)
-
-                                appleSignInButton
-
-                                Button(action: {
-                                    withAnimation(IPAnimations.standard) {
-                                        isRegistering.toggle()
-                                        authService.errorMessage = nil
-                                    }
-                                }) {
-                                    Text(isRegistering ? "Already have an account? Sign In" : "Need an account? Sign Up")
-                                }
-                                .buttonStyle(IPSecondaryButtonStyle())
-                            }
-                        }
+                        credentialsPanel
                     }
                     .padding(.horizontal, IPTheme.spacing20)
-                    .padding(.vertical, IPTheme.spacing24)
+                    .padding(.top, IPTheme.spacing20)
+                    .padding(.bottom, 40)
                 }
                 .ipScrollablePage()
             }
+            .toolbar(.hidden, for: .navigationBar)
+        }
+    }
+
+    private var topUtilityBar: some View {
+        HStack {
+            HStack(spacing: 12) {
+                IPBrandLogo(size: 42, showShadow: false, variant: .filled)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Job Hopper")
+                        .font(IPTypography.labelLarge)
+                        .foregroundStyle(IPTheme.textPrimary)
+
+                    Text(isRegistering ? "Create account" : "Secure sign in")
+                        .font(IPTypography.bodySmall)
+                        .foregroundStyle(IPTheme.textSecondary)
+                }
+            }
+
+            Spacer()
+
+            IPStatusPill(
+                title: isRegistering ? "Create account" : "Secure sign in",
+                symbol: isRegistering ? "person.crop.circle.badge.plus" : "lock.fill"
+            )
         }
     }
 
     private var heroSection: some View {
-        IPPanel(tone: .secondary) {
-            VStack(alignment: .leading, spacing: 18) {
-                HStack {
-                    IPStatusPill(title: isRegistering ? "Create workspace" : "Secure sign in", symbol: "lock.fill")
-                    Spacer()
-                    IPStatusPill(title: "Live Interview", symbol: "waveform.and.mic", tint: IPTheme.accentForeground)
-                }
+        HStack(alignment: .top, spacing: 16) {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Job Hopper")
+                    .font(IPTypography.displayMedium)
+                    .foregroundStyle(IPTheme.textPrimary)
 
-                HStack(alignment: .top, spacing: 16) {
-                    IPBrandLogo(size: 70, cornerRadius: 24)
-
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("Job Hopper")
-                            .font(IPTypography.displayMedium)
-                            .foregroundStyle(IPTheme.textPrimary)
-
-                        Text("Real-time interview assistance built for live in-call support with resume-aware answer guidance.")
-                            .font(IPTypography.bodyLarge)
-                            .foregroundStyle(IPTheme.textSecondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                }
+                Text("Real-time interview support with role-aware prompts, low-latency response guidance, and post-call review.")
+                    .font(IPTypography.bodyLarge)
+                    .foregroundStyle(IPTheme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
 
                 HStack(spacing: 10) {
-                    featurePill("Resume aware", symbol: "doc.text.fill")
-                    featurePill("Live guidance", symbol: "waveform.and.mic")
-                    featurePill("Low latency", symbol: "bolt.fill")
+                    featurePill("Resume aware", symbol: "doc.text")
+                    featurePill("Live guidance", symbol: "waveform")
+                    featurePill("Instant review", symbol: "chart.xyaxis.line")
                 }
+            }
+
+            Spacer()
+
+            VStack(alignment: .trailing, spacing: 12) {
+                IPStarburst(size: 42)
+                IPBrandLogo(size: 72, variant: .surface)
+            }
+        }
+    }
+
+    private var credentialsPanel: some View {
+        IPPanel(tone: .primary, padding: 22, cornerRadius: 30) {
+            VStack(alignment: .leading, spacing: 16) {
+                Text(isRegistering ? "Create your workspace" : "Welcome back")
+                    .font(IPTypography.headlineSmall)
+                    .foregroundStyle(IPTheme.textPrimary)
+
+                Text(isRegistering ? "Set up your account to start live interview practice." : "Sign in to continue into your interview dashboard.")
+                    .font(IPTypography.bodyMedium)
+                    .foregroundStyle(IPTheme.textSecondary)
+
+                if isRegistering {
+                    authField(
+                        title: "Display name",
+                        placeholder: "How should we label your sessions?",
+                        text: $displayName,
+                        icon: "person.text.rectangle"
+                    )
+                }
+
+                authField(
+                    title: "Email",
+                    placeholder: "name@company.com",
+                    text: $email,
+                    icon: "envelope.badge"
+                )
+                .textInputAutocapitalization(.never)
+                .keyboardType(.emailAddress)
+
+                secureAuthField(
+                    title: "Password",
+                    placeholder: "At least 8 characters",
+                    text: $password,
+                    icon: "lock.shield"
+                )
+
+                if let error = authService.errorMessage {
+                    Label(error, systemImage: "exclamationmark.triangle.fill")
+                        .font(IPTypography.bodySmall)
+                        .foregroundStyle(IPTheme.error)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(12)
+                        .background(IPTheme.error.opacity(0.10), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                }
+
+                Button(action: submit) {
+                    HStack(spacing: 10) {
+                        if authService.isLoading {
+                            ProgressView()
+                                .tint(.white)
+                        } else {
+                            Text(isRegistering ? "Create Account" : "Sign In")
+                            Image(systemName: isRegistering ? "arrow.up.right.circle.fill" : "arrow.right.circle.fill")
+                        }
+                    }
+                }
+                .buttonStyle(IPPrimaryButtonStyle(isEnabled: canSubmit && !authService.isLoading))
+                .disabled(!canSubmit || authService.isLoading)
+
+                appleSignInButton
+
+                Button(action: {
+                    withAnimation(IPAnimations.standard) {
+                        isRegistering.toggle()
+                        authService.errorMessage = nil
+                    }
+                }) {
+                    Text(isRegistering ? "Already have an account? Sign In" : "Need an account? Sign Up")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(IPSecondaryButtonStyle())
             }
         }
     }
@@ -143,13 +182,13 @@ struct LoginView: View {
     private func featurePill(_ title: String, symbol: String) -> some View {
         Label(title, systemImage: symbol)
             .font(IPTypography.labelSmall)
-            .foregroundStyle(IPTheme.insetSurfacePrimaryText(for: colorScheme))
+            .foregroundStyle(IPTheme.textPrimary)
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
-            .background(Color.white, in: Capsule())
+            .background(Color.white.opacity(colorScheme == .dark ? 0.10 : 0.85), in: Capsule())
             .overlay {
                 Capsule()
-                    .stroke(IPTheme.insetSurfaceBorder(for: colorScheme, selected: false), lineWidth: 1)
+                    .stroke(IPTheme.borderColor(for: colorScheme), lineWidth: 1)
             }
     }
 
@@ -167,9 +206,9 @@ struct LoginView: View {
         } onCompletion: { result in
             handleAppleSignIn(result)
         }
-        .signInWithAppleButtonStyle(.white)
-        .frame(height: 54)
-        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .signInWithAppleButtonStyle(colorScheme == .dark ? .white : .black)
+        .frame(height: 56)
+        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
         .disabled(authService.isLoading)
     }
 
@@ -258,7 +297,7 @@ struct LoginView: View {
                 .autocorrectionDisabled()
                 .padding(.horizontal, 14)
                 .padding(.vertical, 14)
-                .ipInsetSurface(cornerRadius: 18)
+                .ipInsetSurface(cornerRadius: 20)
         }
     }
 
@@ -275,7 +314,16 @@ struct LoginView: View {
                 .autocorrectionDisabled()
                 .padding(.horizontal, 14)
                 .padding(.vertical, 14)
-                .ipInsetSurface(cornerRadius: 18)
+                .ipInsetSurface(cornerRadius: 20)
         }
     }
+}
+
+#Preview("Login Light") {
+    LoginView(hasSeenOnboardingOverride: true)
+}
+
+#Preview("Login Dark") {
+    LoginView(hasSeenOnboardingOverride: true)
+        .preferredColorScheme(.dark)
 }

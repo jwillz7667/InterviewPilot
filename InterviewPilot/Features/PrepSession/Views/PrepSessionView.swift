@@ -9,21 +9,25 @@ struct PrepSessionView: View {
         ZStack {
             IPAppBackground()
 
-            VStack(spacing: 12) {
-                topBar
-                    .padding(.horizontal, IPTheme.spacing20)
-                    .padding(.top, IPTheme.spacing12)
+            VStack(spacing: 0) {
+                headerBar
 
-                interviewerSection
-                    .frame(maxHeight: .infinity)
-
-                answerSection
-                    .frame(maxHeight: .infinity)
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 16) {
+                        titleBlock
+                        questionSection
+                        answerSection
+                    }
+                    .padding(.horizontal, IPTheme.spacing16)
+                    .padding(.top, 8)
+                    .padding(.bottom, 130)
+                }
+                .ipScrollablePage()
             }
-            .padding(.bottom, 96)
         }
+        .toolbar(.hidden, for: .navigationBar)
         .safeAreaInset(edge: .bottom) {
-            controlBar
+            controlDock
                 .padding(.horizontal, IPTheme.spacing16)
                 .padding(.bottom, IPTheme.spacing8)
         }
@@ -44,78 +48,87 @@ struct PrepSessionView: View {
         }
     }
 
-    private var topBar: some View {
-        IPPanel(tone: .secondary, padding: IPTheme.spacing16, cornerRadius: IPTheme.radiusXL) {
-            HStack(spacing: 12) {
-                Button(action: { showEndConfirmation = true }) {
-                    Image(systemName: "chevron.left")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(IPTheme.textPrimary)
-                        .frame(width: 38, height: 38)
-                        .background(Color.white.opacity(0.12), in: Circle())
-                }
-                .buttonStyle(.plain)
+    private var headerBar: some View {
+        HStack(spacing: 12) {
+            IPUtilityCircleButton(symbol: "chevron.left") {
+                showEndConfirmation = true
+            }
 
-                AnimatedStatusBadge(text: "Voice Prep", color: IPTheme.accent, isActive: true)
-                IPStatusPill(title: viewModel.statusText, symbol: prepStateSymbol, tint: IPTheme.accentForeground)
+            AnimatedStatusBadge(text: "Voice Prep", color: IPTheme.accent, isActive: true)
+            IPStatusPill(title: viewModel.statusText, symbol: prepStateSymbol, tint: IPTheme.accent)
 
-                Spacer()
+            Spacer()
 
-                VStack(alignment: .trailing, spacing: 2) {
-                    Text(formatTime(viewModel.elapsedTime))
-                        .font(IPTypography.timer)
-                        .foregroundStyle(IPTheme.textPrimary)
-                    Text("\(viewModel.questionCount) questions")
-                        .font(IPTypography.labelSmall)
-                        .foregroundStyle(IPTheme.textSecondary)
-                }
+            IPBrandLogo(size: 40, showShadow: false, variant: .surface)
+        }
+        .padding(.horizontal, IPTheme.spacing16)
+        .padding(.top, 12)
+    }
+
+    private var titleBlock: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top) {
+                Text("Voice Prep Interview")
+                    .font(IPTypography.displayMedium)
+                    .foregroundStyle(IPTheme.textPrimary)
+
+                Spacer(minLength: 12)
+                IPStarburst(size: 34)
+                    .padding(.top, 10)
+            }
+
+            HStack(spacing: 10) {
+                IPStatusPill(title: "\(viewModel.questionCount) questions", symbol: "text.bubble", tint: IPTheme.accent)
+                IPStatusPill(title: formatTime(viewModel.elapsedTime), symbol: "clock", tint: IPTheme.textSecondary)
             }
         }
     }
 
-    private var interviewerSection: some View {
-        IPPanel(tone: .primary) {
-            VStack(alignment: .leading, spacing: 14) {
-                laneHeader(
-                    title: "AI interviewer",
-                    subtitle: "Realtime spoken question",
-                    symbol: "person.wave.2.fill",
-                    tint: IPTheme.accentForeground,
-                    trailing: AnyView(IPStatusPill(title: viewModel.statusText, symbol: prepStateSymbol, tint: IPTheme.accentForeground))
-                )
+    private var questionSection: some View {
+        VStack(spacing: 12) {
+            IPConversationBubble(
+                role: .interviewer,
+                title: "AI Interviewer",
+                text: questionText,
+                symbol: "person.wave.2.fill",
+                trailingSymbol: "speaker.wave.2"
+            )
 
-                ScrollView {
-                    Text(viewModel.currentQuestion.isEmpty
-                         ? "The AI interviewer will greet you and ask the first question."
-                         : viewModel.currentQuestion)
-                        .font(IPTypography.bodyLarge)
-                        .foregroundStyle(viewModel.currentQuestion.isEmpty ? IPTheme.textSecondary : IPTheme.textPrimary)
-                        .lineSpacing(5)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .ipScrollablePage()
-
-                if viewModel.audioCapture.isCapturing &&
-                    (viewModel.sessionState == .listening || viewModel.sessionState == .userSpeaking) {
-                    WaveformView(level: viewModel.audioCapture.audioLevel)
-                        .frame(height: 34)
-                }
+            if viewModel.audioCapture.isCapturing &&
+                (viewModel.sessionState == .listening || viewModel.sessionState == .userSpeaking) {
+                WaveformView(level: viewModel.audioCapture.audioLevel)
+                    .frame(height: 34)
+                    .padding(.vertical, 6)
             }
         }
-        .padding(.horizontal, IPTheme.spacing16)
-        .padding(.top, 4)
     }
 
     private var answerSection: some View {
-        IPPanel(tone: .secondary) {
+        IPPanel(tone: .accent(IPTheme.accent), padding: 18, cornerRadius: 28) {
             VStack(alignment: .leading, spacing: 14) {
-                laneHeader(
-                    title: "Your spoken answer",
-                    subtitle: viewModel.currentAnswerDraft.isEmpty ? "Waiting for your response" : "Live transcription",
-                    symbol: "mic.fill",
-                    tint: IPTheme.accentForeground,
-                    trailing: AnyView(IPStatusPill(title: viewModel.interviewType.displayName, symbol: "target", tint: IPTheme.accentForeground))
-                )
+                HStack(alignment: .top) {
+                    HStack(spacing: 10) {
+                        Image(systemName: "mic.fill")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(IPTheme.accent)
+                            .frame(width: 32, height: 32)
+                            .background(IPTheme.accent.opacity(0.10), in: Circle())
+
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Your Spoken Answer")
+                                .font(IPTypography.labelLarge)
+                                .foregroundStyle(IPTheme.textPrimary)
+
+                            Text(viewModel.currentAnswerDraft.isEmpty ? "Waiting for your response" : "Live transcription")
+                                .font(IPTypography.bodySmall)
+                                .foregroundStyle(IPTheme.textSecondary)
+                        }
+                    }
+
+                    Spacer()
+
+                    IPStatusPill(title: viewModel.interviewType.displayName, symbol: "target")
+                }
 
                 if let error = viewModel.errorMessage {
                     Label(error, systemImage: "exclamationmark.triangle.fill")
@@ -126,22 +139,18 @@ struct PrepSessionView: View {
                         .background(IPTheme.error.opacity(0.10), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
                 }
 
-                ScrollView {
-                    Text(answerText)
-                        .font(IPTypography.responseText)
-                        .foregroundStyle(answerTextIsPlaceholder ? IPTheme.textSecondary : IPTheme.textPrimary)
-                        .lineSpacing(6)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .ipScrollablePage()
+                Text(answerText)
+                    .font(IPTypography.responseText)
+                    .foregroundStyle(answerTextIsPlaceholder ? IPTheme.textSecondary : IPTheme.textPrimary)
+                    .lineSpacing(6)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
-        .padding(.horizontal, IPTheme.spacing16)
     }
 
-    private var controlBar: some View {
-        IPPanel(tone: .secondary, padding: IPTheme.spacing16, cornerRadius: IPTheme.radiusXL) {
-            HStack(spacing: 18) {
+    private var controlDock: some View {
+        IPBottomDock {
+            HStack(spacing: 12) {
                 ControlButton(
                     icon: viewModel.audioCapture.isCapturing ? "mic.fill" : "mic.slash.fill",
                     label: viewModel.audioCapture.isCapturing ? "Mute" : "Unmute",
@@ -151,20 +160,6 @@ struct PrepSessionView: View {
                     viewModel.toggleMicrophone()
                 }
 
-                Spacer()
-
-                Button(action: { showEndConfirmation = true }) {
-                    Image(systemName: "phone.down.fill")
-                        .font(.system(size: 20, weight: .bold))
-                        .foregroundStyle(.white)
-                        .frame(width: 58, height: 58)
-                        .background(IPTheme.error.gradient, in: Circle())
-                        .shadow(color: IPTheme.error.opacity(0.24), radius: 16, y: 10)
-                }
-                .buttonStyle(.plain)
-
-                Spacer()
-
                 ControlButton(
                     icon: "forward.fill",
                     label: "Next",
@@ -173,39 +168,30 @@ struct PrepSessionView: View {
                 ) {
                     viewModel.requestNextQuestion()
                 }
+
+                Button(action: { showEndConfirmation = true }) {
+                    Text("End Interview")
+                        .font(IPTypography.bodyMedium)
+                        .foregroundStyle(IPTheme.error)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 16)
+                        .background(Color.white, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                                .stroke(IPTheme.error.opacity(0.18), lineWidth: 1)
+                        }
+                }
+                .buttonStyle(.plain)
             }
         }
     }
 
-    private func laneHeader(
-        title: String,
-        subtitle: String,
-        symbol: String,
-        tint: Color,
-        trailing: AnyView
-    ) -> some View {
-        HStack(alignment: .top, spacing: 12) {
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(tint.opacity(0.14))
-                .frame(width: 42, height: 42)
-                .overlay {
-                    Image(systemName: symbol)
-                        .font(.system(size: 17, weight: .semibold))
-                        .foregroundStyle(tint)
-                }
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(IPTypography.bodyLarge)
-                    .foregroundStyle(IPTheme.textPrimary)
-                Text(subtitle)
-                    .font(IPTypography.bodySmall)
-                    .foregroundStyle(IPTheme.textSecondary)
-            }
-
-            Spacer()
-            trailing
+    private var questionText: String {
+        if !viewModel.currentQuestion.isEmpty {
+            return viewModel.currentQuestion
         }
+
+        return "The AI interviewer will greet you and ask the first question."
     }
 
     private var answerText: String {
@@ -226,12 +212,18 @@ struct PrepSessionView: View {
 
     private var prepStateSymbol: String {
         switch viewModel.sessionState {
-        case .idle: return "pause.circle"
-        case .connecting: return "link.circle"
-        case .aiSpeaking: return "waveform"
-        case .listening: return "ear"
-        case .userSpeaking: return "mic.fill"
-        case .thinking: return "sparkles"
+        case .idle:
+            return "pause.circle"
+        case .connecting:
+            return "link.circle"
+        case .aiSpeaking:
+            return "waveform"
+        case .listening:
+            return "ear"
+        case .userSpeaking:
+            return "mic.fill"
+        case .thinking:
+            return "sparkles"
         }
     }
 

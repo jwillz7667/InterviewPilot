@@ -3,7 +3,6 @@ import SwiftUI
 struct ContentView: View {
     @State private var authService = AuthService.shared
     @State private var subscriptionService = SubscriptionService.shared
-    @State private var showSettings = false
     @State private var selectedTab = 0
     @AppStorage("appAppearance") private var appearanceRawValue = AppAppearance.system.rawValue
     @Environment(\.modelContext) private var modelContext
@@ -21,17 +20,6 @@ struct ContentView: View {
                     Tab("History", systemImage: "clock.arrow.circlepath", value: 1) {
                         NavigationStack {
                             SessionHistoryView()
-                                .navigationTitle("History")
-                                .navigationBarTitleDisplayMode(.large)
-                                .toolbar {
-                                    ToolbarItem(placement: .topBarTrailing) {
-                                        Button(action: { showSettings = true }) {
-                                            Image(systemName: "gearshape.2.fill")
-                                                .font(.system(size: 16, weight: .semibold))
-                                                .foregroundStyle(IPTheme.pageTextSecondary)
-                                        }
-                                    }
-                                }
                         }
                     }
 
@@ -39,14 +27,7 @@ struct ContentView: View {
                         SettingsView()
                     }
                 }
-                .tabBarMinimizeBehavior(.onScrollDown)
-                .tabViewBottomAccessory {
-                    IPTabAccessory(selectedTab: selectedTab)
-                }
                 .tint(IPTheme.accent)
-                .sheet(isPresented: $showSettings) {
-                    SettingsView()
-                }
             }
         }
         .preferredColorScheme(appAppearance.colorScheme)

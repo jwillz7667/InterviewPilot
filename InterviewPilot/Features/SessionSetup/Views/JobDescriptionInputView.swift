@@ -12,12 +12,18 @@ struct JobDescriptionInputView: View {
 
                 ScrollView {
                     VStack(spacing: IPTheme.spacing20) {
-                        IPPanel(tone: .accent(IPTheme.accent)) {
-                            VStack(alignment: .leading, spacing: 14) {
+                        IPPanel(tone: .primary, padding: 22, cornerRadius: 30) {
+                            VStack(alignment: .leading, spacing: 16) {
+                                HStack {
+                                    IPBrandLogo(size: 42, showShadow: false, variant: .surface)
+                                    Spacer()
+                                    IPStarburst(size: 28)
+                                }
+
                                 IPSectionHeader(
                                     eyebrow: "Job Post",
                                     title: "Paste the full job description",
-                                    subtitle: "Include the responsibilities, requirements, and preferred skills so the interview plan stays grounded.",
+                                    subtitle: "Include responsibilities, requirements, and preferred skills so the session stays grounded in the actual role.",
                                     symbol: "briefcase.fill"
                                 )
 
@@ -25,9 +31,9 @@ struct JobDescriptionInputView: View {
                                     .font(IPTypography.bodyMedium)
                                     .foregroundStyle(IPTheme.insetSurfacePrimaryText(for: colorScheme))
                                     .scrollContentBackground(.hidden)
-                                    .frame(minHeight: 280)
-                                    .padding(12)
-                                    .ipInsetSurface(cornerRadius: 20)
+                                    .frame(minHeight: 300)
+                                    .padding(16)
+                                    .ipInsetSurface(cornerRadius: 24)
 
                                 let keywords = JobDescriptionService.extractKeywords(from: jobDescription)
                                 if !keywords.isEmpty {
@@ -35,14 +41,10 @@ struct JobDescriptionInputView: View {
                                         ForEach(keywords, id: \.self) { keyword in
                                             Text(keyword)
                                                 .font(IPTypography.labelSmall)
-                                                .foregroundStyle(IPTheme.insetSurfacePrimaryText(for: colorScheme))
+                                                .foregroundStyle(IPTheme.accent)
                                                 .padding(.horizontal, 12)
                                                 .padding(.vertical, 8)
-                                                .background(Color.white, in: Capsule())
-                                                .overlay {
-                                                    Capsule()
-                                                        .stroke(IPTheme.insetSurfaceBorder(for: colorScheme, selected: false), lineWidth: 1)
-                                                }
+                                                .background(IPTheme.accent.opacity(0.10), in: Capsule())
                                         }
                                     }
                                 }

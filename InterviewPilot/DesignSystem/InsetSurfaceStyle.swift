@@ -10,19 +10,19 @@ struct IPInsetSurfaceStyle: ViewModifier {
         content
             .background {
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .fill(Color.white)
+                    .fill(IPTheme.inputFill(for: colorScheme))
                     .overlay {
                         RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                             .stroke(
                                 IPTheme.insetSurfaceBorder(for: colorScheme, selected: selected),
-                                lineWidth: selected ? 2 : 1
+                                lineWidth: selected ? 1.5 : 1
                             )
                     }
             }
             .shadow(
                 color: IPTheme.insetSurfaceShadow(for: colorScheme, selected: selected),
-                radius: selected ? 16 : 10,
-                y: selected ? 8 : 5
+                radius: selected ? 20 : 12,
+                y: selected ? 10 : 6
             )
     }
 }

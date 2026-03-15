@@ -194,7 +194,9 @@ final class AuthService {
             }
 
             if httpResponse.statusCode == 402 || httpResponse.statusCode == 403 {
-                clearRuntimeKeys()
+                if !applyDeveloperRuntimeKeysFallback() {
+                    clearRuntimeKeys()
+                }
                 return
             }
 
@@ -206,6 +208,7 @@ final class AuthService {
             _ = KeychainService.save(key: .deepgramAPIKey, value: keys.deepgramApiKey)
             _ = KeychainService.save(key: .openAIAPIKey, value: keys.openaiApiKey)
         } catch {
+            _ = applyDeveloperRuntimeKeysFallback()
             // Preserve the last known keys on transient failures.
         }
     }
@@ -246,6 +249,27 @@ final class AuthService {
     private func clearRuntimeKeys() {
         _ = KeychainService.delete(key: .deepgramAPIKey)
         _ = KeychainService.delete(key: .openAIAPIKey)
+    }
+
+    var hasDeveloperFullAccess: Bool {
+        AppEnvironment.hasDeveloperFullAccess(
+            email: currentUser?.email ?? KeychainService.load(key: .userEmail)
+        )
+    }
+
+    @discardableResult
+    private func applyDeveloperRuntimeKeysFallback() -> Bool {
+        guard hasDeveloperFullAccess else { return false }
+
+        if let deepgramAPIKey = AppEnvironment.developerDeepgramAPIKey {
+            _ = KeychainService.save(key: .deepgramAPIKey, value: deepgramAPIKey)
+        }
+
+        if let openAIAPIKey = AppEnvironment.developerOpenAIAPIKey {
+            _ = KeychainService.save(key: .openAIAPIKey, value: openAIAPIKey)
+        }
+
+        return KeychainService.hasKey(.deepgramAPIKey) && KeychainService.hasKey(.openAIAPIKey)
     }
 
     private func clearAuthData() {

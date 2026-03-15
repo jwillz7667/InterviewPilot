@@ -2,7 +2,7 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 struct SessionSetupView: View {
-    @State private var viewModel = SessionSetupViewModel()
+    @State private var viewModel: SessionSetupViewModel
     @State private var showLiveSession = false
     @State private var showPrepSession = false
     @State private var showFilePicker = false
@@ -14,40 +14,51 @@ struct SessionSetupView: View {
     @State private var subscriptionService = SubscriptionService.shared
     @Environment(\.colorScheme) private var colorScheme
 
+    private let loadDefaultsOnTask: Bool
+    private let twoColumnGrid = [
+        GridItem(.flexible(), spacing: 12, alignment: .top),
+        GridItem(.flexible(), spacing: 12, alignment: .top),
+    ]
+    private let singleColumnGrid = [
+        GridItem(.flexible(), spacing: 12, alignment: .top)
+    ]
+    private let threeColumnGrid = [
+        GridItem(.flexible(), spacing: 12, alignment: .top),
+        GridItem(.flexible(), spacing: 12, alignment: .top),
+        GridItem(.flexible(), spacing: 12, alignment: .top),
+    ]
+
+    init(
+        viewModel: SessionSetupViewModel = SessionSetupViewModel(),
+        loadDefaultsOnTask: Bool = true
+    ) {
+        _viewModel = State(initialValue: viewModel)
+        self.loadDefaultsOnTask = loadDefaultsOnTask
+    }
+
     var body: some View {
         NavigationStack {
             ZStack {
                 IPAppBackground()
 
                 ScrollView {
-                    VStack(spacing: IPTheme.spacing20) {
-                        overviewSection
-                        materialsSection
-                        coreSetupSection
-                        prepAssetsSection
+                    VStack(spacing: 18) {
+                        topUtilityBar
+                        dashboardHeader
 
                         if let error = viewModel.errorMessage {
-                            Label(error, systemImage: "exclamationmark.triangle.fill")
-                                .font(IPTypography.bodySmall)
-                                .foregroundStyle(IPTheme.error)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding(14)
-                                .background(IPTheme.error.opacity(0.10), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                            errorBanner(error)
                         }
+
+                        setupCanvas
                     }
                     .padding(.horizontal, IPTheme.spacing20)
                     .padding(.top, IPTheme.spacing20)
-                    .padding(.bottom, 120)
+                    .padding(.bottom, 44)
                 }
                 .ipScrollablePage()
             }
-            .navigationTitle("Prepare")
-            .navigationBarTitleDisplayMode(.large)
-            .safeAreaInset(edge: .bottom) {
-                startDock
-                    .padding(.horizontal, IPTheme.spacing16)
-                    .padding(.bottom, IPTheme.spacing8)
-            }
+            .toolbar(.hidden, for: .navigationBar)
             .fullScreenCover(isPresented: $showLiveSession) {
                 if let preparedSessionId {
                     LiveSessionView(viewModel: viewModel.createLiveViewModel(sessionId: preparedSessionId))
@@ -93,7 +104,9 @@ struct SessionSetupView: View {
                 }
             }
             .task {
-                await viewModel.loadIfNeeded()
+                if loadDefaultsOnTask {
+                    await viewModel.loadIfNeeded()
+                }
             }
             .onChange(of: viewModel.resumeText) {
                 viewModel.invalidatePreparedAnswerBankIfNeeded()
@@ -118,248 +131,139 @@ struct SessionSetupView: View {
         }
     }
 
-    private var overviewSection: some View {
-        IPPanel(tone: .secondary) {
-            VStack(alignment: .leading, spacing: 18) {
-                HStack(spacing: 10) {
-                    IPStatusPill(title: viewModel.sessionMode.displayName, symbol: viewModel.sessionMode.icon)
+    private var topUtilityBar: some View {
+        HStack(spacing: 12) {
+            HStack(spacing: 12) {
+                IPBrandLogo(size: 38, showShadow: false, variant: .surface)
 
-                    if let entitlement = subscriptionService.entitlement {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Job Hopper")
+                        .font(IPTypography.labelLarge)
+                        .foregroundStyle(IPTheme.textPrimary)
+
+                    Text("Prepare")
+                        .font(IPTypography.bodySmall)
+                        .foregroundStyle(IPTheme.textSecondary)
+                }
+            }
+
+            Spacer()
+
+            HStack(spacing: 10) {
+                if viewModel.hasResume {
+                    IPUtilityCircleButton(symbol: "doc.text.magnifyingglass") {
+                        showResumePreview = true
+                    }
+                }
+
+                if viewModel.hasJobListing {
+                    IPUtilityCircleButton(symbol: "link") {
+                        showJobListingPreview = true
+                    }
+                }
+            }
+        }
+    }
+
+    private var dashboardHeader: some View {
+        IPPanel(tone: .secondary, padding: 22, cornerRadius: 30) {
+            VStack(alignment: .leading, spacing: 16) {
+                HStack(alignment: .top, spacing: 12) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Prepare")
+                            .font(IPTypography.labelSmall)
+                            .foregroundStyle(IPTheme.textSecondary)
+
+                        Text("Interview Prep")
+                            .font(IPTypography.displayMedium)
+                            .foregroundStyle(IPTheme.textPrimary)
+                            .lineLimit(2)
+                            .minimumScaleFactor(0.88)
+                    }
+
+                    Spacer(minLength: 12)
+
+                    if let entitlement = subscriptionService.currentEntitlement {
                         IPStatusPill(
                             title: entitlement.planTitle,
                             symbol: entitlement.sandboxFullAccess ? "checkmark.seal.fill" : "creditcard.fill",
-                            tint: entitlement.sandboxFullAccess ? IPTheme.success : IPTheme.accentForeground
+                            tint: entitlement.sandboxFullAccess ? IPTheme.success : IPTheme.accent
                         )
                     }
                 }
 
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Complete the setup")
-                        .font(IPTypography.headlineLarge)
-                        .foregroundStyle(IPTheme.textPrimary)
+                Text("Upload your resume, analyze the role, confirm the setup, and launch from one grounded flow.")
+                    .font(IPTypography.bodyLarge)
+                    .foregroundStyle(IPTheme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
 
-                    Text("Keep the input simple: upload your resume, paste a job listing URL, confirm the inferred role, and start when the checklist is complete.")
-                        .font(IPTypography.bodyLarge)
-                        .foregroundStyle(IPTheme.textSecondary)
-                }
-
-                VStack(spacing: 10) {
-                    ForEach(checklistItems) { item in
-                        checklistRow(item)
-                    }
+                HStack(spacing: 10) {
+                    IPStatusPill(title: viewModel.sessionMode.displayName, symbol: viewModel.sessionMode.icon)
+                    IPStatusPill(
+                        title: launchReadinessTitle,
+                        symbol: viewModel.isReady ? "checkmark.circle.fill" : "circle.dotted",
+                        tint: viewModel.isReady ? IPTheme.success : IPTheme.textSecondary
+                    )
                 }
             }
         }
     }
 
-    private var materialsSection: some View {
-        IPPanel {
-            VStack(alignment: .leading, spacing: 18) {
-                IPSectionHeader(
-                    eyebrow: "Required",
-                    title: "Role materials",
-                    subtitle: "The app now works from a resume plus a listing URL. It pulls the posting, infers the role context, and uses that to personalize responses.",
-                    symbol: "tray.full.fill"
-                )
-
-                IPInputShell(
-                    icon: "doc.text.fill",
-                    title: "Resume",
-                    subtitle: "Upload a PDF or paste your resume. The main screen only shows status; preview opens in a separate sheet."
-                ) {
-                    VStack(alignment: .leading, spacing: 12) {
-                        HStack(spacing: 10) {
-                            Button(action: { showFilePicker = true }) {
-                                Label(viewModel.hasResume ? "Replace PDF" : "Upload PDF", systemImage: "doc.badge.plus")
-                            }
-                            .buttonStyle(IPSecondaryButtonStyle())
-
-                            Button(action: { showResumeEditor = true }) {
-                                Label(viewModel.hasResume ? "Paste or Edit" : "Paste Resume", systemImage: "square.and.pencil")
-                            }
-                            .buttonStyle(IPSecondaryButtonStyle())
-
-                            if viewModel.hasResume {
-                                Button(action: { showResumePreview = true }) {
-                                    Label("Preview", systemImage: "eye")
-                                }
-                                .buttonStyle(IPSecondaryButtonStyle())
-                            }
-                        }
-
-                        HStack(spacing: 10) {
-                            IPStatusPill(
-                                title: viewModel.hasResume ? "Uploaded" : "Required",
-                                symbol: viewModel.hasResume ? "checkmark.circle.fill" : "circle",
-                                tint: viewModel.hasResume ? IPTheme.success : IPTheme.textSecondary
-                            )
-
-                            if viewModel.hasResume {
-                                Text(viewModel.resumeStatusLabel)
-                                    .font(IPTypography.bodySmall)
-                                    .foregroundStyle(IPTheme.textSecondary)
-                                    .lineLimit(1)
-                            }
-                        }
-                    }
-                }
-
-                IPInputShell(
-                    icon: "link",
-                    title: "Job listing",
-                    subtitle: "Paste the public posting URL. The app analyzes the listing, infers job category and seniority, and tunes the session from that context."
-                ) {
-                    VStack(alignment: .leading, spacing: 12) {
-                        HStack(spacing: 12) {
-                            HStack(spacing: 10) {
-                                Image(systemName: "link")
-                                    .font(.system(size: 14, weight: .semibold))
-                                    .foregroundStyle(IPTheme.insetSurfaceSecondaryText(for: colorScheme))
-
-                                TextField("https://company.com/jobs/role", text: $viewModel.jobListingURL)
-                                    .font(IPTypography.bodyMedium)
-                                    .foregroundStyle(IPTheme.insetSurfacePrimaryText(for: colorScheme))
-                                    .keyboardType(.URL)
-                                    .textInputAutocapitalization(.never)
-                                    .autocorrectionDisabled()
-                                    .submitLabel(.go)
-                                    .onSubmit {
-                                        Task {
-                                            await viewModel.analyzeJobListing()
-                                        }
-                                    }
-
-                                if viewModel.isAnalyzingJobListing {
-                                    ProgressView()
-                                        .tint(IPTheme.accent)
-                                }
-                            }
-                            .padding(14)
-                            .ipInsetSurface(cornerRadius: 18)
-                        }
-
-                        HStack(spacing: 10) {
-                            Button(action: {
-                                Task {
-                                    await viewModel.analyzeJobListing()
-                                }
-                            }) {
-                                Label(
-                                    viewModel.hasJobListing ? "Refresh Analysis" : "Analyze Listing",
-                                    systemImage: "wand.and.stars"
-                                )
-                            }
-                            .buttonStyle(IPSecondaryButtonStyle())
-
-                            if viewModel.hasJobListing {
-                                Button(action: { showJobListingPreview = true }) {
-                                    Label("Preview", systemImage: "eye")
-                                }
-                                .buttonStyle(IPSecondaryButtonStyle())
-                            }
-                        }
-
-                        HStack(spacing: 10) {
-                            IPStatusPill(
-                                title: viewModel.hasJobListing ? "Analyzed" : "Required",
-                                symbol: viewModel.hasJobListing ? "checkmark.circle.fill" : "circle",
-                                tint: viewModel.hasJobListing ? IPTheme.success : IPTheme.textSecondary
-                            )
-
-                            if viewModel.hasJobListing {
-                                Text(viewModel.jobListingStatusLabel)
-                                    .font(IPTypography.bodySmall)
-                                    .foregroundStyle(IPTheme.textSecondary)
-                                    .lineLimit(2)
-                            }
-                        }
-
-                        if viewModel.hasJobListing {
-                            HStack(spacing: 8) {
-                                if let host = URL(string: viewModel.jobListingURL)?.host {
-                                    infoBadge(title: host.replacingOccurrences(of: "www.", with: ""), symbol: "globe")
-                                }
-
-                                if let jobCategory = viewModel.jobCategory {
-                                    infoBadge(title: jobCategory.displayName, symbol: jobCategoryIcon(for: jobCategory))
-                                }
-
-                                if let positionLevel = viewModel.positionLevel {
-                                    infoBadge(title: positionLevel.displayName, symbol: positionLevelIcon(for: positionLevel))
-                                }
-                            }
-                        }
-                    }
-                }
-            }
+    private var inferenceSummary: some View {
+        LazyVGrid(columns: threeColumnGrid, spacing: 12) {
+            summaryTile(
+                title: "Role",
+                value: viewModel.jobCategory?.displayName ?? "Pending",
+                symbol: viewModel.jobCategory.map(jobCategoryIcon(for:)) ?? "briefcase.fill"
+            )
+            summaryTile(
+                title: "Level",
+                value: viewModel.positionLevel?.displayName ?? "Pending",
+                symbol: viewModel.positionLevel.map(positionLevelIcon(for:)) ?? "arrow.up.right.circle"
+            )
+            summaryTile(
+                title: "Format",
+                value: viewModel.responseFormat.displayName,
+                symbol: "text.justify.left"
+            )
         }
     }
 
-    private var coreSetupSection: some View {
-        IPPanel {
-            VStack(alignment: .leading, spacing: 18) {
-                IPSectionHeader(
-                    eyebrow: "Core setup",
-                    title: "Confirm the role targeting",
-                    subtitle: "The old vague style knobs are gone. Confirm how the session runs, the job category, the seniority level, and the answer layout.",
-                    symbol: "slider.horizontal.3"
-                )
+    private var setupCanvas: some View {
+        VStack(spacing: 16) {
+            IPPanel(tone: .secondary, padding: 22, cornerRadius: 30) {
+                VStack(alignment: .leading, spacing: 22) {
+                    uploadCard
+                    Divider()
+                        .overlay(IPTheme.borderColor(for: colorScheme))
+                    listingCard
+                    readinessSummaryStrip
+                }
+            }
 
-                VStack(alignment: .leading, spacing: 10) {
-                    sectionLabel("Mode")
+            IPPanel(tone: .secondary, padding: 22, cornerRadius: 30) {
+                VStack(alignment: .leading, spacing: 18) {
+                    compactSectionTitle("Session configuration", detail: "Use clear grouped controls so the interview mode and answer style are easy to verify at a glance.")
 
-                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-                        ForEach(SessionMode.allCases) { mode in
-                            let isLocked = mode == .voicePrep && !(subscriptionService.entitlement?.hasVoicePrep ?? false)
-
-                            Button(action: { selectSessionMode(mode, isLocked: isLocked) }) {
-                                VStack(alignment: .leading, spacing: 10) {
-                                    HStack(spacing: 8) {
-                                        Image(systemName: mode.icon)
-                                            .font(.system(size: 17, weight: .semibold))
-                                            .foregroundStyle(
-                                                viewModel.sessionMode == mode
-                                                    ? IPTheme.insetSurfacePrimaryText(for: colorScheme)
-                                                    : IPTheme.insetSurfaceSecondaryText(for: colorScheme)
-                                            )
-
-                                        Spacer()
-
-                                        if isLocked {
-                                            Image(systemName: "lock.fill")
-                                                .font(.system(size: 13, weight: .semibold))
-                                                .foregroundStyle(IPTheme.insetSurfaceSecondaryText(for: colorScheme))
-                                        } else if viewModel.sessionMode == mode {
-                                            Image(systemName: "checkmark.circle.fill")
-                                                .font(.system(size: 16, weight: .semibold))
-                                                .foregroundStyle(IPTheme.insetSurfacePrimaryText(for: colorScheme))
-                                        }
-                                    }
-
-                                    Text(mode.displayName)
-                                        .font(IPTypography.bodyLarge)
-                                        .foregroundStyle(IPTheme.insetSurfacePrimaryText(for: colorScheme))
-
-                                    Text(isLocked ? "Pro required" : mode.subtitle)
-                                        .font(IPTypography.bodySmall)
-                                        .foregroundStyle(IPTheme.insetSurfaceSecondaryText(for: colorScheme))
-                                }
-                                .frame(maxWidth: .infinity, minHeight: 132, alignment: .topLeading)
-                                .padding(14)
-                                .ipInsetSurface(selected: viewModel.sessionMode == mode, cornerRadius: 18)
+                    VStack(alignment: .leading, spacing: 16) {
+                        compactSectionTitle("Interview mode", detail: "Choose how Job Hopper should run this session.")
+                        VStack(spacing: 12) {
+                            ForEach(SessionMode.allCases) { mode in
+                                let isLocked = mode == .voicePrep && !(subscriptionService.currentEntitlement?.hasVoicePrep ?? false)
+                                modeCard(mode, isLocked: isLocked)
                             }
-                            .buttonStyle(.plain)
                         }
                     }
-                }
 
-                VStack(alignment: .leading, spacing: 10) {
-                    sectionLabel("Answer mode")
+                    responseLayoutSection
 
-                    FlowLayout(spacing: 10) {
+                    optionGroup(
+                        title: "Answer quality",
+                        detail: viewModel.responseQualityMode.description,
+                        columns: singleColumnGrid
+                    ) {
                         ForEach(ResponseQualityMode.allCases) { mode in
-                            let isLocked = mode.requiresPriorityModels && !(subscriptionService.entitlement?.hasPriorityModels ?? false)
-
+                            let isLocked = mode.requiresPriorityModels && !(subscriptionService.currentEntitlement?.hasPriorityModels ?? false)
                             selectionChip(
                                 title: mode.displayName,
                                 symbol: responseQualityIcon(for: mode, isLocked: isLocked),
@@ -370,16 +274,18 @@ struct SessionSetupView: View {
                             }
                         }
                     }
-
-                    Text(viewModel.responseQualityMode.description)
-                        .font(IPTypography.bodySmall)
-                        .foregroundStyle(IPTheme.textSecondary)
                 }
+            }
 
-                VStack(alignment: .leading, spacing: 10) {
-                    sectionLabel("Job category")
+            IPPanel(tone: .secondary, padding: 22, cornerRadius: 30) {
+                VStack(alignment: .leading, spacing: 18) {
+                    compactSectionTitle("Role targeting", detail: "Longer option sets follow Apple’s grouped-list pattern instead of free-floating pills.")
 
-                    FlowLayout(spacing: 10) {
+                    optionGroup(
+                        title: "Role focus",
+                        detail: "Auto-detected from the listing, but still editable when the posting is noisy.",
+                        columns: singleColumnGrid
+                    ) {
                         ForEach(JobCategory.allCases) { category in
                             selectionChip(
                                 title: category.displayName,
@@ -394,15 +300,11 @@ struct SessionSetupView: View {
                         }
                     }
 
-                    Text("Auto-detected from the listing, but you can override it if the posting is noisy or mislabeled.")
-                        .font(IPTypography.bodySmall)
-                        .foregroundStyle(IPTheme.textSecondary)
-                }
-
-                VStack(alignment: .leading, spacing: 10) {
-                    sectionLabel("Interview level")
-
-                    FlowLayout(spacing: 10) {
+                    optionGroup(
+                        title: "Seniority",
+                        detail: viewModel.derivedProfile.rolePromptInstruction,
+                        columns: singleColumnGrid
+                    ) {
                         ForEach(PositionLevel.allCases) { level in
                             selectionChip(
                                 title: level.displayName,
@@ -416,13 +318,353 @@ struct SessionSetupView: View {
                             }
                         }
                     }
+                }
+            }
 
-                    Text(viewModel.derivedProfile.rolePromptInstruction)
-                        .font(IPTypography.bodySmall)
+            IPPanel(tone: .secondary, padding: 22, cornerRadius: 30) {
+                prepBankCompactSection
+            }
+
+            launchSection
+        }
+    }
+
+    private var uploadCard: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            VStack(spacing: 12) {
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .fill(IPTheme.accent.opacity(0.10))
+                    .frame(width: 60, height: 60)
+                    .overlay {
+                        Image(systemName: viewModel.hasResume ? "doc.text.fill" : "square.and.arrow.up.fill")
+                            .font(.system(size: 24, weight: .regular))
+                            .foregroundStyle(IPTheme.accent)
+                    }
+
+                Text(viewModel.hasResume ? "Resume Ready" : "Upload Your Resume")
+                    .font(IPTypography.headlineSmall)
+                    .foregroundStyle(IPTheme.textPrimary)
+
+                Text(viewModel.hasResume ? viewModel.resumeStatusLabel : "Select a PDF or paste the full text so the interview can be grounded in your background.")
+                    .font(IPTypography.bodySmall)
+                    .foregroundStyle(IPTheme.textSecondary)
+                    .multilineTextAlignment(.center)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 28)
+            .padding(.horizontal, 18)
+            .background(
+                RoundedRectangle(cornerRadius: 28, style: .continuous)
+                    .fill(IPTheme.surfacePrimary)
+            )
+            .overlay {
+                RoundedRectangle(cornerRadius: 28, style: .continuous)
+                    .stroke(style: StrokeStyle(lineWidth: 1.5, dash: [6, 6]))
+                    .foregroundStyle(IPTheme.borderColor(for: colorScheme))
+            }
+
+            if viewModel.hasResume {
+                VStack(spacing: 12) {
+                    HStack(spacing: 12) {
+                        resumeActionButton(title: "Replace PDF", symbol: "doc.badge.plus") {
+                            showFilePicker = true
+                        }
+
+                        resumeActionButton(title: "Edit Text", symbol: "square.and.pencil") {
+                            showResumeEditor = true
+                        }
+                    }
+
+                    resumeActionButton(title: "Preview Resume", symbol: "eye") {
+                        showResumePreview = true
+                    }
+                }
+            } else {
+                HStack(spacing: 12) {
+                    resumeActionButton(title: "Upload PDF", symbol: "doc.badge.plus") {
+                        showFilePicker = true
+                    }
+
+                    resumeActionButton(title: "Paste Text", symbol: "square.and.pencil") {
+                        showResumeEditor = true
+                    }
+                }
+            }
+        }
+    }
+
+    private var listingCard: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            compactSectionTitle("Job Listing URL", detail: "Paste a public role posting and analyze it inline.")
+
+            VStack(spacing: 12) {
+                HStack(spacing: 10) {
+                    Image(systemName: "link")
+                        .font(.system(size: 14, weight: .semibold))
                         .foregroundStyle(IPTheme.textSecondary)
+
+                    TextField("https://company.com/jobs/role", text: $viewModel.jobListingURL)
+                        .font(IPTypography.bodyMedium)
+                        .foregroundStyle(IPTheme.textPrimary)
+                        .keyboardType(.URL)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .submitLabel(.go)
+                        .onSubmit {
+                            Task { await viewModel.analyzeJobListing() }
+                        }
+
+                    if viewModel.isAnalyzingJobListing {
+                        ProgressView()
+                            .tint(IPTheme.accent)
+                    }
+                }
+                .padding(.horizontal, 14)
+                .frame(minHeight: 52)
+                .background(IPTheme.surfacePrimary, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 20, style: .continuous)
+                        .stroke(IPTheme.borderColor(for: colorScheme), lineWidth: 1)
                 }
 
-                VStack(alignment: .leading, spacing: 10) {
+                Button(action: {
+                    Task { await viewModel.analyzeJobListing() }
+                }) {
+                    Text(viewModel.hasJobListing ? "Refresh Analysis" : "Paste & Analyze")
+                }
+                .buttonStyle(IPPrimaryButtonStyle(isEnabled: !viewModel.isAnalyzingJobListing))
+                .disabled(viewModel.isAnalyzingJobListing)
+            }
+
+            if viewModel.hasJobListing {
+                if let host = URL(string: viewModel.jobListingURL)?.host {
+                    infoBadge(title: host.replacingOccurrences(of: "www.", with: ""), symbol: "globe")
+                }
+
+                if let title = viewModel.jobListingTitle, !title.isEmpty {
+                    Text(title)
+                        .font(IPTypography.bodyMedium)
+                        .foregroundStyle(IPTheme.textPrimary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            } else {
+                Text("Paste the public posting URL so Job Hopper can infer category, level, and role-specific language.")
+                    .font(IPTypography.bodySmall)
+                    .foregroundStyle(IPTheme.textSecondary)
+            }
+        }
+    }
+
+    private var readinessSummaryStrip: some View {
+        LazyVGrid(columns: threeColumnGrid, spacing: 12) {
+            summaryTile(
+                title: "Role",
+                value: viewModel.jobCategory?.displayName ?? "Pending",
+                symbol: viewModel.jobCategory.map(jobCategoryIcon(for:)) ?? "briefcase.fill"
+            )
+            summaryTile(
+                title: "Level",
+                value: viewModel.positionLevel?.displayName ?? "Pending",
+                symbol: viewModel.positionLevel.map(positionLevelIcon(for:)) ?? "arrow.up.right.circle"
+            )
+            summaryTile(
+                title: "Format",
+                value: viewModel.responseFormat.displayName,
+                symbol: "text.justify.left"
+            )
+        }
+    }
+
+    private var responseLayoutSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            compactSectionTitle("Answer Layout", detail: "Choose the structure you want pinned during the interview.")
+
+            VStack(spacing: 12) {
+                ForEach(ResponseFormat.allCases, id: \.self) { format in
+                    Button(action: {
+                        withAnimation(IPAnimations.snappy) {
+                            viewModel.responseFormat = format
+                        }
+                    }) {
+                        VStack(alignment: .leading, spacing: 6) {
+                            HStack(spacing: 10) {
+                                Image(systemName: "text.justify.left")
+                                    .font(.system(size: 15, weight: .semibold))
+                                    .frame(width: 18, height: 18)
+
+                                Text(format.displayName)
+                                    .font(IPTypography.bodyLarge)
+                                    .foregroundStyle(IPTheme.insetSurfacePrimaryText(for: colorScheme))
+                                    .lineLimit(1)
+                                    .minimumScaleFactor(0.88)
+
+                                Spacer()
+
+                                Image(systemName: viewModel.responseFormat == format ? "checkmark.circle.fill" : "circle")
+                                    .font(.system(size: 17, weight: .semibold))
+                                    .foregroundStyle(
+                                        viewModel.responseFormat == format
+                                            ? IPTheme.accent
+                                            : IPTheme.insetSurfaceTertiaryText(for: colorScheme)
+                                    )
+                            }
+
+                            Text(format.description)
+                                .font(IPTypography.bodySmall)
+                                .foregroundStyle(IPTheme.insetSurfaceSecondaryText(for: colorScheme))
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 14)
+                        .ipInsetSurface(selected: viewModel.responseFormat == format, cornerRadius: 20)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+    }
+
+    private var prepBankCompactSection: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            compactSectionTitle("Prep Bank", detail: "Pre-generate reusable guidance before you launch.")
+
+            Toggle(
+                isOn: Binding(
+                    get: { viewModel.shouldPreGenerate },
+                    set: { enabled in
+                        Task {
+                            await viewModel.updateShouldPreGenerate(enabled)
+                        }
+                    }
+                )
+            ) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Auto-generate a prep bank")
+                        .font(IPTypography.headlineSmall)
+                        .foregroundStyle(IPTheme.insetSurfacePrimaryText(for: colorScheme))
+
+                    Text("When enabled, the app builds likely questions and ready-to-use answer scaffolds.")
+                        .font(IPTypography.bodySmall)
+                        .foregroundStyle(IPTheme.insetSurfaceSecondaryText(for: colorScheme))
+                }
+            }
+            .tint(IPTheme.accent)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 14)
+            .ipInsetSurface(cornerRadius: 22)
+
+            if viewModel.shouldPreGenerate {
+                PreGenerationView(
+                    progress: viewModel.preGenerationProgress,
+                    answers: viewModel.preparedAnswers,
+                    isGenerating: viewModel.isGeneratingAnswerBank
+                )
+
+                if viewModel.isReady && !viewModel.isGeneratingAnswerBank && !viewModel.hasPreparedAnswers {
+                    Button(action: {
+                        Task { await viewModel.generatePreparedAnswers(force: true) }
+                    }) {
+                        Label("Generate Prep Now", systemImage: "sparkles")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(IPSecondaryButtonStyle())
+                }
+
+                Text(viewModel.prepSummary)
+                    .font(IPTypography.bodySmall)
+                    .foregroundStyle(IPTheme.textSecondary)
+            }
+        }
+    }
+
+    private func compactSectionTitle(_ title: String, detail: String) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title)
+                .font(IPTypography.headlineSmall)
+                .foregroundStyle(IPTheme.textPrimary)
+
+            Text(detail)
+                .font(IPTypography.bodyMedium)
+                .foregroundStyle(IPTheme.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private var targetingSection: some View {
+        IPPanel(tone: .primary, padding: 22, cornerRadius: 30) {
+            VStack(alignment: .leading, spacing: 18) {
+                IPSectionHeader(
+                    eyebrow: "Tuning",
+                    title: "Confirm the role targeting",
+                    subtitle: "Keep the controls compact, readable, and easy to adjust before you launch into a real or mock interview.",
+                    symbol: "slider.horizontal.3"
+                )
+
+                VStack(alignment: .leading, spacing: 12) {
+                    sectionLabel("Mode")
+                    HStack(spacing: 12) {
+                        ForEach(SessionMode.allCases) { mode in
+                            let isLocked = mode == .voicePrep && !(subscriptionService.currentEntitlement?.hasVoicePrep ?? false)
+                            modeCard(mode, isLocked: isLocked)
+                        }
+                    }
+                }
+
+                optionGroup(
+                    title: "Answer mode",
+                    detail: viewModel.responseQualityMode.description
+                ) {
+                    ForEach(ResponseQualityMode.allCases) { mode in
+                        let isLocked = mode.requiresPriorityModels && !(subscriptionService.currentEntitlement?.hasPriorityModels ?? false)
+                        selectionChip(
+                            title: mode.displayName,
+                            symbol: responseQualityIcon(for: mode, isLocked: isLocked),
+                            isSelected: viewModel.responseQualityMode == mode,
+                            isLocked: isLocked
+                        ) {
+                            selectResponseQualityMode(mode, isLocked: isLocked)
+                        }
+                    }
+                }
+
+                optionGroup(
+                    title: "Job category",
+                    detail: "Auto-detected from the listing, but overridable when the posting is noisy or mislabeled."
+                ) {
+                    ForEach(JobCategory.allCases) { category in
+                        selectionChip(
+                            title: category.displayName,
+                            symbol: jobCategoryIcon(for: category),
+                            isSelected: viewModel.jobCategory == category
+                        ) {
+                            withAnimation(IPAnimations.snappy) {
+                                viewModel.jobCategory = category
+                                viewModel.interviewType = viewModel.derivedProfile.interviewType
+                            }
+                        }
+                    }
+                }
+
+                optionGroup(
+                    title: "Interview level",
+                    detail: viewModel.derivedProfile.rolePromptInstruction
+                ) {
+                    ForEach(PositionLevel.allCases) { level in
+                        selectionChip(
+                            title: level.displayName,
+                            symbol: positionLevelIcon(for: level),
+                            isSelected: viewModel.positionLevel == level
+                        ) {
+                            withAnimation(IPAnimations.snappy) {
+                                viewModel.positionLevel = level
+                                viewModel.interviewType = viewModel.derivedProfile.interviewType
+                            }
+                        }
+                    }
+                }
+
+                VStack(alignment: .leading, spacing: 12) {
                     sectionLabel("Answer layout")
 
                     LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
@@ -444,7 +686,7 @@ struct SessionSetupView: View {
                                             .font(.system(size: 16, weight: .semibold))
                                             .foregroundStyle(
                                                 viewModel.responseFormat == format
-                                                    ? IPTheme.insetSurfacePrimaryText(for: colorScheme)
+                                                    ? IPTheme.accent
                                                     : IPTheme.insetSurfaceTertiaryText(for: colorScheme)
                                             )
                                     }
@@ -452,10 +694,11 @@ struct SessionSetupView: View {
                                     Text(format.description)
                                         .font(IPTypography.bodySmall)
                                         .foregroundStyle(IPTheme.insetSurfaceSecondaryText(for: colorScheme))
+                                        .fixedSize(horizontal: false, vertical: true)
                                 }
-                                .frame(maxWidth: .infinity, minHeight: 106, alignment: .topLeading)
-                                .padding(14)
-                                .ipInsetSurface(selected: viewModel.responseFormat == format, cornerRadius: 18)
+                                .frame(maxWidth: .infinity, minHeight: 112, alignment: .topLeading)
+                                .padding(16)
+                                .ipInsetSurface(selected: viewModel.responseFormat == format, cornerRadius: 22)
                             }
                             .buttonStyle(.plain)
                         }
@@ -465,13 +708,13 @@ struct SessionSetupView: View {
         }
     }
 
-    private var prepAssetsSection: some View {
-        IPPanel {
-            VStack(alignment: .leading, spacing: 14) {
+    private var prepBankSection: some View {
+        IPPanel(tone: .primary, padding: 22, cornerRadius: 30) {
+            VStack(alignment: .leading, spacing: 16) {
                 IPSectionHeader(
                     eyebrow: "Optional",
                     title: "Prep bank",
-                    subtitle: "Generate likely questions and reusable answer scaffolds before the session starts.",
+                    subtitle: "Generate likely questions and reusable response scaffolds before launch for faster on-call assistance.",
                     symbol: "sparkles.rectangle.stack"
                 )
 
@@ -496,8 +739,8 @@ struct SessionSetupView: View {
                     }
                 }
                 .tint(IPTheme.accent)
-                .padding(14)
-                .ipInsetSurface(cornerRadius: 18)
+                .padding(16)
+                .ipInsetSurface(cornerRadius: 22)
 
                 if viewModel.shouldPreGenerate {
                     PreGenerationView(
@@ -508,30 +751,32 @@ struct SessionSetupView: View {
 
                     if viewModel.isReady && !viewModel.isGeneratingAnswerBank && !viewModel.hasPreparedAnswers {
                         Button(action: {
-                            Task {
-                                await viewModel.generatePreparedAnswers(force: true)
-                            }
+                            Task { await viewModel.generatePreparedAnswers(force: true) }
                         }) {
                             Label("Generate Prep Now", systemImage: "sparkles")
                                 .frame(maxWidth: .infinity)
                         }
                         .buttonStyle(IPSecondaryButtonStyle())
                     }
-
-                    Text(viewModel.prepSummary)
-                        .font(IPTypography.bodySmall)
-                        .foregroundStyle(IPTheme.textSecondary)
                 }
+
+                Text(viewModel.prepSummary)
+                    .font(IPTypography.bodySmall)
+                    .foregroundStyle(IPTheme.textSecondary)
             }
         }
     }
 
-    private var startDock: some View {
-        IPPanel(tone: .accent(IPTheme.accent), padding: IPTheme.spacing16, cornerRadius: IPTheme.radiusXL) {
-            VStack(alignment: .leading, spacing: 12) {
-                Text(startSummary)
-                    .font(IPTypography.bodySmall)
-                    .foregroundStyle(IPTheme.textSecondary)
+    private var launchSection: some View {
+        IPPanel(tone: .secondary, padding: 20, cornerRadius: 30) {
+            VStack(alignment: .leading, spacing: 14) {
+                compactSectionTitle("Launch Session", detail: startSummary)
+
+                if !viewModel.isReady {
+                    Text("Complete the resume upload and job listing analysis before starting.")
+                        .font(IPTypography.bodySmall)
+                        .foregroundStyle(IPTheme.textSecondary)
+                }
 
                 Button(action: startSession) {
                     HStack(spacing: 10) {
@@ -539,8 +784,7 @@ struct SessionSetupView: View {
                             ProgressView()
                                 .tint(.white)
                         } else {
-                            Image(systemName: "mic.fill")
-                                .symbolEffect(.pulse, isActive: viewModel.isReady)
+                            Image(systemName: viewModel.sessionMode == .liveInterview ? "mic.fill" : "person.wave.2.fill")
                         }
 
                         Text(viewModel.isPreparingSession ? "Preparing Session" : viewModel.sessionMode.startButtonTitle)
@@ -552,52 +796,91 @@ struct SessionSetupView: View {
         }
     }
 
-    private var checklistItems: [SetupChecklistItem] {
-        [
-            SetupChecklistItem(
-                title: "Resume uploaded",
-                detail: viewModel.hasResume ? viewModel.resumeStatusLabel : "Upload a PDF or paste your latest resume.",
-                isComplete: viewModel.hasResume
-            ),
-            SetupChecklistItem(
-                title: "Job listing analyzed",
-                detail: viewModel.hasJobListing ? viewModel.jobListingStatusLabel : "Paste a public listing URL and run analysis.",
-                isComplete: viewModel.hasJobListing
-            ),
-            SetupChecklistItem(
-                title: "Job category confirmed",
-                detail: viewModel.jobCategory?.displayName ?? "The listing analysis will auto-select a category.",
-                isComplete: viewModel.jobCategory != nil
-            ),
-            SetupChecklistItem(
-                title: "Interview level confirmed",
-                detail: viewModel.positionLevel?.displayName ?? "The listing analysis will auto-select a level.",
-                isComplete: viewModel.positionLevel != nil
-            )
-        ]
+    private func errorBanner(_ error: String) -> some View {
+        Label(error, systemImage: "exclamationmark.triangle.fill")
+            .font(IPTypography.bodySmall)
+            .foregroundStyle(IPTheme.error)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(14)
+            .background(IPTheme.error.opacity(0.10), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
 
-    private func checklistRow(_ item: SetupChecklistItem) -> some View {
-        HStack(alignment: .top, spacing: 12) {
-            Image(systemName: item.isComplete ? "checkmark.circle.fill" : "circle")
-                .font(.system(size: 18, weight: .semibold))
-                .foregroundStyle(item.isComplete ? IPTheme.success : IPTheme.textSecondary)
+    private func summaryTile(title: String, value: String, symbol: String) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Image(systemName: symbol)
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(IPTheme.accent)
 
-            VStack(alignment: .leading, spacing: 4) {
-                Text(item.title)
-                    .font(IPTypography.bodyLarge)
-                    .foregroundStyle(IPTheme.textPrimary)
+            Text(title)
+                .font(IPTypography.labelSmall)
+                .foregroundStyle(IPTheme.textSecondary)
 
-                Text(item.detail)
-                    .font(IPTypography.bodySmall)
-                    .foregroundStyle(IPTheme.textSecondary)
-            }
-
-            Spacer()
+            Text(value)
+                .font(IPTypography.bodyMedium)
+                .foregroundStyle(IPTheme.textPrimary)
+                .lineLimit(2)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity, minHeight: 108, alignment: .topLeading)
         .padding(14)
-        .ipInsetSurface(selected: item.isComplete, cornerRadius: 18)
+        .ipInsetSurface(cornerRadius: 22)
+    }
+
+    private func optionGroup<Content: View>(
+        title: String,
+        detail: String,
+        columns: [GridItem]? = nil,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            compactSectionTitle(title, detail: detail)
+
+            LazyVGrid(columns: columns ?? twoColumnGrid, spacing: 12) {
+                content()
+            }
+        }
+    }
+
+    private func modeCard(_ mode: SessionMode, isLocked: Bool) -> some View {
+        Button(action: { selectSessionMode(mode, isLocked: isLocked) }) {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 10) {
+                    Image(systemName: mode.icon)
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(
+                            viewModel.sessionMode == mode ? IPTheme.accent : IPTheme.insetSurfaceSecondaryText(for: colorScheme)
+                        )
+                        .frame(width: 18, height: 18)
+
+                    Text(mode.displayName)
+                        .font(IPTypography.bodyLarge)
+                        .foregroundStyle(IPTheme.insetSurfacePrimaryText(for: colorScheme))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.88)
+
+                    Spacer()
+
+                    if isLocked {
+                        Image(systemName: "lock.fill")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(IPTheme.insetSurfaceSecondaryText(for: colorScheme))
+                    } else if viewModel.sessionMode == mode {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.system(size: 17, weight: .semibold))
+                            .foregroundStyle(IPTheme.accent)
+                    }
+                }
+
+                Text(isLocked ? "Pro required" : mode.subtitle)
+                    .font(IPTypography.bodySmall)
+                    .foregroundStyle(IPTheme.insetSurfaceSecondaryText(for: colorScheme))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 14)
+            .ipInsetSurface(selected: viewModel.sessionMode == mode, cornerRadius: 20)
+        }
+        .buttonStyle(.plain)
     }
 
     private func infoBadge(title: String, symbol: String) -> some View {
@@ -608,14 +891,127 @@ struct SessionSetupView: View {
                 .font(IPTypography.labelSmall)
                 .lineLimit(1)
         }
-        .foregroundStyle(IPTheme.insetSurfacePrimaryText(for: colorScheme))
+        .foregroundStyle(IPTheme.accent)
         .padding(.horizontal, 10)
         .padding(.vertical, 8)
-        .background(Color.white.opacity(0.08), in: Capsule())
-        .overlay {
-            Capsule()
-                .stroke(Color.white.opacity(0.28), lineWidth: 1)
+        .background(IPTheme.accent.opacity(0.10), in: Capsule())
+    }
+
+    private func selectionChip(
+        title: String,
+        symbol: String,
+        isSelected: Bool,
+        isLocked: Bool = false,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            HStack(spacing: 10) {
+                Image(systemName: symbol)
+                    .font(.system(size: 15, weight: .semibold))
+                    .frame(width: 18, height: 18)
+
+                Text(title)
+                    .font(IPTypography.bodyLarge)
+                    .multilineTextAlignment(.leading)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
+
+                Spacer(minLength: 0)
+
+                Image(systemName: selectionTrailingSymbol(isSelected: isSelected, isLocked: isLocked))
+                    .font(.system(size: 15, weight: .semibold))
+            }
+            .foregroundStyle(selectionChipForeground(isSelected: isSelected, isLocked: isLocked))
+            .padding(.horizontal, 14)
+            .padding(.vertical, 14)
+            .frame(maxWidth: .infinity, minHeight: 52, alignment: .leading)
+            .background {
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .fill(selectionChipFill(isSelected: isSelected, isLocked: isLocked))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 20, style: .continuous)
+                            .stroke(selectionChipBorder(isSelected: isSelected, isLocked: isLocked), lineWidth: isSelected ? 1.5 : 1)
+                    }
+            }
         }
+        .buttonStyle(.plain)
+    }
+
+    private func selectionChipForeground(isSelected: Bool, isLocked: Bool) -> Color {
+        if isSelected {
+            return colorScheme == .dark ? .white : IPTheme.accent
+        }
+
+        if isLocked {
+            return IPTheme.textSecondary.opacity(0.70)
+        }
+
+        return IPTheme.textPrimary
+    }
+
+    private func selectionChipFill(isSelected: Bool, isLocked: Bool) -> Color {
+        if isSelected {
+            return colorScheme == .dark ? IPTheme.accent.opacity(0.24) : IPTheme.accent.opacity(0.10)
+        }
+
+        if isLocked {
+            return colorScheme == .dark ? Color.white.opacity(0.04) : Color.black.opacity(0.03)
+        }
+
+        return colorScheme == .dark ? Color.white.opacity(0.06) : Color.white.opacity(0.88)
+    }
+
+    private func selectionTrailingSymbol(isSelected: Bool, isLocked: Bool) -> String {
+        if isLocked {
+            return "lock.fill"
+        }
+
+        return isSelected ? "checkmark.circle.fill" : "circle"
+    }
+
+    private func selectionChipBorder(isSelected: Bool, isLocked: Bool) -> Color {
+        if isSelected {
+            return IPTheme.accent.opacity(0.44)
+        }
+
+        if isLocked {
+            return IPTheme.borderColor(for: colorScheme).opacity(0.7)
+        }
+
+        return IPTheme.borderColor(for: colorScheme)
+    }
+
+    private func sectionLabel(_ title: String) -> some View {
+        Text(title)
+            .font(IPTypography.labelMedium)
+            .foregroundStyle(IPTheme.textSecondary)
+    }
+
+    private func resumeActionButton(title: String, symbol: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 10) {
+                Image(systemName: symbol)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(IPTheme.textPrimary)
+                    .frame(width: 18, height: 18)
+
+                Text(title)
+                    .font(IPTypography.bodyLarge)
+                    .foregroundStyle(IPTheme.textPrimary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.82)
+
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 16)
+            .frame(maxWidth: .infinity, minHeight: 50)
+            .background(IPTheme.surfacePrimary, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .stroke(IPTheme.borderColor(for: colorScheme), lineWidth: 1)
+            }
+        }
+        .buttonStyle(.plain)
     }
 
     private func startSession() {
@@ -638,19 +1034,19 @@ struct SessionSetupView: View {
 
     private var startSummary: String {
         if !viewModel.hasResume {
-            return "Add your resume to continue."
+            return "Add your resume to unlock role-specific guidance."
         }
 
         if !viewModel.hasJobListing {
-            return "Paste and analyze a job listing URL to continue."
+            return "Paste and analyze a public job listing URL to continue."
         }
 
         if viewModel.jobCategory == nil || viewModel.positionLevel == nil {
-            return "Confirm the inferred job category and interview level before starting."
+            return "Confirm the inferred job category and level before launch."
         }
 
         if viewModel.isPreparingSession {
-            return "Preparing the session, validating access, and loading reusable prep assets."
+            return "Validating access, loading runtime keys, and preparing session assets."
         }
 
         if viewModel.shouldPreGenerate {
@@ -658,18 +1054,18 @@ struct SessionSetupView: View {
         }
 
         if viewModel.responseQualityMode == .premium {
-            return "Top Tier mode will use stronger models and role-calibrated interview framing."
+            return "Top Tier mode will use stronger models and sharper interview framing."
         }
 
-        if viewModel.sessionMode == .voicePrep {
-            return "Voice Prep will start without a reusable prep bank."
-        }
-
-        if let entitlement = subscriptionService.entitlement {
+        if let entitlement = subscriptionService.currentEntitlement {
             return entitlement.statusDetail
         }
 
         return "Everything is ready."
+    }
+
+    private var launchReadinessTitle: String {
+        viewModel.isReady ? "Ready to launch" : "Setup incomplete"
     }
 
     private func selectSessionMode(_ mode: SessionMode, isLocked: Bool) {
@@ -696,109 +1092,62 @@ struct SessionSetupView: View {
         }
     }
 
-    private func selectionChip(
-        title: String,
-        symbol: String,
-        isSelected: Bool,
-        isLocked: Bool = false,
-        action: @escaping () -> Void
-    ) -> some View {
-        Button(action: action) {
-            HStack(spacing: 8) {
-                Image(systemName: symbol)
-                    .font(.system(size: 13, weight: .semibold))
-                Text(title)
-                    .font(IPTypography.labelLarge)
-                if isSelected {
-                    Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 13, weight: .semibold))
-                }
-            }
-            .foregroundStyle(selectionChipForeground(isSelected: isSelected, isLocked: isLocked))
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
-            .background {
-                Capsule()
-                    .fill(selectionChipFill(isSelected: isSelected, isLocked: isLocked))
-                    .overlay {
-                        Capsule()
-                            .stroke(selectionChipBorder(isSelected: isSelected, isLocked: isLocked), lineWidth: isSelected ? 1.5 : 1)
-                    }
-            }
-            .shadow(
-                color: Color.black.opacity(isSelected ? 0.12 : 0.06),
-                radius: isSelected ? 10 : 6,
-                y: isSelected ? 6 : 3
-            )
+    private func interviewTypeIcon(for type: InterviewType) -> String {
+        switch type {
+        case .behavioral:
+            return "person.2.fill"
+        case .technical:
+            return "terminal.fill"
+        case .systemDesign:
+            return "server.rack"
+        case .caseStudy:
+            return "doc.text.magnifyingglass"
+        case .hrScreen:
+            return "person.text.rectangle.fill"
+        case .general:
+            return "square.grid.2x2.fill"
         }
-        .buttonStyle(.plain)
-    }
-
-    private func selectionChipForeground(isSelected: Bool, isLocked: Bool) -> Color {
-        if isSelected {
-            return colorScheme == .dark ? IPTheme.accent : IPTheme.accentForeground
-        }
-
-        if isLocked {
-            return IPTheme.textSecondary.opacity(colorScheme == .dark ? 0.72 : 0.74)
-        }
-
-        return IPTheme.textSecondary.opacity(colorScheme == .dark ? 0.88 : 0.94)
-    }
-
-    private func selectionChipFill(isSelected: Bool, isLocked: Bool) -> Color {
-        if isSelected {
-            return colorScheme == .dark ? Color.white : Color.white.opacity(0.16)
-        }
-
-        if isLocked {
-            return Color.white.opacity(colorScheme == .dark ? 0.06 : 0.05)
-        }
-
-        return Color.white.opacity(colorScheme == .dark ? 0.10 : 0.08)
-    }
-
-    private func selectionChipBorder(isSelected: Bool, isLocked: Bool) -> Color {
-        if isSelected {
-            return colorScheme == .dark ? Color.white.opacity(0.96) : Color.white.opacity(0.56)
-        }
-
-        if isLocked {
-            return Color.white.opacity(colorScheme == .dark ? 0.30 : 0.44)
-        }
-
-        return Color.white.opacity(colorScheme == .dark ? 0.42 : 0.54)
-    }
-
-    private func sectionLabel(_ title: String) -> some View {
-        Text(title)
-            .font(IPTypography.labelMedium)
-            .foregroundStyle(IPTheme.textSecondary)
     }
 
     private func jobCategoryIcon(for category: JobCategory) -> String {
         switch category {
-        case .softwareEngineering: return "terminal.fill"
-        case .dataAI: return "cpu.fill"
-        case .product: return "shippingbox.fill"
-        case .design: return "paintbrush.pointed.fill"
-        case .operations: return "gearshape.2.fill"
-        case .salesCustomer: return "person.2.fill"
-        case .marketing: return "megaphone.fill"
-        case .financeStrategy: return "chart.line.uptrend.xyaxis"
-        case .peopleHR: return "person.3.fill"
-        case .generalBusiness: return "briefcase.fill"
+        case .softwareEngineering:
+            return "terminal.fill"
+        case .dataAI:
+            return "cpu.fill"
+        case .product:
+            return "shippingbox.fill"
+        case .design:
+            return "paintbrush.pointed.fill"
+        case .operations:
+            return "gearshape.2.fill"
+        case .salesCustomer:
+            return "person.2.fill"
+        case .marketing:
+            return "megaphone.fill"
+        case .financeStrategy:
+            return "chart.line.uptrend.xyaxis"
+        case .peopleHR:
+            return "person.3.fill"
+        case .generalBusiness:
+            return "briefcase.fill"
         }
     }
 
     private func positionLevelIcon(for level: PositionLevel) -> String {
         switch level {
-        case .entryLevel: return "figure.walk"
-        case .midLevel: return "arrow.up.right.circle.fill"
-        case .seniorIndividualContributor: return "star.fill"
-        case .management: return "person.2.wave.2.fill"
-        case .seniorManagement: return "building.2.fill"
-        case .executive: return "crown.fill"
+        case .entryLevel:
+            return "figure.walk"
+        case .midLevel:
+            return "arrow.up.right.circle.fill"
+        case .seniorIndividualContributor:
+            return "star.fill"
+        case .management:
+            return "person.2.wave.2.fill"
+        case .seniorManagement:
+            return "building.2.fill"
+        case .executive:
+            return "crown.fill"
         }
     }
 
@@ -816,9 +1165,31 @@ struct SessionSetupView: View {
     }
 }
 
-private struct SetupChecklistItem: Identifiable {
-    let id = UUID()
-    let title: String
-    let detail: String
-    let isComplete: Bool
+#Preview("Setup Empty") {
+    SessionSetupView(viewModel: previewSetupViewModel(ready: false), loadDefaultsOnTask: false)
+}
+
+#Preview("Setup Ready") {
+    SessionSetupView(viewModel: previewSetupViewModel(ready: true), loadDefaultsOnTask: false)
+}
+
+private func previewSetupViewModel(ready: Bool) -> SessionSetupViewModel {
+    let viewModel = SessionSetupViewModel()
+    viewModel.resumeText = ready ? "Sample resume text" : ""
+    viewModel.resumeDocumentName = ready ? "Resume.pdf" : nil
+    viewModel.jobListingURL = ready ? "https://jobs.example.com/ios-engineer" : ""
+    viewModel.jobListingTitle = ready ? "Senior iOS Engineer" : nil
+    viewModel.jobListingText = ready ? "Build native iOS experiences and lead platform quality." : ""
+    viewModel.jobCategory = ready ? .softwareEngineering : nil
+    viewModel.positionLevel = ready ? .seniorIndividualContributor : nil
+    viewModel.responseFormat = .hybrid
+    viewModel.responseQualityMode = .premium
+    viewModel.sessionMode = .liveInterview
+    viewModel.preparedAnswers = ready
+        ? [
+            PreComputedAnswer(question: "Tell me about a difficult team situation.", response: "Sample", type: .behavioral),
+            PreComputedAnswer(question: "How do you ship performant SwiftUI screens?", response: "Sample", type: .technical),
+        ]
+        : []
+    return viewModel
 }

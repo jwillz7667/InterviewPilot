@@ -5,102 +5,86 @@ struct ExchangeDetailView: View {
     @State private var isExpanded = false
 
     var body: some View {
-        IPPanel(tone: .primary, padding: IPTheme.spacing16, cornerRadius: IPTheme.radiusMedium) {
+        IPPanel(tone: .primary, padding: 18, cornerRadius: 26) {
             VStack(alignment: .leading, spacing: 12) {
                 Button(action: {
                     withAnimation(IPAnimations.standard) {
                         isExpanded.toggle()
                     }
                 }) {
-                    HStack(alignment: .top, spacing: IPTheme.spacing12) {
-                        RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .fill(IPTheme.accent.opacity(0.12))
-                            .frame(width: 40, height: 40)
+                    HStack(alignment: .top, spacing: 12) {
+                        Circle()
+                            .fill(IPTheme.accent.opacity(0.10))
+                            .frame(width: 38, height: 38)
                             .overlay {
                                 Image(systemName: "questionmark.circle.fill")
-                                    .font(.system(size: 16, weight: .semibold))
-                                    .foregroundStyle(IPTheme.accentForeground)
+                                    .font(.system(size: 15, weight: .semibold))
+                                    .foregroundStyle(IPTheme.accent)
                             }
 
-                        VStack(alignment: .leading, spacing: 6) {
+                        VStack(alignment: .leading, spacing: 8) {
                             Text(exchange.questionTranscript)
-                                .font(IPTypography.bodyMedium)
+                                .font(IPTypography.bodyLarge)
                                 .foregroundStyle(IPTheme.textPrimary)
                                 .lineLimit(isExpanded ? nil : 2)
                                 .multilineTextAlignment(.leading)
 
                             HStack(spacing: 8) {
                                 let type = QuestionType(rawValue: exchange.questionType) ?? .unknown
-                                Text(type.displayName)
-                                    .font(IPTypography.labelSmall)
-                                    .foregroundStyle(IPTheme.questionTypeColor(type))
-
-                                Text("\(exchange.responseLatencyMs)ms")
-                                    .font(IPTypography.labelSmall)
-                                    .foregroundStyle(IPTheme.textSecondary)
+                                labelChip(type.displayName, color: IPTheme.questionTypeColor(type))
+                                labelChip("\(exchange.responseLatencyMs)ms", color: IPTheme.textSecondary)
 
                                 if exchange.wasPreComputed {
-                                    Label("Cached", systemImage: "bolt.fill")
-                                        .font(IPTypography.labelSmall)
-                                        .foregroundStyle(IPTheme.accentWarm)
+                                    labelChip("Cached", color: IPTheme.accent)
                                 }
                             }
                         }
 
                         Spacer()
 
-                        Image(systemName: "chevron.down")
+                        Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
                             .font(.system(size: 12, weight: .semibold))
                             .foregroundStyle(IPTheme.textTertiary)
-                            .rotationEffect(.degrees(isExpanded ? 0 : -90))
                     }
                 }
                 .buttonStyle(.plain)
 
                 if isExpanded {
-                    VStack(alignment: .leading, spacing: 8) {
+                    VStack(alignment: .leading, spacing: 12) {
                         if let telemetry = exchange.telemetry {
-                            telemetryGrid(telemetry)
-                                .padding(.bottom, 4)
+                            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
+                                telemetryChip(title: "First token", value: formattedLatency(telemetry.timeToFirstTokenMs))
+                                telemetryChip(title: "Completion", value: formattedLatency(telemetry.generationDurationMs))
+                                telemetryChip(title: "Question capture", value: formattedLatency(telemetry.questionDurationMs))
+                                telemetryChip(title: "Turn detect", value: formattedLatency(telemetry.speechEndToFireMs))
+                            }
                         }
 
-                        Text("Generated response")
-                            .font(IPTypography.labelSmall)
-                            .tracking(0.8)
-                            .foregroundStyle(IPTheme.textSecondary)
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("Generated response")
+                                .font(IPTypography.labelSmall)
+                                .tracking(0.8)
+                                .foregroundStyle(IPTheme.textSecondary)
 
-                        Text(exchange.generatedResponse)
-                            .font(IPTypography.bodyMedium)
-                            .foregroundStyle(IPTheme.textPrimary)
-                            .lineSpacing(4)
+                            Text(exchange.generatedResponse)
+                                .font(IPTypography.bodyMedium)
+                                .foregroundStyle(IPTheme.textPrimary)
+                                .lineSpacing(4)
+                        }
                     }
-                    .padding(.leading, 52)
                     .transition(.opacity.combined(with: .move(edge: .top)))
                 }
             }
         }
     }
 
-    private func telemetryGrid(_ telemetry: ExchangeTelemetry) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Latency breakdown")
-                .font(IPTypography.labelSmall)
-                .tracking(0.8)
-                .foregroundStyle(IPTheme.textSecondary)
-
-            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
-                telemetryChip(title: "First token", value: formattedLatency(telemetry.timeToFirstTokenMs))
-                telemetryChip(title: "Completion", value: formattedLatency(telemetry.generationDurationMs))
-                telemetryChip(title: "Question capture", value: formattedLatency(telemetry.questionDurationMs))
-                telemetryChip(title: "Turn detect", value: formattedLatency(telemetry.speechEndToFireMs))
-            }
-
-            if telemetry.usedPredictiveFire {
-                Label("Predictive fire used", systemImage: "bolt.badge.clock.fill")
-                    .font(IPTypography.labelSmall)
-                    .foregroundStyle(IPTheme.accentForeground)
-            }
-        }
+    private func labelChip(_ title: String, color: Color) -> some View {
+        Text(title)
+            .font(IPTypography.labelSmall)
+            .foregroundStyle(color)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(color.opacity(0.10), in: Capsule())
     }
 
     private func telemetryChip(title: String, value: String) -> some View {
@@ -114,8 +98,8 @@ struct ExchangeDetailView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 12)
-        .padding(.vertical, 10)
-        .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .padding(.vertical, 12)
+        .ipInsetSurface(cornerRadius: 18)
     }
 
     private func formattedLatency(_ value: Int?) -> String {

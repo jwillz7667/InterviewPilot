@@ -7,7 +7,7 @@ struct SessionControlBar: View {
     let onSkip: () -> Void
 
     var body: some View {
-        IPPanel(tone: .secondary, padding: IPTheme.spacing16, cornerRadius: IPTheme.radiusXL) {
+        IPBottomDock {
             HStack(spacing: 18) {
                 ControlButton(
                     icon: isCapturing ? "mic.fill" : "mic.slash.fill",

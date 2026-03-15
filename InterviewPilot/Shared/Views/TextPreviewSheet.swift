@@ -15,8 +15,14 @@ struct TextPreviewSheet: View {
 
                 ScrollView {
                     VStack(spacing: IPTheme.spacing20) {
-                        IPPanel(tone: .secondary) {
-                            VStack(alignment: .leading, spacing: 14) {
+                        IPPanel(tone: .secondary, padding: 22, cornerRadius: 30) {
+                            VStack(alignment: .leading, spacing: 16) {
+                                HStack {
+                                    IPBrandLogo(size: 40, showShadow: false, variant: .surface)
+                                    Spacer()
+                                    IPStarburst(size: 28)
+                                }
+
                                 IPSectionHeader(
                                     eyebrow: "Preview",
                                     title: title,
@@ -28,8 +34,8 @@ struct TextPreviewSheet: View {
                                     .font(IPTypography.bodyMedium)
                                     .foregroundStyle(IPTheme.insetSurfacePrimaryText(for: colorScheme))
                                     .frame(maxWidth: .infinity, alignment: .leading)
-                                    .padding(16)
-                                    .ipInsetSurface(cornerRadius: 20)
+                                    .padding(18)
+                                    .ipInsetSurface(cornerRadius: 24)
                             }
                         }
                     }

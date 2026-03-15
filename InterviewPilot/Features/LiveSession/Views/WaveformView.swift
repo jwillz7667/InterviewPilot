@@ -5,17 +5,17 @@ struct WaveformView: View {
     private let barCount = 28
 
     var body: some View {
-        HStack(spacing: 3) {
+        HStack(spacing: 4) {
             ForEach(0..<barCount, id: \.self) { index in
-                RoundedRectangle(cornerRadius: 2, style: .continuous)
+                RoundedRectangle(cornerRadius: 3, style: .continuous)
                     .fill(
                         LinearGradient(
-                            colors: [IPTheme.accentSecondary.opacity(0.55), IPTheme.accent.opacity(0.9)],
+                            colors: [IPTheme.accentSecondary.opacity(0.45), IPTheme.accent],
                             startPoint: .bottom,
                             endPoint: .top
                         )
                     )
-                    .frame(width: 4, height: barHeight(for: index))
+                    .frame(width: 5, height: barHeight(for: index))
                     .animation(.spring(duration: 0.16).delay(Double(index) * 0.008), value: level)
             }
         }
@@ -24,8 +24,9 @@ struct WaveformView: View {
 
     private func barHeight(for index: Int) -> CGFloat {
         let normalized = CGFloat(level)
-        let randomFactor = CGFloat.random(in: 0.3...1.0)
+        let oscillation = sin(CGFloat(index) * 0.65 + normalized * 8)
         let centerBias = 1.0 - abs(CGFloat(index) - CGFloat(barCount) / 2) / (CGFloat(barCount) / 2)
-        return max(4, min(30, normalized * 30 * randomFactor * (0.45 + centerBias * 0.55)))
+        let amplitude = max(0.18, (oscillation + 1) / 2)
+        return max(6, min(34, normalized * 28 * amplitude * (0.45 + centerBias * 0.55)))
     }
 }

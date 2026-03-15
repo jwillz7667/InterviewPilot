@@ -244,7 +244,7 @@ final class SessionSetupViewModel {
             }
 
             if responseQualityMode.requiresPriorityModels,
-               !(subscriptionService.entitlement?.hasPriorityModels ?? false) {
+               !(subscriptionService.currentEntitlement?.hasPriorityModels ?? false) {
                 errorMessage = "Top Tier mode requires a Pro subscription."
                 shouldPresentPaywall = true
                 return nil
@@ -388,7 +388,7 @@ final class SessionSetupViewModel {
     }
 
     private func missingAccessError() -> BillingClientError {
-        if subscriptionService.entitlement?.paywallRequired == true {
+        if subscriptionService.currentEntitlement?.paywallRequired == true {
             return .paymentRequired("Your free trial interviews are complete. Upgrade to continue.")
         }
 

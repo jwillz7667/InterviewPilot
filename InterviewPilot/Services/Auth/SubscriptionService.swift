@@ -145,6 +145,10 @@ final class SubscriptionService {
         isPurchasing = false
     }
 
+    var currentEntitlement: BillingEntitlement? {
+        developerOverrideEntitlement(from: entitlement)
+    }
+
     func refresh(forceStoreKitSync: Bool = true) async {
         guard AuthService.shared.isAuthenticated else {
             reset()
@@ -171,11 +175,19 @@ final class SubscriptionService {
         } catch let error as BillingClientError {
             if case .unauthenticated = error {
                 reset()
+            } else if hasDeveloperFullAccess {
+                entitlement = developerOverrideEntitlement(from: entitlement)
+                errorMessage = nil
             } else {
                 errorMessage = error.localizedDescription
             }
         } catch {
-            errorMessage = error.localizedDescription
+            if hasDeveloperFullAccess {
+                entitlement = developerOverrideEntitlement(from: entitlement)
+                errorMessage = nil
+            } else {
+                errorMessage = error.localizedDescription
+            }
         }
     }
 
@@ -183,6 +195,18 @@ final class SubscriptionService {
         sessionClientId: UUID,
         sessionMode: SessionMode
     ) async throws -> BillingAccessClaim {
+        if let entitlement = currentEntitlement, hasDeveloperFullAccess {
+            return BillingAccessClaim(
+                sessionClientId: sessionClientId.uuidString,
+                sessionMode: sessionMode.rawValue,
+                accessSource: "developer_override",
+                accessTier: entitlement.tier,
+                consumedTrial: false,
+                trialInterviewNumber: nil,
+                entitlement: entitlement
+            )
+        }
+
         let response: BillingAccessClaimEnvelope = try await sendAuthenticatedRequest(
             path: "/api/v1/billing/access-claims",
             method: "POST",
@@ -233,7 +257,7 @@ final class SubscriptionService {
     }
 
     private var currentAppAccountToken: String? {
-        entitlement?.appAccountToken ?? AuthService.shared.currentUser?.appAccountToken
+        currentEntitlement?.appAccountToken ?? AuthService.shared.currentUser?.appAccountToken
     }
 
     private func loadStoreProducts(from catalog: [BillingCatalogProduct]) async throws {
@@ -383,6 +407,52 @@ final class SubscriptionService {
         case .unverified(_, let error):
             throw BillingClientError.storeKit(error.localizedDescription)
         }
+    }
+
+    private var hasDeveloperFullAccess: Bool {
+        AuthService.shared.hasDeveloperFullAccess
+    }
+
+    private func developerOverrideEntitlement(from base: BillingEntitlement?) -> BillingEntitlement? {
+        guard hasDeveloperFullAccess else { return base }
+
+        let appAccountToken = base?.appAccountToken
+            ?? AuthService.shared.currentUser?.appAccountToken
+            ?? UUID().uuidString
+
+        var featureFlags = base?.featureFlags ?? [:]
+        featureFlags["live_interview"] = true
+        featureFlags["voice_prep"] = true
+        featureFlags["priority_models"] = true
+
+        let features = Array(
+            Set((base?.features ?? []) + [
+                "Unlimited live interviews",
+                "Voice prep",
+                "Priority models",
+                "Developer full access"
+            ])
+        ).sorted()
+
+        return BillingEntitlement(
+            tier: "sandbox",
+            status: "active",
+            accessSource: "developer_override",
+            product: "developer_override",
+            productId: base?.productId,
+            features: features,
+            featureFlags: featureFlags,
+            sandboxFullAccess: true,
+            trialInterviewLimit: base?.trialInterviewLimit ?? 0,
+            trialInterviewsUsed: base?.trialInterviewsUsed ?? 0,
+            interviewsRemaining: max(base?.interviewsRemaining ?? 0, 9_999),
+            hasActiveSubscription: true,
+            paywallRequired: false,
+            appAccountToken: appAccountToken,
+            currentPeriodEndsAt: base?.currentPeriodEndsAt,
+            gracePeriodEndsAt: base?.gracePeriodEndsAt,
+            catalog: base?.catalog ?? []
+        )
     }
 }
 

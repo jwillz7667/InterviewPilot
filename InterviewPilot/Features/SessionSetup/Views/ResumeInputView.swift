@@ -14,27 +14,31 @@ struct ResumeInputView: View {
 
                 ScrollView {
                     VStack(spacing: IPTheme.spacing20) {
-                        IPPanel(tone: .accent(IPTheme.accent)) {
-                            VStack(alignment: .leading, spacing: 14) {
+                        IPPanel(tone: .primary, padding: 22, cornerRadius: 30) {
+                            VStack(alignment: .leading, spacing: 16) {
+                                HStack {
+                                    IPBrandLogo(size: 42, showShadow: false, variant: .surface)
+                                    Spacer()
+                                    Button(action: { showFilePicker = true }) {
+                                        Label("Upload PDF", systemImage: "doc.badge.plus")
+                                    }
+                                    .buttonStyle(IPSecondaryButtonStyle())
+                                }
+
                                 IPSectionHeader(
                                     eyebrow: "Resume",
                                     title: "Import or paste your resume",
-                                    subtitle: "A full resume gives the app better language for tailored answers and prep questions.",
+                                    subtitle: "A full resume gives the app better role-specific language for response guidance and prep generation.",
                                     symbol: "doc.text.fill"
                                 )
-
-                                Button(action: { showFilePicker = true }) {
-                                    Label("Upload PDF Resume", systemImage: "doc.badge.plus")
-                                }
-                                .buttonStyle(IPSecondaryButtonStyle())
 
                                 TextEditor(text: $resumeText)
                                     .font(IPTypography.bodyMedium)
                                     .foregroundStyle(IPTheme.insetSurfacePrimaryText(for: colorScheme))
                                     .scrollContentBackground(.hidden)
-                                    .frame(minHeight: 260)
-                                    .padding(12)
-                                    .ipInsetSurface(cornerRadius: 20)
+                                    .frame(minHeight: 320)
+                                    .padding(16)
+                                    .ipInsetSurface(cornerRadius: 24)
                             }
                         }
                     }

@@ -5,34 +5,50 @@ struct PerformanceView: View {
     let summary: SessionTelemetrySummary?
 
     var body: some View {
-        IPPanel {
+        IPPanel(tone: .primary, padding: 20, cornerRadius: 28) {
             VStack(alignment: .leading, spacing: IPTheme.spacing16) {
-                Text("Performance metrics")
-                    .font(IPTypography.headlineSmall)
-                    .foregroundStyle(IPTheme.textPrimary)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Performance Metrics")
+                        .font(IPTypography.headlineSmall)
+                        .foregroundStyle(IPTheme.textPrimary)
 
-                if let firstToken = summary?.averageLiveTimeToFirstTokenMs ?? summary?.averageTimeToFirstTokenMs {
-                    metricRow(
+                    Text("Key speed and reliability signals from the interview session.")
+                        .font(IPTypography.bodySmall)
+                        .foregroundStyle(IPTheme.textSecondary)
+                }
+
+                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+                    metricTile(
                         title: "Average first token",
-                        value: formatLatency(firstToken),
+                        value: averageFirstToken.map(formatLatency) ?? "n/a",
                         icon: "timer",
-                        color: latencyColor(firstToken, successThreshold: 900, warningThreshold: 1500)
+                        color: latencyColor(averageFirstToken ?? 0, successThreshold: 900, warningThreshold: 1500)
+                    )
+
+                    metricTile(
+                        title: "Average completion",
+                        value: formatLatency(summary?.averageLiveGenerationDurationMs ?? summary?.averageGenerationDurationMs ?? averageLatency),
+                        icon: "bolt.fill",
+                        color: latencyColor(summary?.averageLiveGenerationDurationMs ?? summary?.averageGenerationDurationMs ?? averageLatency, successThreshold: 1800, warningThreshold: 3200)
+                    )
+
+                    metricTile(
+                        title: "Cache hit rate",
+                        value: String(format: "%.0f%%", summary?.cacheHitRate ?? cacheHitRate),
+                        icon: "arrow.triangle.2.circlepath",
+                        color: (summary?.cacheHitRate ?? cacheHitRate) > 50 ? IPTheme.success : IPTheme.accent
+                    )
+
+                    metricTile(
+                        title: "Questions answered",
+                        value: "\(exchanges.count)",
+                        icon: "checkmark.circle.fill",
+                        color: IPTheme.success
                     )
                 }
 
-                metricRow(
-                    title: "Average full completion",
-                    value: formatLatency(summary?.averageLiveGenerationDurationMs ?? summary?.averageGenerationDurationMs ?? averageLatency),
-                    icon: "bolt.fill",
-                    color: latencyColor(
-                        summary?.averageLiveGenerationDurationMs ?? summary?.averageGenerationDurationMs ?? averageLatency,
-                        successThreshold: 1800,
-                        warningThreshold: 3200
-                    )
-                )
-
                 if let p95Live = summary?.p95LiveGenerationDurationMs {
-                    metricRow(
+                    infoRow(
                         title: "P95 live completion",
                         value: formatLatency(p95Live),
                         icon: "waveform.path.ecg",
@@ -40,40 +56,49 @@ struct PerformanceView: View {
                     )
                 }
 
-                metricRow(
-                    title: "Cache hit rate",
-                    value: String(format: "%.0f%%", summary?.cacheHitRate ?? cacheHitRate),
-                    icon: "arrow.triangle.2.circlepath",
-                    color: (summary?.cacheHitRate ?? cacheHitRate) > 50 ? IPTheme.success : IPTheme.accent
-                )
-
                 if let predictiveFireRate = summary?.predictiveFireRate {
-                    metricRow(
+                    infoRow(
                         title: "Predictive fire rate",
                         value: String(format: "%.0f%%", predictiveFireRate),
                         icon: "bolt.badge.clock.fill",
-                        color: predictiveFireRate > 40 ? IPTheme.success : IPTheme.accentForeground
+                        color: predictiveFireRate > 40 ? IPTheme.success : IPTheme.accent
                     )
                 }
-
-                metricRow(
-                    title: "Questions answered",
-                    value: "\(exchanges.count)",
-                    icon: "checkmark.circle.fill",
-                    color: IPTheme.success
-                )
             }
         }
     }
 
-    private func metricRow(title: String, value: String, icon: String, color: Color) -> some View {
+    private func metricTile(title: String, value: String, icon: String, color: Color) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Image(systemName: icon)
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(color)
+
+                Spacer()
+            }
+
+            Text(value)
+                .font(IPTypography.headlineSmall)
+                .foregroundStyle(IPTheme.textPrimary)
+
+            Text(title)
+                .font(IPTypography.bodySmall)
+                .foregroundStyle(IPTheme.textSecondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(16)
+        .ipInsetSurface(cornerRadius: 22)
+    }
+
+    private func infoRow(title: String, value: String, icon: String, color: Color) -> some View {
         HStack(spacing: 12) {
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
+            Circle()
                 .fill(color.opacity(0.12))
-                .frame(width: 40, height: 40)
+                .frame(width: 34, height: 34)
                 .overlay {
                     Image(systemName: icon)
-                        .font(.system(size: 16, weight: .semibold))
+                        .font(.system(size: 14, weight: .semibold))
                         .foregroundStyle(color)
                 }
 
@@ -81,6 +106,7 @@ struct PerformanceView: View {
                 Text(title)
                     .font(IPTypography.bodyMedium)
                     .foregroundStyle(IPTheme.textPrimary)
+
                 Text(value)
                     .font(IPTypography.bodySmall)
                     .foregroundStyle(IPTheme.textSecondary)
@@ -88,6 +114,10 @@ struct PerformanceView: View {
 
             Spacer()
         }
+    }
+
+    private var averageFirstToken: Int? {
+        summary?.averageLiveTimeToFirstTokenMs ?? summary?.averageTimeToFirstTokenMs
     }
 
     private var averageLatency: Int {
@@ -109,11 +139,7 @@ struct PerformanceView: View {
         return String(format: "%.1fs", Double(latencyMs) / 1000)
     }
 
-    private func latencyColor(
-        _ latencyMs: Int,
-        successThreshold: Int,
-        warningThreshold: Int
-    ) -> Color {
+    private func latencyColor(_ latencyMs: Int, successThreshold: Int, warningThreshold: Int) -> Color {
         if latencyMs <= successThreshold {
             return IPTheme.success
         }
