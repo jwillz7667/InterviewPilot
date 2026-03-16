@@ -20,6 +20,8 @@ struct AnimatedStatusBadge: View {
                 .font(IPTypography.labelSmall)
                 .tracking(0.9)
                 .foregroundStyle(color)
+                .lineLimit(1)
+                .minimumScaleFactor(0.85)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)

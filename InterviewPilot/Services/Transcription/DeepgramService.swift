@@ -10,6 +10,7 @@ final class DeepgramService {
     var onFinalTranscript: ((String) -> Void)?
     var onSpeechStarted: (() -> Void)?
     var onSpeechEnded: (() -> Void)?
+    var onError: ((String) -> Void)?
 
     private let apiKey: String
 
@@ -18,6 +19,14 @@ final class DeepgramService {
     }
 
     func connect(keywords: [String] = []) async throws {
+        guard !apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw NSError(
+                domain: "DeepgramService",
+                code: -1,
+                userInfo: [NSLocalizedDescriptionKey: "Deepgram API key not configured"]
+            )
+        }
+
         var components = URLComponents(string: "wss://api.deepgram.com/v1/listen")!
         components.queryItems = [
             URLQueryItem(name: "model", value: APIConfig.deepgramModel),
@@ -32,9 +41,18 @@ final class DeepgramService {
             URLQueryItem(name: "endpointing", value: String(APIConfig.endpointingMs)),
         ]
 
-        for keyword in keywords.prefix(50) {
+        let boostTerms = keywords
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .prefix(50)
+
+        let usesNovaThree = APIConfig.deepgramModel.lowercased().contains("nova-3")
+        for term in boostTerms {
             components.queryItems?.append(
-                URLQueryItem(name: "keywords", value: "\(keyword):2.0")
+                URLQueryItem(
+                    name: usesNovaThree ? "keyterm" : "keywords",
+                    value: usesNovaThree ? term : "\(term):2.0"
+                )
             )
         }
 
@@ -54,7 +72,10 @@ final class DeepgramService {
         guard isConnected else { return }
         webSocket?.send(.data(data)) { error in
             if let error {
-                print("Deepgram send error: \(error)")
+                Task { @MainActor [weak self] in
+                    self?.isConnected = false
+                    self?.onError?(error.localizedDescription)
+                }
             }
         }
     }
@@ -95,7 +116,11 @@ final class DeepgramService {
                 }
             }
         } catch {
+            let shouldReportError = isConnected
             isConnected = false
+            if shouldReportError {
+                onError?(error.localizedDescription)
+            }
         }
     }
 
@@ -127,8 +152,35 @@ final class DeepgramService {
         case "UtteranceEnd":
             self.onSpeechEnded?()
 
+        case "Error":
+            isConnected = false
+            onError?(extractErrorMessage(from: json) ?? "Deepgram transcription failed")
+
         default:
-            break
+            if type.lowercased().contains("error") {
+                isConnected = false
+                onError?(extractErrorMessage(from: json) ?? "Deepgram transcription failed")
+            }
         }
+    }
+
+    private func extractErrorMessage(from payload: [String: Any]) -> String? {
+        if let error = payload["error"] as? [String: Any] {
+            return extractErrorMessage(from: error)
+        }
+
+        if let message = payload["description"] as? String, !message.isEmpty {
+            return message
+        }
+
+        if let message = payload["message"] as? String, !message.isEmpty {
+            return message
+        }
+
+        if let message = payload["err_msg"] as? String, !message.isEmpty {
+            return message
+        }
+
+        return nil
     }
 }

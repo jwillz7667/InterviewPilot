@@ -1,6 +1,7 @@
 import SwiftUI
 import Observation
 
+@MainActor
 @Observable
 final class LiveSessionViewModel {
     // Services
@@ -43,6 +44,8 @@ final class LiveSessionViewModel {
     // Private state
     private var accumulatedTranscript: String = ""  // Finalized segments only
     private var currentPartial: String = ""          // Current interim partial
+    private let hasDeepgramAPIKey: Bool
+    private let hasOpenAIAPIKey: Bool
     private var postResponseAccumulatedTranscript: String = ""
     private var postResponseCurrentPartial: String = ""
     private var responseReadyAt: Date?
@@ -125,6 +128,8 @@ final class LiveSessionViewModel {
         self.responseEmphasis = responseEmphasis
         self.responseQualityMode = responseQualityMode
         self.preComputedAnswers = preComputedAnswers
+        self.hasDeepgramAPIKey = !deepgramKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        self.hasOpenAIAPIKey = !openAIKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
 
         self.audioCapture = AudioCaptureService()
         self.deepgram = DeepgramService(apiKey: deepgramKey)
@@ -146,133 +151,181 @@ final class LiveSessionViewModel {
 
         // Deepgram → Transcript display
         deepgram.onPartialTranscript = { [weak self] text in
-            guard let self else { return }
-            switch self.sessionState {
-            case .listening, .interviewerSpeaking:
-                self.currentPartial = text
-                self.interviewerTranscript = self.accumulatedTranscript.isEmpty
-                    ? text
-                    : self.accumulatedTranscript + " " + text
-                self.checkForPredictiveFire(fullText: self.interviewerTranscript)
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                switch self.sessionState {
+                case .listening, .interviewerSpeaking:
+                    self.currentPartial = text
+                    self.interviewerTranscript = self.accumulatedTranscript.isEmpty
+                        ? text
+                        : self.accumulatedTranscript + " " + text
+                    self.checkForPredictiveFire(fullText: self.interviewerTranscript)
 
-            case .responseReady, .postResponseSpeech:
-                self.sessionState = .postResponseSpeech
-                self.postResponseCurrentPartial = text
+                case .responseReady, .postResponseSpeech:
+                    self.sessionState = .postResponseSpeech
+                    self.postResponseCurrentPartial = text
 
-            case .idle, .generating:
-                break
+                case .idle, .generating:
+                    break
+                }
             }
         }
 
         deepgram.onFinalTranscript = { [weak self] text in
-            guard let self else { return }
-            switch self.sessionState {
-            case .listening, .interviewerSpeaking:
-                self.accumulatedTranscript += (self.accumulatedTranscript.isEmpty ? "" : " ") + text
-                self.accumulatedTranscript = self.accumulatedTranscript
-                    .trimmingCharacters(in: .whitespaces)
-                self.currentPartial = ""
-                self.interviewerTranscript = self.accumulatedTranscript
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                switch self.sessionState {
+                case .listening, .interviewerSpeaking:
+                    self.accumulatedTranscript += (self.accumulatedTranscript.isEmpty ? "" : " ") + text
+                    self.accumulatedTranscript = self.accumulatedTranscript
+                        .trimmingCharacters(in: .whitespaces)
+                    self.currentPartial = ""
+                    self.interviewerTranscript = self.accumulatedTranscript
 
-            case .responseReady, .postResponseSpeech:
-                self.sessionState = .postResponseSpeech
-                self.postResponseAccumulatedTranscript +=
-                    (self.postResponseAccumulatedTranscript.isEmpty ? "" : " ") + text
-                self.postResponseAccumulatedTranscript = self.postResponseAccumulatedTranscript
-                    .trimmingCharacters(in: .whitespaces)
-                self.postResponseCurrentPartial = ""
+                case .responseReady, .postResponseSpeech:
+                    self.sessionState = .postResponseSpeech
+                    self.postResponseAccumulatedTranscript +=
+                        (self.postResponseAccumulatedTranscript.isEmpty ? "" : " ") + text
+                    self.postResponseAccumulatedTranscript = self.postResponseAccumulatedTranscript
+                        .trimmingCharacters(in: .whitespaces)
+                    self.postResponseCurrentPartial = ""
 
-            case .idle, .generating:
-                break
+                case .idle, .generating:
+                    break
+                }
             }
         }
 
         deepgram.onSpeechStarted = { [weak self] in
-            guard let self else { return }
-            let now = Date()
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                let now = Date()
 
-            if self.sessionState == .generating || self.sessionState == .idle {
-                return
-            }
-
-            if self.sessionState == .responseReady {
-                self.postResponseAccumulatedTranscript = ""
-                self.postResponseCurrentPartial = ""
-                self.postResponseSpeechStartedAt = Date()
-                self.sessionState = .postResponseSpeech
-                return
-            }
-
-            if self.sessionState == .listening {
-                self.sessionState = .interviewerSpeaking
-                if self.currentExchangeStart == nil {
-                    self.currentExchangeStart = now
+                if self.sessionState == .generating || self.sessionState == .idle {
+                    return
                 }
-                if self.pendingExchangeMetrics.questionStartedAt == nil {
-                    self.pendingExchangeMetrics.questionStartedAt = self.currentExchangeStart ?? now
+
+                if self.sessionState == .responseReady {
+                    self.postResponseAccumulatedTranscript = ""
+                    self.postResponseCurrentPartial = ""
+                    self.postResponseSpeechStartedAt = Date()
+                    self.sessionState = .postResponseSpeech
+                    return
+                }
+
+                if self.sessionState == .listening {
+                    self.sessionState = .interviewerSpeaking
+                    if self.currentExchangeStart == nil {
+                        self.currentExchangeStart = now
+                    }
+                    if self.pendingExchangeMetrics.questionStartedAt == nil {
+                        self.pendingExchangeMetrics.questionStartedAt = self.currentExchangeStart ?? now
+                    }
                 }
             }
         }
 
         deepgram.onSpeechEnded = { [weak self] in
-            guard let self else { return }
-            let speechEndedAt = Date()
-            self.pendingExchangeMetrics.questionEndedAt = self.pendingExchangeMetrics.questionEndedAt ?? speechEndedAt
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                let speechEndedAt = Date()
+                self.pendingExchangeMetrics.questionEndedAt = self.pendingExchangeMetrics.questionEndedAt ?? speechEndedAt
 
-            if self.sessionState == .postResponseSpeech {
-                self.handlePostResponseUtterance()
-                return
+                if self.sessionState == .postResponseSpeech {
+                    self.handlePostResponseUtterance()
+                    return
+                }
+
+                if self.sessionState == .generating {
+                    return
+                }
+
+                guard self.sessionState == .interviewerSpeaking || self.sessionState == .listening else {
+                    return
+                }
+
+                let fullQuestion = self.interviewerTranscript.trimmingCharacters(in: .whitespaces)
+                if !self.hasFiredResponse && !fullQuestion.isEmpty {
+                    self.fireResponse(question: fullQuestion)
+                }
             }
+        }
 
-            if self.sessionState == .generating {
-                return
-            }
-
-            guard self.sessionState == .interviewerSpeaking || self.sessionState == .listening else {
-                return
-            }
-
-            let fullQuestion = self.interviewerTranscript.trimmingCharacters(in: .whitespaces)
-            if !self.hasFiredResponse && !fullQuestion.isEmpty {
-                self.fireResponse(question: fullQuestion)
+        deepgram.onError = { [weak self] message in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                self.errorMessage = message
+                if self.sessionState != .idle {
+                    self.sessionState = .listening
+                }
             }
         }
 
         // Response generator errors
         responseGenerator.onError = { [weak self] message in
-            guard let self else { return }
-            self.errorMessage = message
-            self.sessionState = .listening
-            self.hasFiredResponse = false  // Allow retry
-            self.pendingExchangeMetrics.responseStartedAt = nil
-            self.pendingExchangeMetrics.firstTokenAt = nil
-            self.pendingExchangeMetrics.streamChunkCount = 0
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                self.errorMessage = message
+                self.sessionState = .listening
+                self.hasFiredResponse = false  // Allow retry
+                self.pendingExchangeMetrics.responseStartedAt = nil
+                self.pendingExchangeMetrics.firstTokenAt = nil
+                self.pendingExchangeMetrics.streamChunkCount = 0
+            }
         }
 
         // Response generator → Display
         responseGenerator.onTokenReceived = { [weak self] token in
-            guard let self else { return }
-            if self.pendingExchangeMetrics.firstTokenAt == nil {
-                self.pendingExchangeMetrics.firstTokenAt = Date()
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                if self.pendingExchangeMetrics.firstTokenAt == nil {
+                    self.pendingExchangeMetrics.firstTokenAt = Date()
+                }
+                self.pendingExchangeMetrics.streamChunkCount += 1
+                self.currentResponse += token
+                self.responseTokens.append(token)
             }
-            self.pendingExchangeMetrics.streamChunkCount += 1
-            self.currentResponse += token
-            self.responseTokens.append(token)
         }
 
         responseGenerator.onResponseComplete = { [weak self] fullText in
-            guard let self else { return }
-            self.completeExchange(with: fullText)
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                self.completeExchange(with: fullText)
+            }
         }
     }
 
     // MARK: - Session Control
 
     func startSession() async throws {
+        guard sessionState == .idle else { return }
+        guard hasDeepgramAPIKey else {
+            throw NSError(
+                domain: "LiveSessionViewModel",
+                code: -1,
+                userInfo: [NSLocalizedDescriptionKey: "Deepgram API key not configured"]
+            )
+        }
+        guard hasOpenAIAPIKey else {
+            throw NSError(
+                domain: "LiveSessionViewModel",
+                code: -1,
+                userInfo: [NSLocalizedDescriptionKey: "OpenAI API key not configured"]
+            )
+        }
+
+        errorMessage = nil
         let keywords = JobDescriptionService.extractKeywords(from: jobDescription)
 
-        try await deepgram.connect(keywords: keywords)
-        try audioCapture.startCapture()
+        do {
+            try await deepgram.connect(keywords: keywords)
+            try audioCapture.startCapture()
+        } catch {
+            audioCapture.stopCapture()
+            deepgram.disconnect()
+            sessionState = .idle
+            throw error
+        }
 
         let startedAt = Date()
         sessionStartTime = startedAt
@@ -281,8 +334,10 @@ final class LiveSessionViewModel {
         persistSessionSnapshot()
 
         timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
-            guard let self, let start = self.sessionStartTime else { return }
-            self.elapsedTime = Date().timeIntervalSince(start)
+            Task { @MainActor [weak self] in
+                guard let self, let start = self.sessionStartTime else { return }
+                self.elapsedTime = Date().timeIntervalSince(start)
+            }
         }
     }
 

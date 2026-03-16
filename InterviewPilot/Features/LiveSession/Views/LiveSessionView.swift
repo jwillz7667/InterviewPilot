@@ -39,7 +39,13 @@ struct LiveSessionView: View {
         }
         .onAppear {
             guard autoStartSession else { return }
-            Task { try? await viewModel.startSession() }
+            Task {
+                do {
+                    try await viewModel.startSession()
+                } catch {
+                    viewModel.errorMessage = error.localizedDescription
+                }
+            }
         }
         .onDisappear {
             guard autoStartSession else { return }
@@ -62,15 +68,31 @@ struct LiveSessionView: View {
                 showEndConfirmation = true
             }
 
-            AnimatedStatusBadge(text: "Live", color: IPTheme.live, isActive: true)
-            IPStatusPill(title: liveStateTitle, symbol: liveStateSymbol, tint: syncStateTint)
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 8) {
+                    AnimatedStatusBadge(text: "Live", color: IPTheme.live, isActive: true)
+                    IPStatusPill(title: liveStateTitle, symbol: liveStateSymbol, tint: liveStateTint)
+                    IPStatusPill(title: headerSyncStateTitle, symbol: syncStateSymbol, tint: syncStateTint)
+                }
 
-            Spacer()
+                HStack(spacing: 8) {
+                    AnimatedStatusBadge(text: "Live", color: IPTheme.live, isActive: true)
+                    IPStatusPill(title: liveStateTitle, symbol: liveStateSymbol, tint: liveStateTint)
+                    IPStatusPill(title: compactHeaderSyncStateTitle, symbol: syncStateSymbol, tint: syncStateTint)
+                }
 
-            HStack(spacing: 8) {
-                IPStatusPill(title: viewModel.syncState.title, symbol: syncStateSymbol, tint: syncStateTint)
-                IPBrandLogo(size: 38, showShadow: false, variant: .surface)
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(spacing: 8) {
+                        AnimatedStatusBadge(text: "Live", color: IPTheme.live, isActive: true)
+                        IPStatusPill(title: liveStateTitle, symbol: liveStateSymbol, tint: liveStateTint)
+                    }
+
+                    IPStatusPill(title: compactHeaderSyncStateTitle, symbol: syncStateSymbol, tint: syncStateTint)
+                }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            IPBrandLogo(size: 38, showShadow: false, variant: .surface)
         }
         .padding(.horizontal, IPTheme.spacing16)
         .padding(.top, 12)
@@ -180,44 +202,21 @@ struct LiveSessionView: View {
 
     private var controlDock: some View {
         IPBottomDock {
-            HStack(spacing: 12) {
-                ControlButton(
-                    icon: viewModel.audioCapture.isCapturing ? "mic.fill" : "mic.slash.fill",
-                    label: micButtonLabel,
-                    isActive: viewModel.audioCapture.isCapturing,
-                    tint: IPTheme.accent
-                ) {
-                    if viewModel.audioCapture.isCapturing {
-                        viewModel.audioCapture.stopCapture()
-                    } else {
-                        try? viewModel.audioCapture.startCapture()
-                    }
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 12) {
+                    muteButton
+                    nextButton
+                    endSessionButton
                 }
 
-                ControlButton(
-                    icon: "forward.fill",
-                    label: "Next",
-                    isActive: true,
-                    tint: IPTheme.accent
-                ) {
-                    withAnimation(IPAnimations.standard) {
-                        viewModel.resumeListeningForNextQuestion()
+                VStack(spacing: 12) {
+                    HStack(spacing: 12) {
+                        muteButton
+                        nextButton
                     }
-                }
 
-                Button(action: { showEndConfirmation = true }) {
-                    Text("End Interview")
-                        .font(IPTypography.bodyMedium)
-                        .foregroundStyle(IPTheme.error)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 16)
-                        .background(Color.white, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
-                        .overlay {
-                            RoundedRectangle(cornerRadius: 22, style: .continuous)
-                                .stroke(IPTheme.error.opacity(0.18), lineWidth: 1)
-                        }
+                    endSessionButton
                 }
-                .buttonStyle(.plain)
             }
         }
     }
@@ -225,6 +224,10 @@ struct LiveSessionView: View {
     private var interviewerText: String {
         if !viewModel.interviewerTranscript.isEmpty {
             return viewModel.interviewerTranscript
+        }
+
+        if viewModel.errorMessage != nil {
+            return "Live transcript is unavailable until the session connection is restored."
         }
 
         return "Place the phone so the interviewer is closest to the microphone. The live transcript will build here."
@@ -250,6 +253,9 @@ struct LiveSessionView: View {
         case .responseReady, .postResponseSpeech:
             return "Your answer is pinned and ready."
         case .idle, .listening, .interviewerSpeaking:
+            if viewModel.errorMessage != nil {
+                return "The AI response will resume once transcript input is flowing again."
+            }
             return "The suggested response will appear here as soon as the question has enough signal."
         }
     }
@@ -272,6 +278,32 @@ struct LiveSessionView: View {
             return "Pinned"
         case .postResponseSpeech:
             return "Waiting"
+        }
+    }
+
+    private var headerSyncStateTitle: String {
+        switch viewModel.syncState {
+        case .idle:
+            return "Local"
+        case .syncing:
+            return "Syncing"
+        case .synced:
+            return "Saved"
+        case .failed:
+            return "Queued"
+        }
+    }
+
+    private var compactHeaderSyncStateTitle: String {
+        switch viewModel.syncState {
+        case .idle:
+            return "Local"
+        case .syncing:
+            return "Sync"
+        case .synced:
+            return "Saved"
+        case .failed:
+            return "Retry"
         }
     }
 
@@ -318,6 +350,64 @@ struct LiveSessionView: View {
         }
     }
 
+    private var liveStateTint: Color {
+        switch viewModel.sessionState {
+        case .idle:
+            return IPTheme.textSecondary
+        case .listening, .responseReady:
+            return IPTheme.success
+        case .interviewerSpeaking, .generating, .postResponseSpeech:
+            return IPTheme.accent
+        }
+    }
+
+    private var muteButton: some View {
+        ControlButton(
+            icon: viewModel.audioCapture.isCapturing ? "mic.fill" : "mic.slash.fill",
+            label: micButtonLabel,
+            isActive: viewModel.audioCapture.isCapturing,
+            tint: IPTheme.accent
+        ) {
+            if viewModel.audioCapture.isCapturing {
+                viewModel.audioCapture.stopCapture()
+            } else {
+                try? viewModel.audioCapture.startCapture()
+            }
+        }
+    }
+
+    private var nextButton: some View {
+        ControlButton(
+            icon: "forward.fill",
+            label: "Next",
+            isActive: true,
+            tint: IPTheme.accent
+        ) {
+            withAnimation(IPAnimations.standard) {
+                viewModel.resumeListeningForNextQuestion()
+            }
+        }
+    }
+
+    private var endSessionButton: some View {
+        Button(action: { showEndConfirmation = true }) {
+            Text("End Session")
+                .font(IPTypography.bodyMedium)
+                .foregroundStyle(IPTheme.error)
+                .lineLimit(1)
+                .minimumScaleFactor(0.82)
+                .frame(maxWidth: .infinity, minHeight: 60)
+                .padding(.horizontal, 14)
+                .background(Color.white, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 22, style: .continuous)
+                        .stroke(IPTheme.error.opacity(0.18), lineWidth: 1)
+                }
+        }
+        .buttonStyle(.plain)
+        .frame(minWidth: 132, maxWidth: .infinity)
+    }
+
     private func formatTime(_ interval: TimeInterval) -> String {
         let minutes = Int(interval) / 60
         let seconds = Int(interval) % 60
@@ -337,6 +427,7 @@ struct LiveSessionView: View {
     LiveSessionView(viewModel: previewLiveViewModel(state: .responseReady), autoStartSession: false)
 }
 
+@MainActor
 private func previewLiveViewModel(state: LiveSessionViewModel.SessionState) -> LiveSessionViewModel {
     let viewModel = LiveSessionViewModel(
         sessionId: UUID(),
@@ -387,7 +478,11 @@ struct ControlButton: View {
                 Text(label)
                     .font(IPTypography.bodySmall)
                     .foregroundStyle(IPTheme.textPrimary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.82)
+                    .allowsTightening(true)
             }
+            .frame(maxWidth: .infinity, minHeight: 60)
             .padding(.horizontal, 14)
             .padding(.vertical, 10)
             .background(
@@ -400,5 +495,6 @@ struct ControlButton: View {
             }
         }
         .buttonStyle(.plain)
+        .frame(minWidth: 104, maxWidth: .infinity)
     }
 }

@@ -31,6 +31,10 @@ final class ResponseGeneratorService {
         model: String = APIConfig.defaultResponseModel
     ) {
         currentTask?.cancel()
+        guard !apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            onError?("OpenAI API key not configured")
+            return
+        }
 
         let systemPrompt = PromptBuilder.buildResponsePrompt(
             resume: resume,
@@ -45,78 +49,58 @@ final class ResponseGeneratorService {
             emphasis: emphasis,
             qualityMode: qualityMode
         )
+        let tokenLimit = qualityMode.liveTokenLimit(
+            baseTokens: format.maxTokens(for: emphasis, questionType: questionType)
+        )
 
         currentTask = Task { [weak self] in
             guard let self else { return }
 
             self.isGenerating = true
-
-            var fullResponse = ""
+            let url = URL(string: "https://api.openai.com/v1/chat/completions")!
+            let messageBody: [String: Any] = [
+                "model": model,
+                "max_tokens": tokenLimit,
+                "temperature": tone.temperature,
+                "frequency_penalty": APIConfig.responseFrequencyPenalty,
+                "presence_penalty": APIConfig.responsePresencePenalty,
+                "messages": [
+                    ["role": "system", "content": systemPrompt],
+                    ["role": "user", "content": "Interview question: \"\(question)\"\n\nGenerate the next answer the candidate should say out loud."]
+                ]
+            ]
 
             do {
-                var request = URLRequest(url: URL(string: "https://api.openai.com/v1/chat/completions")!)
-                request.httpMethod = "POST"
-                request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-                request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-
-                let tokenLimit = qualityMode.liveTokenLimit(
-                    baseTokens: format.maxTokens(for: emphasis, questionType: questionType)
+                let streamedResponse = try await self.streamResponse(
+                    url: url,
+                    body: messageBody
                 )
 
-                let body: [String: Any] = [
-                    "model": model,
-                    "stream": true,
-                    "max_tokens": tokenLimit,
-                    "temperature": tone.temperature,
-                    "frequency_penalty": APIConfig.responseFrequencyPenalty,
-                    "presence_penalty": APIConfig.responsePresencePenalty,
-                    "messages": [
-                        ["role": "system", "content": systemPrompt],
-                        ["role": "user", "content": "Interview question: \"\(question)\"\n\nGenerate the next answer the candidate should say out loud."]
-                    ]
-                ]
-
-                request.httpBody = try JSONSerialization.data(withJSONObject: body)
-
-                let (bytes, response) = try await URLSession.shared.bytes(for: request)
-
-                guard let httpResponse = response as? HTTPURLResponse else {
-                    self.onError?("No HTTP response received")
+                if Task.isCancelled {
                     self.isGenerating = false
                     return
                 }
 
-                guard httpResponse.statusCode == 200 else {
-                    // Collect the error response body
-                    var errorBody = ""
-                    for try await line in bytes.lines {
-                        errorBody += line
-                    }
-                    let errorMessage = self.parseAPIError(from: errorBody)
-                        ?? "HTTP \(httpResponse.statusCode)"
-                    self.onError?(errorMessage)
+                if !streamedResponse.isEmpty {
+                    self.onResponseComplete?(streamedResponse)
                     self.isGenerating = false
                     return
                 }
 
-                for try await line in bytes.lines {
-                    if Task.isCancelled { break }
+                let fallbackResponse = try await self.fetchNonStreamingResponse(
+                    url: url,
+                    body: messageBody
+                )
+                let normalizedFallback = fallbackResponse.trimmingCharacters(in: .whitespacesAndNewlines)
 
-                    guard line.hasPrefix("data: "),
-                          line != "data: [DONE]" else { continue }
-
-                    let jsonString = String(line.dropFirst(6))
-                    guard let data = jsonString.data(using: .utf8),
-                          let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                          let choices = json["choices"] as? [[String: Any]],
-                          let delta = choices.first?["delta"] as? [String: Any],
-                          let content = delta["content"] as? String else { continue }
-
-                    fullResponse += content
-                    self.onTokenReceived?(content)
+                guard !normalizedFallback.isEmpty else {
+                    self.onError?("OpenAI returned an empty interview response")
+                    self.isGenerating = false
+                    return
                 }
 
-                self.onResponseComplete?(fullResponse)
+                self.onTokenReceived?(normalizedFallback)
+                self.onResponseComplete?(normalizedFallback)
                 self.isGenerating = false
 
             } catch {
@@ -141,5 +125,127 @@ final class ResponseGeneratorService {
             return body.isEmpty ? nil : String(body.prefix(200))
         }
         return message
+    }
+
+    private func streamResponse(url: URL, body: [String: Any]) async throws -> String {
+        var payload = body
+        payload["stream"] = true
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONSerialization.data(withJSONObject: payload)
+
+        let (bytes, response) = try await URLSession.shared.bytes(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw NSError(
+                domain: "ResponseGeneratorService",
+                code: -1,
+                userInfo: [NSLocalizedDescriptionKey: "No HTTP response received"]
+            )
+        }
+
+        guard httpResponse.statusCode == 200 else {
+            var errorBody = ""
+            for try await line in bytes.lines {
+                errorBody += line
+            }
+
+            throw NSError(
+                domain: "ResponseGeneratorService",
+                code: httpResponse.statusCode,
+                userInfo: [
+                    NSLocalizedDescriptionKey: parseAPIError(from: errorBody) ?? "HTTP \(httpResponse.statusCode)"
+                ]
+            )
+        }
+
+        var fullResponse = ""
+
+        for try await line in bytes.lines {
+            if Task.isCancelled { break }
+
+            guard line.hasPrefix("data: "),
+                  line != "data: [DONE]" else { continue }
+
+            let jsonString = String(line.dropFirst(6))
+            guard let data = jsonString.data(using: .utf8),
+                  let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let choices = json["choices"] as? [[String: Any]],
+                  let delta = choices.first?["delta"] as? [String: Any],
+                  let content = extractText(from: delta["content"]),
+                  !content.isEmpty else { continue }
+
+            fullResponse += content
+            onTokenReceived?(content)
+        }
+
+        return fullResponse
+    }
+
+    private func fetchNonStreamingResponse(url: URL, body: [String: Any]) async throws -> String {
+        var payload = body
+        payload["stream"] = false
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONSerialization.data(withJSONObject: payload)
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw NSError(
+                domain: "ResponseGeneratorService",
+                code: -1,
+                userInfo: [NSLocalizedDescriptionKey: "No HTTP response received"]
+            )
+        }
+
+        guard httpResponse.statusCode == 200 else {
+            let bodyString = String(data: data, encoding: .utf8) ?? ""
+            throw NSError(
+                domain: "ResponseGeneratorService",
+                code: httpResponse.statusCode,
+                userInfo: [
+                    NSLocalizedDescriptionKey: parseAPIError(from: bodyString) ?? "HTTP \(httpResponse.statusCode)"
+                ]
+            )
+        }
+
+        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let choices = json["choices"] as? [[String: Any]],
+              let message = choices.first?["message"] as? [String: Any],
+              let content = extractText(from: message["content"]) else {
+            return ""
+        }
+
+        return content
+    }
+
+    private func extractText(from content: Any?) -> String? {
+        switch content {
+        case let text as String:
+            return text
+        case let parts as [[String: Any]]:
+            let combined = parts.compactMap { part -> String? in
+                if let text = part["text"] as? String {
+                    return text
+                }
+
+                if let text = part["text"] as? [String: Any],
+                   let value = text["value"] as? String {
+                    return value
+                }
+
+                return nil
+            }.joined()
+            return combined.isEmpty ? nil : combined
+        default:
+            return nil
+        }
     }
 }

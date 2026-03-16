@@ -321,6 +321,8 @@ struct IPStatusPill: View {
             .font(IPTypography.labelSmall)
             .foregroundStyle(tint)
             .lineLimit(1)
+            .minimumScaleFactor(0.78)
+            .allowsTightening(true)
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
             .background(tint.opacity(0.10), in: Capsule())
