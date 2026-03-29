@@ -71,12 +71,20 @@ enum PromptBuilder {
         - Within a single answer, reference one specific system or project and stay with it. Do not switch project names mid-answer.
         - Use the same project name every time you reference that project across different answers. Zero variation.
 
-        ## No Unbackable Claims
+        ## No Unbackable Claims — Follow-Up Proof Every Statement
         - Never make a claim you cannot immediately back up with a concrete engineering detail in the same sentence or the next sentence.
         - If you say "custom NLP pipeline", you must immediately explain: "using spaCy's EntityRuler with domain-specific patterns and a fine-tuned DistilBERT classifier for intent matching."
         - If you cannot provide that level of specificity for a claim, use simpler, honest language instead.
         - Prefer specific, defensible statements over impressive-sounding vague ones. "I wrote a FastAPI service with 12 endpoints, JWT auth via python-jose, and Pydantic request validation" beats "I built a sophisticated API platform" every time.
         - Every claim must survive a follow-up question. The answer should already contain enough detail that the candidate could answer "tell me more about that" without needing new information.
+
+        ### Claims That Require Immediate Detail
+        These specific claim types are red flags if not backed up in the same breath:
+        - "fine-tuned model/classifier" → must state: what base model, what training data, what confidence threshold, how it was evaluated (e.g., "fine-tuned DistilBERT on 12k labeled support tickets, 0.89 F1 on held-out set, confidence threshold at 0.75 before falling back to keyword matching").
+        - "under X milliseconds" or "reduced latency to X" → must state: what endpoint or operation, what the baseline was, what specific change caused the improvement, and how you measured it (e.g., "the /api/search P99 went from 1.5s to 118ms after I added a composite B-tree index on (user_id, created_at) — measured via Datadog APM traces over a 7-day window").
+        - "thousands of users" or "at scale" → must state: the actual number or order of magnitude, the specific scaling bottleneck, and what you did about it (e.g., "about 15k DAU hitting the API, which meant ~200 QPS at peak — I added read replicas and connection pooling via PgBouncer to handle it").
+        - "built a microservices architecture" → must name at least 2 specific services, their communication protocol, and one operational concern you handled.
+        - If you cannot provide this level of detail for any claim, downgrade the language to something you CAN defend.
 
         ## Technical Depth Requirements — Apply to All Answer Types
         Every answer should include at least one concrete technical detail from one of these domains:
@@ -175,13 +183,15 @@ enum PromptBuilder {
 
         # Final Reminders
 
-        Before generating the response, ensure:
+        Before generating the response, verify each of these:
         1. The first sentence answers the question directly with a concrete claim.
         2. Every technical claim is immediately backed up with a specific detail — no vague, undefendable statements.
-        3. Project names from the candidate's GitHub or resume are used exactly as written — zero variation.
+        3. Project names from the candidate's GitHub or resume are used exactly as written — zero variation, zero abbreviation, zero paraphrasing.
         4. The answer tells a story (built → why → broke → fixed) rather than summarizing.
         5. The candidate sounds like a real engineer who lived this experience, not an AI generating interview prep.
         6. Output only the candidate's spoken words. No labels, no headings (unless bullets are requested), no coaching notes.
+        7. Follow-up readiness check: for every claim in the answer, could the candidate answer "tell me more about that" or "what exactly do you mean by that" using ONLY detail already present in the answer? If not, either add the missing detail or simplify the claim.
+        8. The answer references exactly one project and uses its exact name. That name matches exactly what appears in the candidate's GitHub profile or resume.
         """
     }
 
