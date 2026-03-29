@@ -35,6 +35,7 @@ final class SessionSetupViewModel {
     // GitHub integration
     var githubUsername: String = ""
     var githubProfile: GitHubProfileSummary?
+    var selectedRepoNames: Set<String> = []
     var isLoadingGitHub: Bool = false
     var hasGitHubProfile: Bool { githubProfile != nil }
 
@@ -96,7 +97,10 @@ final class SessionSetupViewModel {
     var enrichedResume: String {
         var parts = [resumeText]
         if let profile = githubProfile {
-            parts.append("\nCANDIDATE'S GITHUB PROFILE:\n\(profile.formattedContext)")
+            let featured = selectedRepoNames.isEmpty
+                ? profile.topRepos
+                : profile.topRepos.filter { selectedRepoNames.contains($0.name) }
+            parts.append("\nCANDIDATE'S GITHUB PROFILE:\n\(profile.formattedContext(featuredRepos: featured))")
         }
         return parts.joined(separator: "\n")
     }
@@ -141,7 +145,8 @@ final class SessionSetupViewModel {
             hasLoadedDefaults = true
         }
 
-        // Restore saved GitHub username
+        // Restore saved GitHub username and repo selections
+        loadSelectedRepos()
         if let savedUsername = KeychainService.load(key: .githubUsername),
            !savedUsername.isEmpty {
             githubUsername = savedUsername
@@ -179,11 +184,38 @@ final class SessionSetupViewModel {
         }
     }
 
+    func toggleRepoSelection(_ repoName: String) {
+        if selectedRepoNames.contains(repoName) {
+            selectedRepoNames.remove(repoName)
+        } else {
+            guard selectedRepoNames.count < 3 else { return }
+            selectedRepoNames.insert(repoName)
+        }
+        saveSelectedRepos()
+        invalidatePreparedAnswerBankIfNeeded()
+    }
+
+    func isRepoSelected(_ repoName: String) -> Bool {
+        selectedRepoNames.contains(repoName)
+    }
+
     func clearGitHubProfile() {
         githubUsername = ""
         githubProfile = nil
+        selectedRepoNames = []
         _ = KeychainService.delete(key: .githubUsername)
+        UserDefaults.standard.removeObject(forKey: "selectedGitHubRepos")
         invalidatePreparedAnswerBankIfNeeded()
+    }
+
+    private func saveSelectedRepos() {
+        UserDefaults.standard.set(Array(selectedRepoNames), forKey: "selectedGitHubRepos")
+    }
+
+    private func loadSelectedRepos() {
+        if let saved = UserDefaults.standard.stringArray(forKey: "selectedGitHubRepos") {
+            selectedRepoNames = Set(saved)
+        }
     }
 
     func handleResumeFile(result: Result<URL, Error>) {

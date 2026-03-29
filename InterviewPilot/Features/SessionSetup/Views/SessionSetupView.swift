@@ -426,7 +426,7 @@ struct SessionSetupView: View {
             }
 
             if let profile = viewModel.githubProfile {
-                VStack(alignment: .leading, spacing: 6) {
+                VStack(alignment: .leading, spacing: 10) {
                     infoBadge(title: "github.com/\(profile.username)", symbol: "link")
 
                     if !profile.primaryLanguages.isEmpty {
@@ -435,9 +435,64 @@ struct SessionSetupView: View {
                             .foregroundStyle(IPTheme.textSecondary)
                     }
 
-                    Text("\(profile.topRepos.count) repos analyzed · \(profile.publicRepoCount) public")
-                        .font(IPTypography.bodySmall)
-                        .foregroundStyle(IPTheme.textSecondary)
+                    Text("Select up to 3 repos to feature in responses (\(viewModel.selectedRepoNames.count)/3)")
+                        .font(IPTypography.labelSmall)
+                        .foregroundStyle(IPTheme.accent)
+
+                    VStack(spacing: 6) {
+                        ForEach(profile.topRepos.prefix(10)) { repo in
+                            Button(action: { viewModel.toggleRepoSelection(repo.name) }) {
+                                HStack(spacing: 10) {
+                                    Image(systemName: viewModel.isRepoSelected(repo.name)
+                                          ? "checkmark.circle.fill" : "circle")
+                                        .foregroundStyle(viewModel.isRepoSelected(repo.name)
+                                                         ? IPTheme.accent : IPTheme.textSecondary)
+                                        .font(.system(size: 18))
+
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        HStack(spacing: 6) {
+                                            Text(repo.name)
+                                                .font(IPTypography.labelSmall)
+                                                .foregroundStyle(IPTheme.textPrimary)
+                                                .lineLimit(1)
+
+                                            if let lang = repo.language {
+                                                Text(lang)
+                                                    .font(IPTypography.bodySmall)
+                                                    .foregroundStyle(IPTheme.accent)
+                                            }
+
+                                            if repo.stars > 0 {
+                                                Label("\(repo.stars)", systemImage: "star.fill")
+                                                    .font(IPTypography.bodySmall)
+                                                    .foregroundStyle(IPTheme.textSecondary)
+                                            }
+                                        }
+
+                                        if let desc = repo.description, !desc.isEmpty {
+                                            Text(desc)
+                                                .font(IPTypography.bodySmall)
+                                                .foregroundStyle(IPTheme.textSecondary)
+                                                .lineLimit(1)
+                                        }
+                                    }
+
+                                    Spacer()
+                                }
+                                .padding(.vertical, 8)
+                                .padding(.horizontal, 12)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                        .fill(viewModel.isRepoSelected(repo.name)
+                                              ? IPTheme.accent.opacity(0.08)
+                                              : Color.clear)
+                                )
+                            }
+                            .buttonStyle(.plain)
+                            .disabled(!viewModel.isRepoSelected(repo.name) && viewModel.selectedRepoNames.count >= 3)
+                            .opacity(!viewModel.isRepoSelected(repo.name) && viewModel.selectedRepoNames.count >= 3 ? 0.4 : 1.0)
+                        }
+                    }
                 }
             } else {
                 Text("Optional — adds real project context from your repos to make interview responses more specific.")

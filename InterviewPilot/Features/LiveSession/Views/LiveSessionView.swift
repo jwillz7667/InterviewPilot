@@ -26,15 +26,20 @@ struct LiveSessionView: View {
                         VStack(alignment: .leading, spacing: 14) {
                             transcriptSection
                             responseSection
+                                .id("responseTop")
                             Color.clear.frame(height: 1).id("bottom")
                         }
                         .padding(.horizontal, 16)
                         .padding(.top, 10)
                         .padding(.bottom, 130)
                     }
-                    .onChange(of: viewModel.currentResponse) {
-                        withAnimation(IPAnimations.standard) {
-                            proxy.scrollTo("bottom", anchor: .bottom)
+                    .onChange(of: viewModel.currentResponse) { oldValue, newValue in
+                        // Scroll to the top of the response once when generation starts,
+                        // then stay put so the user can read from the beginning
+                        if oldValue.isEmpty && !newValue.isEmpty {
+                            withAnimation(IPAnimations.standard) {
+                                proxy.scrollTo("responseTop", anchor: .top)
+                            }
                         }
                     }
                 }

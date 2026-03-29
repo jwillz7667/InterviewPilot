@@ -9,7 +9,8 @@ struct GitHubProfileSummary: Sendable {
     let topRepos: [RepoSummary]
     let primaryLanguages: [String]
 
-    struct RepoSummary: Sendable {
+    struct RepoSummary: Sendable, Identifiable {
+        var id: String { name }
         let name: String
         let description: String?
         let language: String?
@@ -19,7 +20,13 @@ struct GitHubProfileSummary: Sendable {
         let updatedAt: String
     }
 
+    /// Full profile context using all top repos
     var formattedContext: String {
+        formattedContext(featuredRepos: topRepos)
+    }
+
+    /// Profile context using only user-selected featured repos
+    func formattedContext(featuredRepos: [RepoSummary]) -> String {
         var sections: [String] = []
 
         sections.append("GitHub: github.com/\(username)")
@@ -35,11 +42,11 @@ struct GitHubProfileSummary: Sendable {
             sections.append("Primary languages: \(primaryLanguages.joined(separator: ", "))")
         }
 
-        if !topRepos.isEmpty {
+        if !featuredRepos.isEmpty {
             sections.append("")
-            sections.append("Notable repositories:")
-            for repo in topRepos {
-                var line = "- \(repo.name)"
+            sections.append("FEATURED PROJECTS — rotate across these in answers. Use the EXACT name shown (never abbreviate or rename):")
+            for repo in featuredRepos {
+                var line = "- \"\(repo.name)\" (use this exact name)"
                 if let lang = repo.language {
                     line += " [\(lang)]"
                 }
