@@ -32,6 +32,7 @@ const envSchema = z.object({
   APP_STORE_PRO_MONTHLY_PRODUCT_ID: z.string().default('com.res.jobhopperAI.pro.monthly'),
   APP_STORE_PRO_YEARLY_PRODUCT_ID: z.string().default('com.res.jobhopperAI.pro.yearly'),
   TRIAL_INTERVIEW_LIMIT: z.coerce.number().int().min(1).max(100).default(5),
+  SANDBOX_TESTER_EMAILS: z.string().default(''),
 });
 
 export type Env = z.infer<typeof envSchema>;

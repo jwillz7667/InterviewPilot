@@ -181,6 +181,13 @@ function rankTier(tier: SubscriptionTier): number {
   }
 }
 
+function isSandboxTesterEmail(email: string): boolean {
+  const raw = getEnv().SANDBOX_TESTER_EMAILS;
+  if (!raw) return false;
+  const allowed = raw.split(',').map((e) => e.trim().toLowerCase()).filter(Boolean);
+  return allowed.includes(email.trim().toLowerCase());
+}
+
 async function ensureBillingContext(
   prisma: Pick<BillingDbClient, 'user' | 'userEntitlement'>,
   userId: string
@@ -198,6 +205,15 @@ async function ensureBillingContext(
 
   if (!user) {
     throw new NotFoundError('User');
+  }
+
+  // Auto-promote users whose email is in SANDBOX_TESTER_EMAILS
+  if (!user.isSandboxTester && isSandboxTesterEmail(user.email)) {
+    user.isSandboxTester = true;
+    await (prisma as BillingDbClient).user.update({
+      where: { id: userId },
+      data: { isSandboxTester: true },
+    });
   }
 
   let entitlement = user.entitlement;
