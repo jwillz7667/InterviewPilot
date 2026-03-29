@@ -39,6 +39,13 @@ final class SessionSetupViewModel {
     var isLoadingGitHub: Bool = false
     var hasGitHubProfile: Bool { githubProfile != nil }
 
+    // LinkedIn integration
+    var linkedInURL: String = ""
+    var linkedInProfileText: String = ""
+    var linkedInProfile: LinkedInProfileData?
+    var isLoadingLinkedIn: Bool = false
+    var hasLinkedInProfile: Bool { linkedInProfile != nil && !(linkedInProfile?.isEmpty ?? true) }
+
     // Structured job analysis
     var structuredJobRequirements: StructuredJobRequirements?
 
@@ -102,6 +109,9 @@ final class SessionSetupViewModel {
                 : profile.topRepos.filter { selectedRepoNames.contains($0.name) }
             parts.append("\nCANDIDATE'S GITHUB PROFILE:\n\(profile.formattedContext(featuredRepos: featured))")
         }
+        if let linkedin = linkedInProfile, !linkedin.isEmpty {
+            parts.append("\nCANDIDATE'S LINKEDIN PROFILE:\n\(linkedin.formattedContext)")
+        }
         return parts.joined(separator: "\n")
     }
     var resumeStatusLabel: String {
@@ -151,6 +161,17 @@ final class SessionSetupViewModel {
            !savedUsername.isEmpty {
             githubUsername = savedUsername
             await fetchGitHubProfile()
+        }
+
+        // Restore saved LinkedIn URL and profile text
+        if let savedLinkedIn = KeychainService.load(key: .linkedInURL),
+           !savedLinkedIn.isEmpty {
+            linkedInURL = savedLinkedIn
+            if let savedText = UserDefaults.standard.string(forKey: "linkedInProfileText"),
+               !savedText.isEmpty {
+                linkedInProfileText = savedText
+                analyzeLinkedInProfile()
+            }
         }
 
         do {
@@ -216,6 +237,67 @@ final class SessionSetupViewModel {
         if let saved = UserDefaults.standard.stringArray(forKey: "selectedGitHubRepos") {
             selectedRepoNames = Set(saved)
         }
+    }
+
+    // MARK: - LinkedIn
+
+    func analyzeLinkedInProfile() {
+        guard let normalized = LinkedInService.normalizeURL(linkedInURL) else {
+            linkedInProfile = nil
+            errorMessage = LinkedInServiceError.invalidURL.localizedDescription
+            return
+        }
+
+        let text = linkedInProfileText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else {
+            linkedInProfile = nil
+            return
+        }
+
+        linkedInProfile = LinkedInService.parseProfileText(text, url: normalized)
+        _ = KeychainService.save(key: .linkedInURL, value: normalized)
+        UserDefaults.standard.set(linkedInProfileText, forKey: "linkedInProfileText")
+        invalidatePreparedAnswerBankIfNeeded()
+    }
+
+    func fetchLinkedInBasicInfo() async {
+        guard let normalized = LinkedInService.normalizeURL(linkedInURL) else {
+            errorMessage = LinkedInServiceError.invalidURL.localizedDescription
+            return
+        }
+
+        isLoadingLinkedIn = true
+        defer { isLoadingLinkedIn = false }
+
+        let (name, headline) = await LinkedInService.fetchBasicProfile(url: normalized)
+
+        // If we got basic info and there's no profile text yet, create a minimal profile
+        if let name, !name.isEmpty {
+            if linkedInProfileText.isEmpty {
+                var prefilledLines: [String] = []
+                prefilledLines.append(name)
+                if let headline, !headline.isEmpty {
+                    prefilledLines.append(headline)
+                }
+                linkedInProfileText = prefilledLines.joined(separator: "\n")
+            }
+        }
+
+        _ = KeychainService.save(key: .linkedInURL, value: normalized)
+
+        // Parse whatever text we have
+        if !linkedInProfileText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            analyzeLinkedInProfile()
+        }
+    }
+
+    func clearLinkedInProfile() {
+        linkedInURL = ""
+        linkedInProfileText = ""
+        linkedInProfile = nil
+        _ = KeychainService.delete(key: .linkedInURL)
+        UserDefaults.standard.removeObject(forKey: "linkedInProfileText")
+        invalidatePreparedAnswerBankIfNeeded()
     }
 
     func handleResumeFile(result: Result<URL, Error>) {

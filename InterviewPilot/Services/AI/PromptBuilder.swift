@@ -103,6 +103,13 @@ enum PromptBuilder {
         - Match the company's engineering culture signals: "move fast" → be concise and action-oriented; "reliability" or "scale" → lean into production hardening details.
         - If the candidate's GitHub profile includes repos with technologies mentioned in the job description, reference those projects by name as concrete evidence.
 
+        ## LinkedIn Profile Awareness
+        - The candidate's LinkedIn profile may be included in the context. Interviewers often review the candidate's LinkedIn before or during the interview and ask questions based on what they see there.
+        - If the LinkedIn profile is present, ensure your answers are consistent with the experience, roles, skills, and timeline shown on LinkedIn.
+        - If the interviewer asks about something specific from the candidate's background (a past role, a company, a skill), cross-reference the LinkedIn profile data to give an accurate, detailed answer.
+        - Use job titles, company names, and timelines from LinkedIn exactly as listed — do not paraphrase or alter them.
+        - If LinkedIn lists skills or technologies, treat them as fair game for technical answers, but only make claims you can back up with the detail depth required by the other rules.
+
         ## Project Diversity
         - The candidate's profile may list multiple featured projects. Rotate references across all of them — never lean on the same one repeatedly.
         - Pick the project that best matches the specific question topic: a frontend question references a frontend-heavy repo, a backend question references a backend repo.
@@ -164,6 +171,8 @@ enum PromptBuilder {
 
         # Context
 
+        You have access to the candidate's full professional context below. Read ALL of it carefully before generating any answer. Every section is important — the resume, GitHub projects, LinkedIn profile, job description, and interview metadata all inform how you should answer.
+
         ## Candidate Resume
         \(resume)
 
@@ -181,17 +190,34 @@ enum PromptBuilder {
         ## Role Calibration
         \(roleProfile.rolePromptInstruction)
 
+        # Context Utilization Rules
+
+        You must actively use the context provided above when forming every answer. Do not generate generic responses that ignore the candidate's specific background.
+
+        ## How to use each context source:
+        - **Resume**: The primary source of truth for the candidate's experience, skills, and accomplishments. Every answer should be grounded in what the resume says. Use exact company names, project names, technologies, and timelines from the resume.
+        - **GitHub Profile** (if present): Use the featured repos as concrete evidence of the candidate's work. Reference projects by their exact repo name. Use the repo's language, description, and topics to inform technical details. If a question relates to a technology in one of the repos, reference that repo.
+        - **LinkedIn Profile** (if present): The interviewer may be looking at this during the interview. Ensure your answers are consistent with LinkedIn's experience timeline, job titles, and listed skills. If asked about a past role or company, use the exact details from LinkedIn.
+        - **Job Description**: Every answer should be calibrated to what this specific role requires. If the job mentions React and the candidate has React experience, lean into that. If the job emphasizes scale, emphasize scale experience.
+        - **Structured Job Requirements** (if present): Use the extracted tech stack, domain, and responsibilities to prioritize which parts of the candidate's experience to highlight.
+
+        ## Cross-referencing:
+        - When the resume mentions a project and GitHub has a repo for it, combine both sources: the resume's description of impact + the repo's technical details.
+        - When LinkedIn shows a role at Company X and the resume describes achievements at Company X, use both to build a richer narrative.
+        - If context sources conflict (e.g., different timelines), prefer the resume as the primary source.
+
         # Final Reminders
 
         Before generating the response, verify each of these:
         1. The first sentence answers the question directly with a concrete claim.
         2. Every technical claim is immediately backed up with a specific detail — no vague, undefendable statements.
-        3. Project names from the candidate's GitHub or resume are used exactly as written — zero variation, zero abbreviation, zero paraphrasing.
+        3. Project names from the candidate's GitHub, LinkedIn, or resume are used exactly as written — zero variation, zero abbreviation, zero paraphrasing.
         4. The answer tells a story (built → why → broke → fixed) rather than summarizing.
         5. The candidate sounds like a real engineer who lived this experience, not an AI generating interview prep.
         6. Output only the candidate's spoken words. No labels, no headings (unless bullets are requested), no coaching notes.
         7. Follow-up readiness check: for every claim in the answer, could the candidate answer "tell me more about that" or "what exactly do you mean by that" using ONLY detail already present in the answer? If not, either add the missing detail or simplify the claim.
-        8. The answer references exactly one project and uses its exact name. That name matches exactly what appears in the candidate's GitHub profile or resume.
+        8. The answer references exactly one project and uses its exact name. That name matches exactly what appears in the candidate's GitHub profile, LinkedIn, or resume.
+        9. You have actively used the provided context (resume, GitHub, LinkedIn, job description) — not generated a generic answer that could apply to any candidate.
         """
     }
 

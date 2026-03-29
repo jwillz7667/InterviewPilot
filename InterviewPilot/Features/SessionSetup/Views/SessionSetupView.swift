@@ -239,6 +239,9 @@ struct SessionSetupView: View {
                     githubCard
                     Divider()
                         .overlay(IPTheme.borderColor(for: colorScheme))
+                    linkedInCard
+                    Divider()
+                        .overlay(IPTheme.borderColor(for: colorScheme))
                     listingCard
                     readinessSummaryStrip
                 }
@@ -496,6 +499,133 @@ struct SessionSetupView: View {
                 }
             } else {
                 Text("Optional — adds real project context from your repos to make interview responses more specific.")
+                    .font(IPTypography.bodySmall)
+                    .foregroundStyle(IPTheme.textSecondary)
+            }
+        }
+    }
+
+    private var linkedInCard: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            compactSectionTitle("LinkedIn Profile", detail: "Add your LinkedIn so the model knows what interviewers see about you.")
+
+            VStack(spacing: 12) {
+                // URL input
+                HStack(spacing: 10) {
+                    Image(systemName: "link")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(IPTheme.textSecondary)
+
+                    TextField("linkedin.com/in/yourname", text: $viewModel.linkedInURL)
+                        .font(IPTypography.bodyMedium)
+                        .foregroundStyle(IPTheme.textPrimary)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .keyboardType(.URL)
+                        .submitLabel(.go)
+                        .onSubmit {
+                            Task { await viewModel.fetchLinkedInBasicInfo() }
+                        }
+
+                    if viewModel.isLoadingLinkedIn {
+                        ProgressView()
+                            .tint(IPTheme.accent)
+                    }
+                }
+                .padding(.horizontal, 14)
+                .frame(minHeight: 52)
+                .background(IPTheme.surfacePrimary, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 20, style: .continuous)
+                        .stroke(IPTheme.borderColor(for: colorScheme), lineWidth: 1)
+                }
+
+                // Profile content text area
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Profile Content")
+                        .font(IPTypography.labelSmall)
+                        .foregroundStyle(IPTheme.textSecondary)
+
+                    Text("Copy your LinkedIn page text and paste it here (About, Experience, Education, Skills).")
+                        .font(IPTypography.bodySmall)
+                        .foregroundStyle(IPTheme.textSecondary)
+
+                    TextEditor(text: $viewModel.linkedInProfileText)
+                        .font(IPTypography.bodyMedium)
+                        .foregroundStyle(IPTheme.textPrimary)
+                        .scrollContentBackground(.hidden)
+                        .frame(minHeight: 120, maxHeight: 200)
+                        .padding(10)
+                        .background(IPTheme.surfacePrimary, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                .stroke(IPTheme.borderColor(for: colorScheme), lineWidth: 1)
+                        }
+                }
+
+                // Action buttons
+                HStack(spacing: 10) {
+                    Button(action: {
+                        if viewModel.linkedInProfileText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                            Task { await viewModel.fetchLinkedInBasicInfo() }
+                        } else {
+                            viewModel.analyzeLinkedInProfile()
+                        }
+                    }) {
+                        Text(viewModel.hasLinkedInProfile ? "Re-analyze" : "Analyze Profile")
+                    }
+                    .buttonStyle(IPSecondaryButtonStyle())
+                    .disabled(
+                        viewModel.isLoadingLinkedIn ||
+                        (viewModel.linkedInURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+                         viewModel.linkedInProfileText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    )
+
+                    if viewModel.hasLinkedInProfile {
+                        Button(action: { viewModel.clearLinkedInProfile() }) {
+                            Text("Remove")
+                        }
+                        .buttonStyle(IPSecondaryButtonStyle())
+                    }
+                }
+            }
+
+            if let profile = viewModel.linkedInProfile, !profile.isEmpty {
+                VStack(alignment: .leading, spacing: 6) {
+                    infoBadge(title: profile.url, symbol: "link")
+
+                    if let name = profile.name, !name.isEmpty {
+                        Text(name)
+                            .font(IPTypography.labelSmall)
+                            .foregroundStyle(IPTheme.textPrimary)
+                    }
+
+                    if let headline = profile.headline, !headline.isEmpty {
+                        Text(headline)
+                            .font(IPTypography.bodySmall)
+                            .foregroundStyle(IPTheme.textSecondary)
+                    }
+
+                    HStack(spacing: 8) {
+                        if !profile.experience.isEmpty {
+                            Text("\(profile.experience.count) roles")
+                                .font(IPTypography.bodySmall)
+                                .foregroundStyle(IPTheme.accent)
+                        }
+                        if !profile.skills.isEmpty {
+                            Text("\(profile.skills.count) skills")
+                                .font(IPTypography.bodySmall)
+                                .foregroundStyle(IPTheme.accent)
+                        }
+                        if !profile.education.isEmpty {
+                            Text("\(profile.education.count) education")
+                                .font(IPTypography.bodySmall)
+                                .foregroundStyle(IPTheme.accent)
+                        }
+                    }
+                }
+            } else {
+                Text("Optional — ensures the model knows your full professional history in case interviewers reference your LinkedIn.")
                     .font(IPTypography.bodySmall)
                     .foregroundStyle(IPTheme.textSecondary)
             }
