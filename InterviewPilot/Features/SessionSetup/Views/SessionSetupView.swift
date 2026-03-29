@@ -212,6 +212,16 @@ struct SessionSetupView: View {
     private var inferenceSummary: some View {
         LazyVGrid(columns: threeColumnGrid, spacing: 12) {
             summaryTile(
+                title: "Role",
+                value: viewModel.jobCategory?.displayName ?? "Pending",
+                symbol: viewModel.jobCategory.map(jobCategoryIcon(for:)) ?? "briefcase.fill"
+            )
+            summaryTile(
+                title: "Level",
+                value: viewModel.positionLevel?.displayName ?? "Pending",
+                symbol: viewModel.positionLevel.map(positionLevelIcon(for:)) ?? "arrow.up.right.circle"
+            )
+            summaryTile(
                 title: "Format",
                 value: viewModel.responseFormat.displayName,
                 symbol: "text.justify.left"
@@ -252,6 +262,50 @@ struct SessionSetupView: View {
                     }
 
                     responseLayoutSection
+                }
+            }
+
+            IPPanel(tone: .secondary, padding: 22, cornerRadius: 30) {
+                VStack(alignment: .leading, spacing: 18) {
+                    compactSectionTitle("Role targeting", detail: "Longer option sets follow Apple’s grouped-list pattern instead of free-floating pills.")
+
+                    optionGroup(
+                        title: "Role focus",
+                        detail: "Auto-detected from the listing, but still editable when the posting is noisy.",
+                        columns: singleColumnGrid
+                    ) {
+                        ForEach(JobCategory.allCases) { category in
+                            selectionChip(
+                                title: category.displayName,
+                                symbol: jobCategoryIcon(for: category),
+                                isSelected: viewModel.jobCategory == category
+                            ) {
+                                withAnimation(IPAnimations.snappy) {
+                                    viewModel.jobCategory = category
+                                    viewModel.interviewType = viewModel.derivedProfile.interviewType
+                                }
+                            }
+                        }
+                    }
+
+                    optionGroup(
+                        title: "Seniority",
+                        detail: viewModel.derivedProfile.rolePromptInstruction,
+                        columns: singleColumnGrid
+                    ) {
+                        ForEach(PositionLevel.allCases) { level in
+                            selectionChip(
+                                title: level.displayName,
+                                symbol: positionLevelIcon(for: level),
+                                isSelected: viewModel.positionLevel == level
+                            ) {
+                                withAnimation(IPAnimations.snappy) {
+                                    viewModel.positionLevel = level
+                                    viewModel.interviewType = viewModel.derivedProfile.interviewType
+                                }
+                            }
+                        }
+                    }
                 }
             }
 
@@ -641,11 +695,16 @@ struct SessionSetupView: View {
     }
 
     private var readinessSummaryStrip: some View {
-        LazyVGrid(columns: twoColumnGrid, spacing: 12) {
+        LazyVGrid(columns: threeColumnGrid, spacing: 12) {
             summaryTile(
-                title: "Interview",
-                value: viewModel.interviewType.displayName,
-                symbol: "person.fill.questionmark"
+                title: "Role",
+                value: viewModel.jobCategory?.displayName ?? "Pending",
+                symbol: viewModel.jobCategory.map(jobCategoryIcon(for:)) ?? "briefcase.fill"
+            )
+            summaryTile(
+                title: "Level",
+                value: viewModel.positionLevel?.displayName ?? "Pending",
+                symbol: viewModel.positionLevel.map(positionLevelIcon(for:)) ?? "arrow.up.right.circle"
             )
             summaryTile(
                 title: "Format",
@@ -805,6 +864,42 @@ struct SessionSetupView: View {
                             isLocked: isLocked
                         ) {
                             selectResponseQualityMode(mode, isLocked: isLocked)
+                        }
+                    }
+                }
+
+                optionGroup(
+                    title: "Job category",
+                    detail: "Auto-detected from the listing, but overridable when the posting is noisy or mislabeled."
+                ) {
+                    ForEach(JobCategory.allCases) { category in
+                        selectionChip(
+                            title: category.displayName,
+                            symbol: jobCategoryIcon(for: category),
+                            isSelected: viewModel.jobCategory == category
+                        ) {
+                            withAnimation(IPAnimations.snappy) {
+                                viewModel.jobCategory = category
+                                viewModel.interviewType = viewModel.derivedProfile.interviewType
+                            }
+                        }
+                    }
+                }
+
+                optionGroup(
+                    title: "Interview level",
+                    detail: viewModel.derivedProfile.rolePromptInstruction
+                ) {
+                    ForEach(PositionLevel.allCases) { level in
+                        selectionChip(
+                            title: level.displayName,
+                            symbol: positionLevelIcon(for: level),
+                            isSelected: viewModel.positionLevel == level
+                        ) {
+                            withAnimation(IPAnimations.snappy) {
+                                viewModel.positionLevel = level
+                                viewModel.interviewType = viewModel.derivedProfile.interviewType
+                            }
                         }
                     }
                 }
@@ -1186,6 +1281,10 @@ struct SessionSetupView: View {
             return "Paste and analyze a public job listing URL to continue."
         }
 
+        if viewModel.jobCategory == nil || viewModel.positionLevel == nil {
+            return "Confirm the inferred job category and level before launch."
+        }
+
         if viewModel.isPreparingSession {
             return "Validating access, loading runtime keys, and preparing session assets."
         }
@@ -1247,6 +1346,48 @@ struct SessionSetupView: View {
             return "person.text.rectangle.fill"
         case .general:
             return "square.grid.2x2.fill"
+        }
+    }
+
+    private func jobCategoryIcon(for category: JobCategory) -> String {
+        switch category {
+        case .softwareEngineering:
+            return "terminal.fill"
+        case .dataAI:
+            return "cpu.fill"
+        case .product:
+            return "shippingbox.fill"
+        case .design:
+            return "paintbrush.pointed.fill"
+        case .operations:
+            return "gearshape.2.fill"
+        case .salesCustomer:
+            return "person.2.fill"
+        case .marketing:
+            return "megaphone.fill"
+        case .financeStrategy:
+            return "chart.line.uptrend.xyaxis"
+        case .peopleHR:
+            return "person.3.fill"
+        case .generalBusiness:
+            return "briefcase.fill"
+        }
+    }
+
+    private func positionLevelIcon(for level: PositionLevel) -> String {
+        switch level {
+        case .entryLevel:
+            return "figure.walk"
+        case .midLevel:
+            return "arrow.up.right.circle.fill"
+        case .seniorIndividualContributor:
+            return "star.fill"
+        case .management:
+            return "person.2.wave.2.fill"
+        case .seniorManagement:
+            return "building.2.fill"
+        case .executive:
+            return "crown.fill"
         }
     }
 
