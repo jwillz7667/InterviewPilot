@@ -418,6 +418,13 @@ final class SessionSetupViewModel {
                 }
             }
 
+            // After reinstall, StoreKit transactions must be synced back to
+            // the backend before API keys can be vended.  Refresh the
+            // subscription first so the entitlement is current.
+            if subscriptionService.currentEntitlement == nil {
+                await subscriptionService.refresh()
+            }
+
             if responseQualityMode.requiresPriorityModels,
                !(subscriptionService.currentEntitlement?.hasPriorityModels ?? false) {
                 errorMessage = "Top Tier mode requires a Pro subscription."
@@ -566,6 +573,13 @@ final class SessionSetupViewModel {
     private func missingAccessError() -> BillingClientError {
         if subscriptionService.currentEntitlement?.paywallRequired == true {
             return .paymentRequired("Your free trial interviews are complete. Upgrade to continue.")
+        }
+
+        // When entitlement is nil (e.g. after reinstall before sync completes),
+        // surface a paywall so the user can restore purchases rather than
+        // showing a dead-end error.
+        if subscriptionService.currentEntitlement == nil {
+            return .paymentRequired("Unable to verify your subscription. Please restore purchases or sign in again.")
         }
 
         return .server("Live AI access is not currently available.")
