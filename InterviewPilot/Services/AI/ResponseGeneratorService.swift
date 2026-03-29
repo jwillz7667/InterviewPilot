@@ -1,13 +1,14 @@
 import Foundation
+import Observation
 
 @Observable
 final class ResponseGeneratorService {
     private var currentTask: Task<Void, Never>?
     private(set) var isGenerating = false
 
-    var onTokenReceived: ((String) -> Void)?
-    var onResponseComplete: ((String) -> Void)?
-    var onError: ((String) -> Void)?
+    @ObservationIgnored var onTokenReceived: ((String) -> Void)?
+    @ObservationIgnored var onResponseComplete: ((String) -> Void)?
+    @ObservationIgnored var onError: ((String) -> Void)?
 
     private let apiKey: String
 
@@ -58,17 +59,22 @@ final class ResponseGeneratorService {
 
             self.isGenerating = true
             let url = URL(string: "https://api.openai.com/v1/chat/completions")!
-            let messageBody: [String: Any] = [
+            let isReasoningModel = model.hasPrefix("o1") || model.hasPrefix("o3") || model.hasPrefix("o4")
+            var messageBody: [String: Any] = [
                 "model": model,
-                "max_tokens": tokenLimit,
-                "temperature": tone.temperature,
-                "frequency_penalty": APIConfig.responseFrequencyPenalty,
-                "presence_penalty": APIConfig.responsePresencePenalty,
                 "messages": [
                     ["role": "system", "content": systemPrompt],
                     ["role": "user", "content": "Interview question: \"\(question)\"\n\nGenerate the next answer the candidate should say out loud."]
                 ]
             ]
+            if isReasoningModel {
+                messageBody["max_completion_tokens"] = tokenLimit
+            } else {
+                messageBody["max_tokens"] = tokenLimit
+                messageBody["temperature"] = tone.temperature
+                messageBody["frequency_penalty"] = APIConfig.responseFrequencyPenalty
+                messageBody["presence_penalty"] = APIConfig.responsePresencePenalty
+            }
 
             do {
                 let streamedResponse = try await self.streamResponse(
@@ -87,20 +93,31 @@ final class ResponseGeneratorService {
                     return
                 }
 
-                let fallbackResponse = try await self.fetchNonStreamingResponse(
-                    url: url,
-                    body: messageBody
-                )
-                let normalizedFallback = fallbackResponse.trimmingCharacters(in: .whitespacesAndNewlines)
+                // Streaming returned empty — retry once after a short delay
+                try await Task.sleep(for: .seconds(1.5))
 
-                guard !normalizedFallback.isEmpty else {
-                    self.onError?("OpenAI returned an empty interview response")
+                if Task.isCancelled {
                     self.isGenerating = false
                     return
                 }
 
-                self.onTokenReceived?(normalizedFallback)
-                self.onResponseComplete?(normalizedFallback)
+                let retryResponse = try await self.streamResponse(
+                    url: url,
+                    body: messageBody
+                )
+
+                if Task.isCancelled {
+                    self.isGenerating = false
+                    return
+                }
+
+                guard !retryResponse.isEmpty else {
+                    self.onError?("Response was empty after retry — check your OpenAI API key and model access")
+                    self.isGenerating = false
+                    return
+                }
+
+                self.onResponseComplete?(retryResponse)
                 self.isGenerating = false
 
             } catch {
@@ -183,47 +200,6 @@ final class ResponseGeneratorService {
         }
 
         return fullResponse
-    }
-
-    private func fetchNonStreamingResponse(url: URL, body: [String: Any]) async throws -> String {
-        var payload = body
-        payload["stream"] = false
-
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try JSONSerialization.data(withJSONObject: payload)
-
-        let (data, response) = try await URLSession.shared.data(for: request)
-
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw NSError(
-                domain: "ResponseGeneratorService",
-                code: -1,
-                userInfo: [NSLocalizedDescriptionKey: "No HTTP response received"]
-            )
-        }
-
-        guard httpResponse.statusCode == 200 else {
-            let bodyString = String(data: data, encoding: .utf8) ?? ""
-            throw NSError(
-                domain: "ResponseGeneratorService",
-                code: httpResponse.statusCode,
-                userInfo: [
-                    NSLocalizedDescriptionKey: parseAPIError(from: bodyString) ?? "HTTP \(httpResponse.statusCode)"
-                ]
-            )
-        }
-
-        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let choices = json["choices"] as? [[String: Any]],
-              let message = choices.first?["message"] as? [String: Any],
-              let content = extractText(from: message["content"]) else {
-            return ""
-        }
-
-        return content
     }
 
     private func extractText(from content: Any?) -> String? {

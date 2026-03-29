@@ -1,4 +1,5 @@
 import Foundation
+import Observation
 
 @Observable
 final class DeepgramService {
@@ -6,11 +7,11 @@ final class DeepgramService {
     private var urlSession: URLSession?
     private(set) var isConnected = false
 
-    var onPartialTranscript: ((String) -> Void)?
-    var onFinalTranscript: ((String) -> Void)?
-    var onSpeechStarted: (() -> Void)?
-    var onSpeechEnded: (() -> Void)?
-    var onError: ((String) -> Void)?
+    @ObservationIgnored var onPartialTranscript: ((String) -> Void)?
+    @ObservationIgnored var onFinalTranscript: ((String) -> Void)?
+    @ObservationIgnored var onSpeechStarted: (() -> Void)?
+    @ObservationIgnored var onSpeechEnded: (() -> Void)?
+    @ObservationIgnored var onError: ((String) -> Void)?
 
     private let apiKey: String
 

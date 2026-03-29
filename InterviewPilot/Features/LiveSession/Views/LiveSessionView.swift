@@ -4,6 +4,7 @@ struct LiveSessionView: View {
     @State var viewModel: LiveSessionViewModel
     @State private var showEndConfirmation = false
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.colorScheme) private var colorScheme
     private let autoStartSession: Bool
 
     init(viewModel: LiveSessionViewModel, autoStartSession: Bool = true) {
@@ -13,29 +14,37 @@ struct LiveSessionView: View {
 
     var body: some View {
         ZStack {
-            IPAppBackground()
+            // Pure white background (light) or dark background
+            (colorScheme == .dark ? Color(UIColor.systemBackground) : Color.white)
+                .ignoresSafeArea()
 
             VStack(spacing: 0) {
                 headerBar
 
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 16) {
-                        titleBlock
-                        conversationSection
-                        suggestionSection
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 14) {
+                            transcriptSection
+                            responseSection
+                            Color.clear.frame(height: 1).id("bottom")
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.top, 10)
+                        .padding(.bottom, 130)
                     }
-                    .padding(.horizontal, IPTheme.spacing16)
-                    .padding(.top, 8)
-                    .padding(.bottom, 130)
+                    .onChange(of: viewModel.currentResponse) {
+                        withAnimation(IPAnimations.standard) {
+                            proxy.scrollTo("bottom", anchor: .bottom)
+                        }
+                    }
                 }
-                .ipScrollablePage()
             }
         }
         .toolbar(.hidden, for: .navigationBar)
         .safeAreaInset(edge: .bottom) {
             controlDock
-                .padding(.horizontal, IPTheme.spacing16)
-                .padding(.bottom, IPTheme.spacing8)
+                .padding(.horizontal, 16)
+                .padding(.bottom, 8)
         }
         .onAppear {
             guard autoStartSession else { return }
@@ -62,164 +71,131 @@ struct LiveSessionView: View {
         }
     }
 
+    // MARK: - Header
+
     private var headerBar: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 10) {
             IPUtilityCircleButton(symbol: "chevron.left") {
                 showEndConfirmation = true
             }
 
-            ViewThatFits(in: .horizontal) {
-                HStack(spacing: 8) {
-                    AnimatedStatusBadge(text: "Live", color: IPTheme.live, isActive: true)
-                    IPStatusPill(title: liveStateTitle, symbol: liveStateSymbol, tint: liveStateTint)
-                    IPStatusPill(title: headerSyncStateTitle, symbol: syncStateSymbol, tint: syncStateTint)
-                }
+            AnimatedStatusBadge(text: "Live", color: IPTheme.live, isActive: true)
 
-                HStack(spacing: 8) {
-                    AnimatedStatusBadge(text: "Live", color: IPTheme.live, isActive: true)
-                    IPStatusPill(title: liveStateTitle, symbol: liveStateSymbol, tint: liveStateTint)
-                    IPStatusPill(title: compactHeaderSyncStateTitle, symbol: syncStateSymbol, tint: syncStateTint)
-                }
+            IPStatusPill(
+                title: formatTime(viewModel.elapsedTime),
+                symbol: "clock",
+                tint: IPTheme.textSecondary
+            )
 
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack(spacing: 8) {
-                        AnimatedStatusBadge(text: "Live", color: IPTheme.live, isActive: true)
-                        IPStatusPill(title: liveStateTitle, symbol: liveStateSymbol, tint: liveStateTint)
-                    }
-
-                    IPStatusPill(title: compactHeaderSyncStateTitle, symbol: syncStateSymbol, tint: syncStateTint)
-                }
+            if let questionType = viewModel.questionType {
+                QuestionTypeBadge(classification: questionType)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
 
-            IPBrandLogo(size: 38, showShadow: false, variant: .surface)
+            Spacer()
+
+            IPStatusPill(title: liveStateTitle, symbol: liveStateSymbol, tint: liveStateTint)
         }
-        .padding(.horizontal, IPTheme.spacing16)
+        .padding(.horizontal, 16)
         .padding(.top, 12)
     }
 
-    private var titleBlock: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .top) {
-                Text("Live AI Interview")
-                    .font(IPTypography.displayMedium)
-                    .foregroundStyle(IPTheme.textPrimary)
+    // MARK: - Interviewer Bubble (solid blue, white text)
 
-                Spacer(minLength: 12)
-                IPStarburst(size: 34)
-                    .padding(.top, 10)
-            }
+    private var transcriptSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label("Interviewer", systemImage: "person.fill")
+                .font(IPTypography.labelLarge)
+                .foregroundStyle(colorScheme == .dark ? IPTheme.textSecondary : Color(UIColor.secondaryLabel))
 
-            HStack(spacing: 10) {
-                IPStatusPill(title: "Timer \(formatTime(viewModel.elapsedTime))", symbol: "clock", tint: IPTheme.textSecondary)
-
-                if let questionType = viewModel.questionType {
-                    QuestionTypeBadge(classification: questionType)
-                }
-            }
-        }
-    }
-
-    private var conversationSection: some View {
-        VStack(spacing: 12) {
-            IPConversationBubble(
-                role: .interviewer,
-                title: "Interviewer",
-                text: interviewerText,
-                symbol: "person.fill",
-                trailingSymbol: "speaker.wave.2"
-            )
-
-            if !userLaneText.isEmpty {
-                IPConversationBubble(
-                    role: .user,
-                    title: "User",
-                    text: userLaneText,
-                    symbol: "mic.fill",
-                    trailingSymbol: "mic"
+            Text(interviewerText)
+                .font(IPTypography.bodyLarge)
+                .foregroundStyle(.white)
+                .lineSpacing(4)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(16)
+                .background(
+                    RoundedRectangle(cornerRadius: 22, style: .continuous)
+                        .fill(IPTheme.accent)
                 )
-            }
+                .shadow(color: Color.black.opacity(0.08), radius: 6, y: 3)
 
             if viewModel.audioCapture.isCapturing &&
                 (viewModel.sessionState == .listening || viewModel.sessionState == .interviewerSpeaking) {
                 WaveformView(level: viewModel.audioCapture.audioLevel)
-                    .frame(height: 34)
-                    .padding(.vertical, 6)
+                    .frame(height: 28)
+                    .padding(.top, 2)
             }
         }
     }
 
-    private var suggestionSection: some View {
-        IPPanel(tone: .accent(IPTheme.accent), padding: 18, cornerRadius: 28) {
-            VStack(alignment: .leading, spacing: 14) {
-                HStack(alignment: .top) {
-                    HStack(spacing: 10) {
-                        IPBrandLogo(size: 32, showShadow: false, variant: .surface)
+    // MARK: - Response Bubble (white bg, black text, blue border, slight shadow)
 
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("AI-Suggested Response")
-                                .font(IPTypography.labelLarge)
-                                .foregroundStyle(IPTheme.textPrimary)
+    private var responseSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label("Suggested Response", systemImage: "sparkles")
+                .font(IPTypography.labelLarge)
+                .foregroundStyle(IPTheme.accent)
 
-                            Text(viewModel.isResponseFromCache ? "Instant answer-bank match" : "Live drafted response")
-                                .font(IPTypography.bodySmall)
-                                .foregroundStyle(IPTheme.textSecondary)
-                        }
-                    }
+            if let error = viewModel.errorMessage {
+                Label(error, systemImage: "exclamationmark.triangle.fill")
+                    .font(IPTypography.bodySmall)
+                    .foregroundStyle(IPTheme.error)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(12)
+                    .background(IPTheme.error.opacity(0.10), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            }
 
-                    Spacer()
-                }
-
-                if let error = viewModel.errorMessage {
-                    Label(error, systemImage: "exclamationmark.triangle.fill")
-                        .font(IPTypography.bodySmall)
-                        .foregroundStyle(IPTheme.error)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(12)
-                        .background(IPTheme.error.opacity(0.10), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                }
-
+            Group {
                 if viewModel.currentResponse.isEmpty && viewModel.sessionState == .generating {
                     VStack(alignment: .leading, spacing: 10) {
-                        ForEach(0..<4, id: \.self) { index in
+                        ForEach(0..<3, id: \.self) { index in
                             RoundedRectangle(cornerRadius: 7, style: .continuous)
                                 .fill(IPTheme.accent.opacity(0.12))
                                 .frame(height: 16)
-                                .frame(maxWidth: index == 3 ? 220 : .infinity)
+                                .frame(maxWidth: index == 2 ? 180 : .infinity)
                                 .shimmer()
                         }
                     }
+                } else if viewModel.currentResponse.isEmpty {
+                    Text(responsePlaceholder)
+                        .font(IPTypography.bodyMedium)
+                        .foregroundStyle(Color(UIColor.secondaryLabel))
+                        .frame(maxWidth: .infinity, alignment: .leading)
                 } else {
-                    Text(viewModel.currentResponse.isEmpty ? responsePlaceholder : viewModel.currentResponse)
+                    Text(viewModel.currentResponse)
                         .font(IPTypography.responseText)
-                        .foregroundStyle(viewModel.currentResponse.isEmpty ? IPTheme.textSecondary : IPTheme.textPrimary)
+                        .foregroundStyle(colorScheme == .dark ? Color.white : Color.black)
                         .lineSpacing(6)
                         .frame(maxWidth: .infinity, alignment: .leading)
+                        .textSelection(.enabled)
                 }
             }
+            .padding(18)
+            .background(
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .fill(colorScheme == .dark ? Color(UIColor.secondarySystemBackground) : Color.white)
+            )
+            .overlay {
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .stroke(IPTheme.accent, lineWidth: 2)
+            }
+            .shadow(color: Color.black.opacity(0.06), radius: 8, y: 4)
         }
     }
+
+    // MARK: - Controls
 
     private var controlDock: some View {
         IPBottomDock {
-            ViewThatFits(in: .horizontal) {
-                HStack(spacing: 12) {
-                    muteButton
-                    nextButton
-                    endSessionButton
-                }
-
-                VStack(spacing: 12) {
-                    HStack(spacing: 12) {
-                        muteButton
-                        nextButton
-                    }
-
-                    endSessionButton
-                }
+            HStack(spacing: 10) {
+                muteButton
+                nextButton
+                endButton
             }
         }
     }
+
+    // MARK: - Text Helpers
 
     private var interviewerText: String {
         if !viewModel.interviewerTranscript.isEmpty {
@@ -227,23 +203,10 @@ struct LiveSessionView: View {
         }
 
         if viewModel.errorMessage != nil {
-            return "Live transcript is unavailable until the session connection is restored."
+            return "Waiting for connection\u{2026}"
         }
 
-        return "Place the phone so the interviewer is closest to the microphone. The live transcript will build here."
-    }
-
-    private var userLaneText: String {
-        switch viewModel.sessionState {
-        case .generating:
-            return "Job Hopper is drafting the answer while it finalizes the question signal."
-        case .responseReady:
-            return "Your answer is now pinned below. Speak naturally and tap Next when the interviewer moves on."
-        case .postResponseSpeech:
-            return "The app is waiting for the next interviewer cue while keeping your answer in view."
-        case .idle, .listening, .interviewerSpeaking:
-            return ""
-        }
+        return "Listening for the interviewer\u{2026}"
     }
 
     private var responsePlaceholder: String {
@@ -251,17 +214,10 @@ struct LiveSessionView: View {
         case .generating:
             return ""
         case .responseReady, .postResponseSpeech:
-            return "Your answer is pinned and ready."
+            return ""
         case .idle, .listening, .interviewerSpeaking:
-            if viewModel.errorMessage != nil {
-                return "The AI response will resume once transcript input is flowing again."
-            }
-            return "The suggested response will appear here as soon as the question has enough signal."
+            return "Waiting for question\u{2026}"
         }
-    }
-
-    private var micButtonLabel: String {
-        viewModel.audioCapture.isCapturing ? "Mute" : "Unmute"
     }
 
     private var liveStateTitle: String {
@@ -275,35 +231,9 @@ struct LiveSessionView: View {
         case .generating:
             return "Drafting"
         case .responseReady:
-            return "Pinned"
+            return "Answer Ready"
         case .postResponseSpeech:
             return "Waiting"
-        }
-    }
-
-    private var headerSyncStateTitle: String {
-        switch viewModel.syncState {
-        case .idle:
-            return "Local"
-        case .syncing:
-            return "Syncing"
-        case .synced:
-            return "Saved"
-        case .failed:
-            return "Queued"
-        }
-    }
-
-    private var compactHeaderSyncStateTitle: String {
-        switch viewModel.syncState {
-        case .idle:
-            return "Local"
-        case .syncing:
-            return "Sync"
-        case .synced:
-            return "Saved"
-        case .failed:
-            return "Retry"
         }
     }
 
@@ -324,32 +254,6 @@ struct LiveSessionView: View {
         }
     }
 
-    private var syncStateSymbol: String {
-        switch viewModel.syncState {
-        case .idle:
-            return "internaldrive"
-        case .syncing:
-            return "arrow.triangle.2.circlepath"
-        case .synced:
-            return "checkmark.icloud.fill"
-        case .failed:
-            return "icloud.slash"
-        }
-    }
-
-    private var syncStateTint: Color {
-        switch viewModel.syncState {
-        case .idle:
-            return IPTheme.textSecondary
-        case .syncing:
-            return IPTheme.accent
-        case .synced:
-            return IPTheme.success
-        case .failed:
-            return IPTheme.warning
-        }
-    }
-
     private var liveStateTint: Color {
         switch viewModel.sessionState {
         case .idle:
@@ -361,10 +265,12 @@ struct LiveSessionView: View {
         }
     }
 
+    // MARK: - Buttons
+
     private var muteButton: some View {
         ControlButton(
             icon: viewModel.audioCapture.isCapturing ? "mic.fill" : "mic.slash.fill",
-            label: micButtonLabel,
+            label: viewModel.audioCapture.isCapturing ? "Mute" : "Unmute",
             isActive: viewModel.audioCapture.isCapturing,
             tint: IPTheme.accent
         ) {
@@ -389,23 +295,15 @@ struct LiveSessionView: View {
         }
     }
 
-    private var endSessionButton: some View {
-        Button(action: { showEndConfirmation = true }) {
-            Text("End Session")
-                .font(IPTypography.bodyMedium)
-                .foregroundStyle(IPTheme.error)
-                .lineLimit(1)
-                .minimumScaleFactor(0.82)
-                .frame(maxWidth: .infinity, minHeight: 60)
-                .padding(.horizontal, 14)
-                .background(Color.white, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 22, style: .continuous)
-                        .stroke(IPTheme.error.opacity(0.18), lineWidth: 1)
-                }
+    private var endButton: some View {
+        ControlButton(
+            icon: "stop.fill",
+            label: "End",
+            isActive: false,
+            tint: IPTheme.error
+        ) {
+            showEndConfirmation = true
         }
-        .buttonStyle(.plain)
-        .frame(minWidth: 132, maxWidth: .infinity)
     }
 
     private func formatTime(_ interval: TimeInterval) -> String {
@@ -440,7 +338,7 @@ private func previewLiveViewModel(state: LiveSessionViewModel.SessionState) -> L
         responseBehavior: .analytical,
         responseTone: .confident,
         responseEmphasis: .technicalDepth,
-        responseQualityMode: .premium,
+        responseQualityMode: .standard,
         preComputedAnswers: [],
         deepgramKey: "",
         openAIKey: ""
@@ -461,40 +359,41 @@ struct ControlButton: View {
     var tint: Color = IPTheme.accent
     var action: () -> Void
 
-    @Environment(\.colorScheme) private var colorScheme
-
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 10) {
-                Circle()
-                    .fill(IPTheme.controlFill(for: colorScheme, isActive: isActive))
-                    .frame(width: 40, height: 40)
-                    .overlay {
-                        Image(systemName: icon)
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundStyle(IPTheme.controlForeground(for: colorScheme, isActive: isActive))
-                    }
+            VStack(spacing: 6) {
+                Image(systemName: icon)
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(isActive ? tint : tint.opacity(0.7))
 
                 Text(label)
-                    .font(IPTypography.bodySmall)
+                    .font(IPTypography.labelSmall)
                     .foregroundStyle(IPTheme.textPrimary)
                     .lineLimit(1)
-                    .minimumScaleFactor(0.82)
-                    .allowsTightening(true)
             }
-            .frame(maxWidth: .infinity, minHeight: 60)
-            .padding(.horizontal, 14)
-            .padding(.vertical, 10)
+            .frame(maxWidth: .infinity, minHeight: 54)
+        }
+        .buttonStyle(ControlButtonStyle(tint: tint))
+        .frame(maxWidth: .infinity)
+    }
+}
+
+struct ControlButtonStyle: ButtonStyle {
+    var tint: Color
+    @Environment(\.colorScheme) private var colorScheme
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
             .background(
-                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
                     .fill(colorScheme == .dark ? Color.white.opacity(0.08) : Color.white.opacity(0.92))
             )
             .overlay {
-                RoundedRectangle(cornerRadius: 22, style: .continuous)
-                    .stroke(IPTheme.borderColor(for: colorScheme), lineWidth: 1)
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .stroke(tint.opacity(configuration.isPressed ? 0.4 : 0.15), lineWidth: 1)
             }
-        }
-        .buttonStyle(.plain)
-        .frame(minWidth: 104, maxWidth: .infinity)
+            .scaleEffect(configuration.isPressed ? 0.94 : 1.0)
+            .opacity(configuration.isPressed ? 0.8 : 1.0)
+            .animation(.snappy(duration: 0.15), value: configuration.isPressed)
     }
 }

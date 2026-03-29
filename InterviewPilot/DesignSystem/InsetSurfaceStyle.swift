@@ -10,7 +10,7 @@ struct IPInsetSurfaceStyle: ViewModifier {
         content
             .background {
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .fill(IPTheme.inputFill(for: colorScheme))
+                    .fill(selected ? IPTheme.accentSelected : IPTheme.inputFill(for: colorScheme))
                     .overlay {
                         RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                             .stroke(

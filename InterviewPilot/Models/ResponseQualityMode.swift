@@ -8,69 +8,56 @@ enum ResponseQualityMode: String, Codable, CaseIterable, Identifiable {
 
     var displayName: String {
         switch self {
-        case .standard:
+        case .standard, .premium:
             return "Standard"
-        case .premium:
-            return "Top Tier"
         }
     }
 
     var description: String {
         switch self {
-        case .standard:
-            return "Fast, strong interview answers tuned to the selected format and style."
-        case .premium:
-            return "Sharper headline, stronger evidence, clearer tradeoffs, and higher-signal impact framing."
+        case .standard, .premium:
+            return "Technically deep, human-sounding interview answers calibrated to the specific role."
         }
     }
 
     var promptInstruction: String {
         switch self {
-        case .standard:
-            return """
-            Keep the answer crisp, natural, and directly useful in a live interview.
-            """
-        case .premium:
+        case .standard, .premium:
             return """
             Deliver a top-tier interview answer:
             - Start with a clear headline answer immediately
             - Spend most of the answer on the candidate's actions, decisions, and judgment
-            - Quantify impact when the resume or prompt supports it
+            - Quantify impact when the resume supports it
             - Make the tradeoff or rationale explicit
             - End on why it mattered, what was learned, or how it maps to the target role when useful
-            - Sound prepared but never rehearsed or inflated
+            - Sound like a real engineer talking, never rehearsed or inflated
             """
         }
     }
 
     var preGenerationInstruction: String {
         switch self {
-        case .standard:
-            return "Generate strong candidate-ready answers that are concise, direct, and natural out loud."
-        case .premium:
+        case .standard, .premium:
             return """
             Generate top-tier answers that would impress a strong interviewer:
             prioritize structured impact, clear ownership, quantified outcomes when supported,
             explicit tradeoffs, and concise reflection without sounding canned.
+            Make every answer sound like a real engineer talking, not a template.
             """
         }
     }
 
     var additionalTokenBudget: Int {
         switch self {
-        case .standard:
-            return 0
-        case .premium:
-            return 24
+        case .standard, .premium:
+            return 40
         }
     }
 
     var liveResponseTokenCap: Int {
         switch self {
-        case .standard:
+        case .standard, .premium:
             return APIConfig.maxResponseTokens
-        case .premium:
-            return APIConfig.maxPremiumResponseTokens
         }
     }
 
@@ -79,6 +66,6 @@ enum ResponseQualityMode: String, Codable, CaseIterable, Identifiable {
     }
 
     var requiresPriorityModels: Bool {
-        self == .premium
+        false
     }
 }

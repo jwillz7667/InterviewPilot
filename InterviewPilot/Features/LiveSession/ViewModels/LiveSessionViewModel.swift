@@ -60,6 +60,15 @@ final class LiveSessionViewModel {
     private var syncTask: Task<Void, Never>?
     private var pendingExchangeMetrics = PendingExchangeMetrics()
 
+    // Predictive buffering — generate in background while interviewer is still talking
+    private var isPredictiveBuffering: Bool = false
+    private var predictiveBuffer: String = ""
+    private var predictiveTokenBuffer: [String] = []
+    private var predictiveQuestion: String = ""
+    private var predictiveResponseComplete: Bool = false
+    private var predictiveFullResponse: String = ""
+    private var speechEndedWhileBuffering: Bool = false
+
     private struct PendingExchangeMetrics {
         var questionStartedAt: Date?
         var questionEndedAt: Date?
@@ -236,15 +245,29 @@ final class LiveSessionViewModel {
                     return
                 }
 
-                if self.sessionState == .generating {
+                // If already generating (non-predictive), let it finish
+                if self.sessionState == .generating && !self.isPredictiveBuffering {
                     return
                 }
 
-                guard self.sessionState == .interviewerSpeaking || self.sessionState == .listening else {
+                guard self.sessionState == .interviewerSpeaking
+                    || self.sessionState == .listening
+                    || self.isPredictiveBuffering else {
                     return
                 }
 
                 let fullQuestion = self.interviewerTranscript.trimmingCharacters(in: .whitespaces)
+
+                // Predictive generation is running in background — resolve it
+                if self.isPredictiveBuffering {
+                    self.speechEndedWhileBuffering = true
+                    if self.predictiveResponseComplete {
+                        self.resolvePredictiveResponse()
+                    }
+                    // else: onResponseComplete will call resolvePredictiveResponse
+                    return
+                }
+
                 if !self.hasFiredResponse && !fullQuestion.isEmpty {
                     self.fireResponse(question: fullQuestion)
                 }
@@ -266,15 +289,16 @@ final class LiveSessionViewModel {
             Task { @MainActor [weak self] in
                 guard let self else { return }
                 self.errorMessage = message
-                self.sessionState = .listening
-                self.hasFiredResponse = false  // Allow retry
+                self.sessionState = .responseReady
+                // Keep hasFiredResponse = true to prevent auto-retry loop.
+                // User taps "Next" to reset and try the next question.
                 self.pendingExchangeMetrics.responseStartedAt = nil
                 self.pendingExchangeMetrics.firstTokenAt = nil
                 self.pendingExchangeMetrics.streamChunkCount = 0
             }
         }
 
-        // Response generator → Display
+        // Response generator → Display (or predictive buffer)
         responseGenerator.onTokenReceived = { [weak self] token in
             Task { @MainActor [weak self] in
                 guard let self else { return }
@@ -282,15 +306,29 @@ final class LiveSessionViewModel {
                     self.pendingExchangeMetrics.firstTokenAt = Date()
                 }
                 self.pendingExchangeMetrics.streamChunkCount += 1
-                self.currentResponse += token
-                self.responseTokens.append(token)
+
+                if self.isPredictiveBuffering {
+                    self.predictiveBuffer += token
+                    self.predictiveTokenBuffer.append(token)
+                } else {
+                    self.currentResponse += token
+                    self.responseTokens.append(token)
+                }
             }
         }
 
         responseGenerator.onResponseComplete = { [weak self] fullText in
             Task { @MainActor [weak self] in
                 guard let self else { return }
-                self.completeExchange(with: fullText)
+                if self.isPredictiveBuffering {
+                    self.predictiveFullResponse = fullText
+                    self.predictiveResponseComplete = true
+                    if self.speechEndedWhileBuffering {
+                        self.resolvePredictiveResponse()
+                    }
+                } else {
+                    self.completeExchange(with: fullText)
+                }
             }
         }
     }
@@ -363,8 +401,6 @@ final class LiveSessionViewModel {
         let wordCount = fullText.split(separator: " ").count
         guard wordCount >= APIConfig.predictiveFireMinWords else { return }
 
-        let predictiveFire = pendingExchangeMetrics.questionEndedAt == nil
-
         // Check answer bank first
         let cacheLookupStartedAt = Date()
         if let cachedAnswer = answerBank.findMatch(
@@ -375,17 +411,17 @@ final class LiveSessionViewModel {
                 from: cacheLookupStartedAt,
                 to: Date()
             )
-            pendingExchangeMetrics.usedPredictiveFire = predictiveFire
+            pendingExchangeMetrics.usedPredictiveFire = true
             pendingExchangeMetrics.responseStartedAt = Date()
             hasFiredResponse = true
             isResponseFromCache = true
-            sessionState = .generating
+            isPredictiveBuffering = true
+            predictiveQuestion = fullText
+            speechEndedWhileBuffering = false
             currentExchangeStart = currentExchangeStart ?? Date()
             pendingExchangeMetrics.questionStartedAt = pendingExchangeMetrics.questionStartedAt ?? currentExchangeStart
-            accumulatedTranscript = fullText.trimmingCharacters(in: .whitespacesAndNewlines)
-            interviewerTranscript = accumulatedTranscript
             modelsUsed.insert(currentSessionModelName)
-            displayCachedAnswer(cachedAnswer)
+            bufferCachedAnswer(cachedAnswer)
             return
         }
         pendingExchangeMetrics.cacheLookupMs = elapsedMilliseconds(
@@ -402,9 +438,9 @@ final class LiveSessionViewModel {
         )
         self.questionType = classification
 
-        // Fire if enough confidence — lowered word count threshold for faster triggering
-        if classification.confidence > APIConfig.predictiveFireConfidence && wordCount >= 8 {
-            fireResponse(question: fullText, triggeredPredictively: predictiveFire)
+        // Start background generation if enough confidence — response stays hidden until speech ends
+        if classification.confidence > APIConfig.predictiveFireConfidence && wordCount >= APIConfig.predictiveFireMinWords {
+            startPredictiveGeneration(question: fullText)
         }
     }
 
@@ -492,6 +528,7 @@ final class LiveSessionViewModel {
         responseGenerator.cancelGeneration()
         sessionState = .listening
         clearPostResponseBuffers()
+        clearPredictiveBuffers()
         pendingExchangeMetrics = PendingExchangeMetrics()
     }
 
@@ -503,23 +540,144 @@ final class LiveSessionViewModel {
         }
     }
 
-    private func displayCachedAnswer(_ answer: PreComputedAnswer) {
+    private func bufferCachedAnswer(_ answer: PreComputedAnswer) {
         let condensed = makeResponseInterviewLength(answer.response)
-        let words = condensed.split(separator: " ").map(String.init)
-        Task {
-            for (index, word) in words.enumerated() {
-                if Task.isCancelled { break }
-                if self.pendingExchangeMetrics.firstTokenAt == nil {
-                    self.pendingExchangeMetrics.firstTokenAt = Date()
-                }
-                self.pendingExchangeMetrics.streamChunkCount += 1
-                let token = (index == 0 ? "" : " ") + word
-                self.currentResponse += token
-                self.responseTokens.append(token)
-                try? await Task.sleep(for: .milliseconds(20))
-            }
-            self.completeExchange(with: self.currentResponse)
+        predictiveBuffer = condensed
+        predictiveTokenBuffer = condensed.split(separator: " ").enumerated().map { index, word in
+            (index == 0 ? "" : " ") + word
         }
+        predictiveFullResponse = condensed
+        predictiveResponseComplete = true
+        pendingExchangeMetrics.firstTokenAt = Date()
+        pendingExchangeMetrics.streamChunkCount = predictiveTokenBuffer.count
+
+        // If speech already ended, resolve immediately
+        if speechEndedWhileBuffering {
+            resolvePredictiveResponse()
+        }
+    }
+
+    // MARK: - Predictive Buffering
+
+    private func startPredictiveGeneration(question: String) {
+        guard !hasFiredResponse else { return }
+        hasFiredResponse = true
+        isPredictiveBuffering = true
+        predictiveQuestion = question
+        predictiveBuffer = ""
+        predictiveTokenBuffer = []
+        predictiveFullResponse = ""
+        predictiveResponseComplete = false
+        speechEndedWhileBuffering = false
+        isResponseFromCache = false
+
+        let responseStartedAt = Date()
+        currentExchangeStart = currentExchangeStart ?? responseStartedAt
+        pendingExchangeMetrics.questionStartedAt = pendingExchangeMetrics.questionStartedAt ?? currentExchangeStart
+        pendingExchangeMetrics.responseStartedAt = responseStartedAt
+        pendingExchangeMetrics.usedPredictiveFire = true
+
+        if questionType == nil {
+            let classificationStartedAt = Date()
+            questionType = classifier.classify(question)
+            pendingExchangeMetrics.classificationMs = elapsedMilliseconds(
+                from: classificationStartedAt,
+                to: Date()
+            )
+        }
+
+        let classification = questionType
+        let model = selectModel(for: classification)
+        modelsUsed.insert(model)
+
+        // Start generation in background — tokens go to predictiveBuffer, not display
+        responseGenerator.generateResponse(
+            question: question,
+            resume: resume,
+            jobDescription: jobDescription,
+            interviewType: interviewType.rawValue,
+            jobCategory: jobCategory,
+            positionLevel: positionLevel,
+            questionType: classification?.type,
+            format: responseFormat,
+            behavior: responseBehavior,
+            tone: responseTone,
+            emphasis: responseEmphasis,
+            qualityMode: responseQualityMode,
+            model: model
+        )
+    }
+
+    private func resolvePredictiveResponse() {
+        let fullQuestion = interviewerTranscript.trimmingCharacters(in: .whitespaces)
+        guard !fullQuestion.isEmpty else {
+            clearPredictiveState()
+            return
+        }
+
+        let similarity = SimilarityMatchService.wordOverlapSimilarity(
+            predictiveQuestion.lowercased(),
+            fullQuestion.lowercased()
+        )
+
+        if similarity >= APIConfig.predictiveQuestionSimilarityThreshold {
+            // Question core didn't change — flush the buffered response
+            flushPredictiveBuffer(finalQuestion: fullQuestion)
+        } else {
+            // Question changed significantly — regenerate with the complete question
+            clearPredictiveState()
+            hasFiredResponse = false
+            isResponseFromCache = false
+            pendingExchangeMetrics = PendingExchangeMetrics()
+            pendingExchangeMetrics.questionStartedAt = currentExchangeStart
+            pendingExchangeMetrics.questionEndedAt = Date()
+            fireResponse(question: fullQuestion)
+        }
+    }
+
+    private func flushPredictiveBuffer(finalQuestion: String) {
+        isPredictiveBuffering = false
+        sessionState = .generating
+
+        accumulatedTranscript = finalQuestion
+        interviewerTranscript = finalQuestion
+
+        if predictiveResponseComplete {
+            // Response fully generated — display and complete
+            currentResponse = predictiveBuffer
+            responseTokens = predictiveTokenBuffer
+            clearPredictiveBuffersOnly()
+            completeExchange(with: currentResponse)
+        } else {
+            // Response still streaming — flush partial buffer and let remaining tokens flow to display
+            currentResponse = predictiveBuffer
+            responseTokens = predictiveTokenBuffer
+            clearPredictiveBuffersOnly()
+        }
+    }
+
+    private func clearPredictiveBuffers() {
+        isPredictiveBuffering = false
+        predictiveBuffer = ""
+        predictiveTokenBuffer = []
+        predictiveQuestion = ""
+        predictiveResponseComplete = false
+        predictiveFullResponse = ""
+        speechEndedWhileBuffering = false
+    }
+
+    private func clearPredictiveBuffersOnly() {
+        predictiveBuffer = ""
+        predictiveTokenBuffer = []
+        predictiveQuestion = ""
+        predictiveResponseComplete = false
+        predictiveFullResponse = ""
+        speechEndedWhileBuffering = false
+    }
+
+    private func clearPredictiveState() {
+        responseGenerator.cancelGeneration()
+        clearPredictiveBuffers()
     }
 
     func getExchanges() -> [Exchange] {

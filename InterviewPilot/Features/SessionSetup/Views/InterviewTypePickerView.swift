@@ -16,20 +16,20 @@ struct InterviewTypePickerView: View {
                         HStack {
                             Image(systemName: iconForType(type))
                                 .font(.system(size: 18, weight: .semibold))
-                                .foregroundStyle(selectedType == type ? IPTheme.accent : IPTheme.insetSurfaceSecondaryText(for: colorScheme))
+                                .foregroundStyle(selectedType == type ? Color.white : IPTheme.insetSurfaceSecondaryText(for: colorScheme))
 
                             Spacer()
 
                             if selectedType == type {
                                 Image(systemName: "checkmark.circle.fill")
                                     .font(.system(size: 16, weight: .semibold))
-                                    .foregroundStyle(IPTheme.accent)
+                                    .foregroundStyle(Color.white)
                             }
                         }
 
                         Text(type.displayName)
                             .font(IPTypography.bodyMedium)
-                            .foregroundStyle(IPTheme.insetSurfacePrimaryText(for: colorScheme))
+                            .foregroundStyle(selectedType == type ? Color.white : IPTheme.insetSurfacePrimaryText(for: colorScheme))
                     }
                     .frame(maxWidth: .infinity, minHeight: 84, alignment: .topLeading)
                     .padding(16)

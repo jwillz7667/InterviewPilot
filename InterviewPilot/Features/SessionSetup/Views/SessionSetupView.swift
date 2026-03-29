@@ -236,6 +236,9 @@ struct SessionSetupView: View {
                     uploadCard
                     Divider()
                         .overlay(IPTheme.borderColor(for: colorScheme))
+                    githubCard
+                    Divider()
+                        .overlay(IPTheme.borderColor(for: colorScheme))
                     listingCard
                     readinessSummaryStrip
                 }
@@ -256,24 +259,6 @@ struct SessionSetupView: View {
                     }
 
                     responseLayoutSection
-
-                    optionGroup(
-                        title: "Answer quality",
-                        detail: viewModel.responseQualityMode.description,
-                        columns: singleColumnGrid
-                    ) {
-                        ForEach(ResponseQualityMode.allCases) { mode in
-                            let isLocked = mode.requiresPriorityModels && !(subscriptionService.currentEntitlement?.hasPriorityModels ?? false)
-                            selectionChip(
-                                title: mode.displayName,
-                                symbol: responseQualityIcon(for: mode, isLocked: isLocked),
-                                isSelected: viewModel.responseQualityMode == mode,
-                                isLocked: isLocked
-                            ) {
-                                selectResponseQualityMode(mode, isLocked: isLocked)
-                            }
-                        }
-                    }
                 }
             }
 
@@ -319,10 +304,6 @@ struct SessionSetupView: View {
                         }
                     }
                 }
-            }
-
-            IPPanel(tone: .secondary, padding: 22, cornerRadius: 30) {
-                prepBankCompactSection
             }
 
             launchSection
@@ -389,6 +370,79 @@ struct SessionSetupView: View {
                         showResumeEditor = true
                     }
                 }
+            }
+        }
+    }
+
+    private var githubCard: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            compactSectionTitle("GitHub Profile", detail: "Link your GitHub so responses can reference your real projects.")
+
+            VStack(spacing: 12) {
+                HStack(spacing: 10) {
+                    Image(systemName: "chevron.left.forwardslash.chevron.right")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(IPTheme.textSecondary)
+
+                    TextField("username or github.com/username", text: $viewModel.githubUsername)
+                        .font(IPTypography.bodyMedium)
+                        .foregroundStyle(IPTheme.textPrimary)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .submitLabel(.go)
+                        .onSubmit {
+                            Task { await viewModel.fetchGitHubProfile() }
+                        }
+
+                    if viewModel.isLoadingGitHub {
+                        ProgressView()
+                            .tint(IPTheme.accent)
+                    }
+                }
+                .padding(.horizontal, 14)
+                .frame(minHeight: 52)
+                .background(IPTheme.surfacePrimary, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 20, style: .continuous)
+                        .stroke(IPTheme.borderColor(for: colorScheme), lineWidth: 1)
+                }
+
+                HStack(spacing: 10) {
+                    Button(action: {
+                        Task { await viewModel.fetchGitHubProfile() }
+                    }) {
+                        Text(viewModel.hasGitHubProfile ? "Refresh" : "Link GitHub")
+                    }
+                    .buttonStyle(IPSecondaryButtonStyle())
+                    .disabled(viewModel.isLoadingGitHub || viewModel.githubUsername.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+
+                    if viewModel.hasGitHubProfile {
+                        Button(action: { viewModel.clearGitHubProfile() }) {
+                            Text("Remove")
+                        }
+                        .buttonStyle(IPSecondaryButtonStyle())
+                    }
+                }
+            }
+
+            if let profile = viewModel.githubProfile {
+                VStack(alignment: .leading, spacing: 6) {
+                    infoBadge(title: "github.com/\(profile.username)", symbol: "link")
+
+                    if !profile.primaryLanguages.isEmpty {
+                        Text(profile.primaryLanguages.prefix(4).joined(separator: " · "))
+                            .font(IPTypography.bodySmall)
+                            .foregroundStyle(IPTheme.textSecondary)
+                    }
+
+                    Text("\(profile.topRepos.count) repos analyzed · \(profile.publicRepoCount) public")
+                        .font(IPTypography.bodySmall)
+                        .foregroundStyle(IPTheme.textSecondary)
+                }
+            } else {
+                Text("Optional — adds real project context from your repos to make interview responses more specific.")
+                    .font(IPTypography.bodySmall)
+                    .foregroundStyle(IPTheme.textSecondary)
             }
         }
     }
@@ -491,10 +545,11 @@ struct SessionSetupView: View {
                                 Image(systemName: "text.justify.left")
                                     .font(.system(size: 15, weight: .semibold))
                                     .frame(width: 18, height: 18)
+                                    .foregroundStyle(viewModel.responseFormat == format ? Color.white : IPTheme.insetSurfacePrimaryText(for: colorScheme))
 
                                 Text(format.displayName)
                                     .font(IPTypography.bodyLarge)
-                                    .foregroundStyle(IPTheme.insetSurfacePrimaryText(for: colorScheme))
+                                    .foregroundStyle(viewModel.responseFormat == format ? Color.white : IPTheme.insetSurfacePrimaryText(for: colorScheme))
                                     .lineLimit(1)
                                     .minimumScaleFactor(0.88)
 
@@ -504,14 +559,14 @@ struct SessionSetupView: View {
                                     .font(.system(size: 17, weight: .semibold))
                                     .foregroundStyle(
                                         viewModel.responseFormat == format
-                                            ? IPTheme.accent
+                                            ? Color.white
                                             : IPTheme.insetSurfaceTertiaryText(for: colorScheme)
                                     )
                             }
 
                             Text(format.description)
                                 .font(IPTypography.bodySmall)
-                                .foregroundStyle(IPTheme.insetSurfaceSecondaryText(for: colorScheme))
+                                .foregroundStyle(viewModel.responseFormat == format ? Color.white : IPTheme.insetSurfaceSecondaryText(for: colorScheme))
                                 .fixedSize(horizontal: false, vertical: true)
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -847,13 +902,13 @@ struct SessionSetupView: View {
                     Image(systemName: mode.icon)
                         .font(.system(size: 16, weight: .semibold))
                         .foregroundStyle(
-                            viewModel.sessionMode == mode ? IPTheme.accent : IPTheme.insetSurfaceSecondaryText(for: colorScheme)
+                            viewModel.sessionMode == mode ? Color.white : IPTheme.insetSurfaceSecondaryText(for: colorScheme)
                         )
                         .frame(width: 18, height: 18)
 
                     Text(mode.displayName)
                         .font(IPTypography.bodyLarge)
-                        .foregroundStyle(IPTheme.insetSurfacePrimaryText(for: colorScheme))
+                        .foregroundStyle(viewModel.sessionMode == mode ? Color.white : IPTheme.insetSurfacePrimaryText(for: colorScheme))
                         .lineLimit(1)
                         .minimumScaleFactor(0.88)
 
@@ -866,13 +921,13 @@ struct SessionSetupView: View {
                     } else if viewModel.sessionMode == mode {
                         Image(systemName: "checkmark.circle.fill")
                             .font(.system(size: 17, weight: .semibold))
-                            .foregroundStyle(IPTheme.accent)
+                            .foregroundStyle(Color.white)
                     }
                 }
 
                 Text(isLocked ? "Pro required" : mode.subtitle)
                     .font(IPTypography.bodySmall)
-                    .foregroundStyle(IPTheme.insetSurfaceSecondaryText(for: colorScheme))
+                    .foregroundStyle(viewModel.sessionMode == mode ? Color.white : IPTheme.insetSurfaceSecondaryText(for: colorScheme))
                     .fixedSize(horizontal: false, vertical: true)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -939,7 +994,7 @@ struct SessionSetupView: View {
 
     private func selectionChipForeground(isSelected: Bool, isLocked: Bool) -> Color {
         if isSelected {
-            return colorScheme == .dark ? .white : IPTheme.accent
+            return Color.white
         }
 
         if isLocked {
@@ -951,7 +1006,7 @@ struct SessionSetupView: View {
 
     private func selectionChipFill(isSelected: Bool, isLocked: Bool) -> Color {
         if isSelected {
-            return colorScheme == .dark ? IPTheme.accent.opacity(0.24) : IPTheme.accent.opacity(0.10)
+            return IPTheme.accentSelected
         }
 
         if isLocked {

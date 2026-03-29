@@ -22,7 +22,7 @@ final class SessionSetupViewModel {
     var responseQualityMode: ResponseQualityMode = .standard
     var showResumeInput: Bool = false
     var shouldPresentPaywall: Bool = false
-    var shouldPreGenerate: Bool = true
+    var shouldPreGenerate: Bool = false
     var isLoadingDefaults: Bool = false
     var isPreparingSession: Bool = false
     var isAnalyzingJobListing: Bool = false
@@ -31,6 +31,15 @@ final class SessionSetupViewModel {
     var preparedAnswerBankName: String?
     var preparedAnswerBankIsCached: Bool = false
     var preGenerationProgress: (current: Int, total: Int) = (0, 0)
+
+    // GitHub integration
+    var githubUsername: String = ""
+    var githubProfile: GitHubProfileSummary?
+    var isLoadingGitHub: Bool = false
+    var hasGitHubProfile: Bool { githubProfile != nil }
+
+    // Structured job analysis
+    var structuredJobRequirements: StructuredJobRequirements?
 
     var errorMessage: String?
 
@@ -76,7 +85,20 @@ final class SessionSetupViewModel {
 
         sections.append("TARGET INTERVIEW TRACK:\n\(interviewType.displayName)")
         sections.append("JOB LISTING CONTENT:\n\(jobListingText)")
+
+        if let structured = structuredJobRequirements {
+            sections.append(structured.formattedAnalysis)
+        }
+
         return sections.joined(separator: "\n\n")
+    }
+
+    var enrichedResume: String {
+        var parts = [resumeText]
+        if let profile = githubProfile {
+            parts.append("\nCANDIDATE'S GITHUB PROFILE:\n\(profile.formattedContext)")
+        }
+        return parts.joined(separator: "\n")
     }
     var resumeStatusLabel: String {
         if let resumeDocumentName, !resumeDocumentName.isEmpty {
@@ -119,6 +141,13 @@ final class SessionSetupViewModel {
             hasLoadedDefaults = true
         }
 
+        // Restore saved GitHub username
+        if let savedUsername = KeychainService.load(key: .githubUsername),
+           !savedUsername.isEmpty {
+            githubUsername = savedUsername
+            await fetchGitHubProfile()
+        }
+
         do {
             let settings = try await settingsService.fetchSettings()
             interviewType = settings.interviewType
@@ -127,6 +156,34 @@ final class SessionSetupViewModel {
         } catch {
             // Keep local defaults if the backend is unavailable.
         }
+    }
+
+    func fetchGitHubProfile() async {
+        let trimmed = githubUsername.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            githubProfile = nil
+            return
+        }
+
+        isLoadingGitHub = true
+        defer { isLoadingGitHub = false }
+
+        do {
+            let profile = try await GitHubService.fetchProfile(username: trimmed)
+            githubProfile = profile
+            _ = KeychainService.save(key: .githubUsername, value: profile.username)
+            invalidatePreparedAnswerBankIfNeeded()
+        } catch {
+            githubProfile = nil
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    func clearGitHubProfile() {
+        githubUsername = ""
+        githubProfile = nil
+        _ = KeychainService.delete(key: .githubUsername)
+        invalidatePreparedAnswerBankIfNeeded()
     }
 
     func handleResumeFile(result: Result<URL, Error>) {
@@ -180,6 +237,10 @@ final class SessionSetupViewModel {
             jobCategory = analysis.jobCategory
             positionLevel = analysis.positionLevel
             interviewType = derivedProfile.interviewType
+            structuredJobRequirements = JobDescriptionAnalyzer.analyze(
+                title: analysis.title,
+                rawText: analysis.extractedText
+            )
             invalidatePreparedAnswerBankIfNeeded()
         } catch {
             clearAnalyzedJobListing(clearURL: false)
@@ -285,7 +346,7 @@ final class SessionSetupViewModel {
 
         return LiveSessionViewModel(
             sessionId: sessionId,
-            resume: resumeText,
+            resume: enrichedResume,
             jobDescription: jobDescription,
             interviewType: interviewType,
             jobCategory: jobCategory ?? .generalBusiness,
@@ -306,7 +367,7 @@ final class SessionSetupViewModel {
 
         return PrepSessionViewModel(
             sessionId: sessionId,
-            resume: resumeText,
+            resume: enrichedResume,
             jobDescription: jobDescription,
             interviewType: interviewType,
             jobCategory: jobCategory ?? .generalBusiness,
@@ -384,6 +445,7 @@ final class SessionSetupViewModel {
         jobCategory = nil
         positionLevel = nil
         analyzedJobListingURL = nil
+        structuredJobRequirements = nil
         invalidatePreparedAnswerBankIfNeeded()
     }
 
