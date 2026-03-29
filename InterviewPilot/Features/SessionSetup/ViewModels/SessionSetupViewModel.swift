@@ -62,7 +62,7 @@ final class SessionSetupViewModel {
     var hasResume: Bool { !resumeText.isEmpty }
     var hasJobListingURL: Bool { !jobListingURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
     var hasJobListing: Bool { !jobListingText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
-    var isReady: Bool { hasResume && hasJobListing && jobCategory != nil && positionLevel != nil }
+    var isReady: Bool { hasResume && hasJobListing }
     var hasPreparedAnswers: Bool { !preparedAnswers.isEmpty }
     var derivedProfile: RoleResponseProfile {
         RoleResponseProfile.derive(
