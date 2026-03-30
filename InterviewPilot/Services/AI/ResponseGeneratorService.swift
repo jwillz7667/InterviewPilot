@@ -11,6 +11,22 @@ final class ResponseGeneratorService {
     @ObservationIgnored var onError: ((String) -> Void)?
 
     private let apiKey: String
+    private static let maxRetries = 3
+
+    /// Dedicated URLSession with long timeouts for streaming during extended interviews.
+    @ObservationIgnored private var _streamingSession: URLSession?
+    private var streamingSession: URLSession {
+        if let session = _streamingSession { return session }
+        let config = URLSessionConfiguration.default
+        config.timeoutIntervalForRequest = 30      // 30s to establish connection
+        config.timeoutIntervalForResource = 300    // 5 min max per streaming response
+        config.waitsForConnectivity = true
+        config.allowsConstrainedNetworkAccess = true
+        config.allowsExpensiveNetworkAccess = true
+        let session = URLSession(configuration: config)
+        _streamingSession = session
+        return session
+    }
 
     init(apiKey: String) {
         self.apiKey = apiKey
@@ -76,55 +92,69 @@ final class ResponseGeneratorService {
                 messageBody["presence_penalty"] = APIConfig.responsePresencePenalty
             }
 
-            do {
-                let streamedResponse = try await self.streamResponse(
-                    url: url,
-                    body: messageBody
-                )
+            var lastError: String?
 
+            for attempt in 0..<Self.maxRetries {
                 if Task.isCancelled {
                     self.isGenerating = false
                     return
                 }
 
-                if !streamedResponse.isEmpty {
-                    self.onResponseComplete?(streamedResponse)
-                    self.isGenerating = false
-                    return
+                // Exponential backoff on retries: 0s, 1.5s, 3s
+                if attempt > 0 {
+                    let delay = 1.5 * Double(attempt)
+                    try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+                    if Task.isCancelled {
+                        self.isGenerating = false
+                        return
+                    }
                 }
 
-                // Streaming returned empty — retry once after a short delay
-                try await Task.sleep(for: .seconds(1.5))
+                do {
+                    let streamedResponse = try await self.streamResponse(
+                        url: url,
+                        body: messageBody
+                    )
 
-                if Task.isCancelled {
-                    self.isGenerating = false
-                    return
+                    if Task.isCancelled {
+                        self.isGenerating = false
+                        return
+                    }
+
+                    if !streamedResponse.isEmpty {
+                        self.onResponseComplete?(streamedResponse)
+                        self.isGenerating = false
+                        return
+                    }
+
+                    lastError = "Response was empty"
+                    // Empty response — retry
+                    continue
+
+                } catch let error as NSError {
+                    if Task.isCancelled {
+                        self.isGenerating = false
+                        return
+                    }
+
+                    let statusCode = error.code
+                    lastError = error.localizedDescription
+
+                    // Non-retryable errors: auth failures, invalid requests
+                    if Self.isNonRetryable(statusCode: statusCode) {
+                        self.onError?(error.localizedDescription)
+                        self.isGenerating = false
+                        return
+                    }
+
+                    // Retryable: rate limits (429), server errors (500, 502, 503), timeouts, network errors
+                    continue
                 }
+            }
 
-                let retryResponse = try await self.streamResponse(
-                    url: url,
-                    body: messageBody
-                )
-
-                if Task.isCancelled {
-                    self.isGenerating = false
-                    return
-                }
-
-                guard !retryResponse.isEmpty else {
-                    self.onError?("Response was empty after retry — check your OpenAI API key and model access")
-                    self.isGenerating = false
-                    return
-                }
-
-                self.onResponseComplete?(retryResponse)
+            if !Task.isCancelled {
+                self.onError?(lastError ?? "Request failed after \(Self.maxRetries) attempts")
                 self.isGenerating = false
-
-            } catch {
-                if !Task.isCancelled {
-                    self.onError?(error.localizedDescription)
-                    self.isGenerating = false
-                }
             }
         }
     }
@@ -134,14 +164,28 @@ final class ResponseGeneratorService {
         isGenerating = false
     }
 
-    private func parseAPIError(from body: String) -> String? {
+    /// Returns true for HTTP status codes that should NOT be retried.
+    private static func isNonRetryable(statusCode: Int) -> Bool {
+        switch statusCode {
+        case 400, 401, 403, 404:
+            return true
+        default:
+            // Network errors (negative), rate limits (429), server errors (5xx) are retryable
+            return false
+        }
+    }
+
+    private func parseAPIError(from body: String) -> (message: String?, statusCode: Int?) {
         guard let data = body.data(using: .utf8),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let error = json["error"] as? [String: Any],
-              let message = error["message"] as? String else {
-            return body.isEmpty ? nil : String(body.prefix(200))
+              let error = json["error"] as? [String: Any] else {
+            return (body.isEmpty ? nil : String(body.prefix(200)), nil)
         }
-        return message
+        let message = error["message"] as? String
+        let code = error["code"] as? String
+        // Map known error codes
+        let isAuthError = code == "invalid_api_key" || code == "insufficient_quota"
+        return (message, isAuthError ? 401 : nil)
     }
 
     private func streamResponse(url: URL, body: [String: Any]) async throws -> String {
@@ -152,9 +196,10 @@ final class ResponseGeneratorService {
         request.httpMethod = "POST"
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.timeoutInterval = 30
         request.httpBody = try JSONSerialization.data(withJSONObject: payload)
 
-        let (bytes, response) = try await URLSession.shared.bytes(for: request)
+        let (bytes, response) = try await streamingSession.bytes(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse else {
             throw NSError(
@@ -170,12 +215,13 @@ final class ResponseGeneratorService {
                 errorBody += line
             }
 
+            let parsed = parseAPIError(from: errorBody)
+            let errorMessage = parsed.message ?? "HTTP \(httpResponse.statusCode)"
+
             throw NSError(
                 domain: "ResponseGeneratorService",
-                code: httpResponse.statusCode,
-                userInfo: [
-                    NSLocalizedDescriptionKey: parseAPIError(from: errorBody) ?? "HTTP \(httpResponse.statusCode)"
-                ]
+                code: parsed.statusCode ?? httpResponse.statusCode,
+                userInfo: [NSLocalizedDescriptionKey: errorMessage]
             )
         }
 

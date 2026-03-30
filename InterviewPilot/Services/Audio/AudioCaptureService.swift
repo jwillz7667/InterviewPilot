@@ -7,20 +7,22 @@ final class AudioCaptureService {
     private(set) var audioLevel: Float = 0.0
 
     @ObservationIgnored var onAudioBuffer: (@Sendable (Data) -> Void)?
+    @ObservationIgnored var onInterruption: ((Bool) -> Void)?  // true = interrupted, false = resumed
+    @ObservationIgnored var onRouteChange: (() -> Void)?
 
     // Target format for downstream speech services.
     private let targetSampleRate: Double
     private let sessionMode: AVAudioSession.Mode
     private let categoryOptions: AVAudioSession.CategoryOptions
     private let bufferDurationSeconds: Double
+    private var isInterrupted = false
 
     init(
         targetSampleRate: Double = 16000,
         sessionMode: AVAudioSession.Mode = .measurement,
         categoryOptions: AVAudioSession.CategoryOptions = [
             .allowBluetoothHFP,
-            .defaultToSpeaker,
-            .mixWithOthers
+            .defaultToSpeaker
         ],
         bufferDurationSeconds: Double = 0.1
     ) {
@@ -28,10 +30,118 @@ final class AudioCaptureService {
         self.sessionMode = sessionMode
         self.categoryOptions = categoryOptions
         self.bufferDurationSeconds = bufferDurationSeconds
+        registerNotifications()
+    }
+
+    deinit {
+        NotificationCenter.default.removeObserver(self)
     }
 
     private var bufferSize: AVAudioFrameCount {
         AVAudioFrameCount(targetSampleRate * bufferDurationSeconds)
+    }
+
+    // MARK: - Audio Session Notifications
+
+    private func registerNotifications() {
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleInterruption(_:)),
+            name: AVAudioSession.interruptionNotification,
+            object: AVAudioSession.sharedInstance()
+        )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleRouteChange(_:)),
+            name: AVAudioSession.routeChangeNotification,
+            object: AVAudioSession.sharedInstance()
+        )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleMediaServicesReset),
+            name: AVAudioSession.mediaServicesWereResetNotification,
+            object: AVAudioSession.sharedInstance()
+        )
+    }
+
+    @objc nonisolated private func handleInterruption(_ notification: Notification) {
+        guard let userInfo = notification.userInfo,
+              let typeValue = userInfo[AVAudioSessionInterruptionTypeKey] as? UInt,
+              let type = AVAudioSession.InterruptionType(rawValue: typeValue) else { return }
+
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            switch type {
+            case .began:
+                self.isInterrupted = true
+                self.onInterruption?(true)
+
+            case .ended:
+                self.isInterrupted = false
+                let shouldResume: Bool
+                if let optionsValue = userInfo[AVAudioSessionInterruptionOptionKey] as? UInt {
+                    shouldResume = AVAudioSession.InterruptionOptions(rawValue: optionsValue)
+                        .contains(.shouldResume)
+                } else {
+                    shouldResume = true
+                }
+
+                if shouldResume && self.isCapturing {
+                    self.restartEngine()
+                }
+                self.onInterruption?(false)
+
+            @unknown default:
+                break
+            }
+        }
+    }
+
+    @objc nonisolated private func handleRouteChange(_ notification: Notification) {
+        guard let userInfo = notification.userInfo,
+              let reasonValue = userInfo[AVAudioSessionRouteChangeReasonKey] as? UInt,
+              let reason = AVAudioSession.RouteChangeReason(rawValue: reasonValue) else { return }
+
+        Task { @MainActor [weak self] in
+            guard let self, self.isCapturing else { return }
+
+            switch reason {
+            case .oldDeviceUnavailable, .newDeviceAvailable, .override, .routeConfigurationChange:
+                // Audio route changed — restart engine to bind to new input device
+                self.restartEngine()
+                self.onRouteChange?()
+            default:
+                break
+            }
+        }
+    }
+
+    @objc nonisolated private func handleMediaServicesReset() {
+        Task { @MainActor [weak self] in
+            guard let self, self.isCapturing else { return }
+            // Media services were reset (rare but fatal) — full restart
+            self.stopEngineOnly()
+            self.restartEngine()
+        }
+    }
+
+    /// Restart the audio engine without tearing down the full capture pipeline.
+    private func restartEngine() {
+        stopEngineOnly()
+
+        do {
+            try configureSession()
+            try buildAndStartEngine()
+        } catch {
+            // If restart fails, notify via interruption callback
+            onInterruption?(true)
+        }
+    }
+
+    private func stopEngineOnly() {
+        audioEngine?.inputNode.removeTap(onBus: 0)
+        audioEngine?.stop()
+        audioEngine = nil
     }
 
     func configureSession() throws {
@@ -39,12 +149,18 @@ final class AudioCaptureService {
         try session.setCategory(.playAndRecord, mode: sessionMode, options: categoryOptions)
         try session.setPreferredSampleRate(targetSampleRate)
         try session.setPreferredIOBufferDuration(bufferDurationSeconds)
-        try session.setActive(true)
+        // .notifyOthersOnDeactivation ensures we reclaim audio after other apps
+        try session.setActive(true, options: .notifyOthersOnDeactivation)
     }
 
     func startCapture() throws {
         try configureSession()
+        try buildAndStartEngine()
+        isCapturing = true
+        isInterrupted = false
+    }
 
+    private func buildAndStartEngine() throws {
         let engine = AVAudioEngine()
         self.audioEngine = engine
 
@@ -95,14 +211,12 @@ final class AudioCaptureService {
 
         engine.prepare()
         try engine.start()
-        isCapturing = true
     }
 
     func stopCapture() {
-        audioEngine?.inputNode.removeTap(onBus: 0)
-        audioEngine?.stop()
-        audioEngine = nil
+        stopEngineOnly()
         isCapturing = false
+        isInterrupted = false
         audioLevel = 0.0
     }
 

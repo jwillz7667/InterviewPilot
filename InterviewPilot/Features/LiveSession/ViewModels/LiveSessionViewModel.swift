@@ -277,9 +277,52 @@ final class LiveSessionViewModel {
         deepgram.onError = { [weak self] message in
             Task { @MainActor [weak self] in
                 guard let self else { return }
-                self.errorMessage = message
+                // Only show error to user if reconnection has been exhausted.
+                // During reconnection attempts, DeepgramService handles recovery silently.
+                self.errorMessage = "Transcription issue: \(message)"
                 if self.sessionState != .idle {
                     self.sessionState = .listening
+                }
+            }
+        }
+
+        deepgram.onReconnected = { [weak self] in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                // Clear any transcription error on successful reconnect
+                if self.errorMessage?.hasPrefix("Transcription issue") == true {
+                    self.errorMessage = nil
+                }
+            }
+        }
+
+        // Audio interruption handling — restart services after interruption ends
+        audioCapture.onInterruption = { [weak self] interrupted in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                if interrupted {
+                    self.errorMessage = "Audio interrupted — reconnecting..."
+                } else {
+                    // Interruption ended, audio engine auto-restarted by AudioCaptureService
+                    if self.errorMessage == "Audio interrupted — reconnecting..." {
+                        self.errorMessage = nil
+                    }
+                }
+            }
+        }
+
+        audioCapture.onRouteChange = { [weak self] in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                // Audio route changed (e.g., phone mic connected/disconnected).
+                // AudioCaptureService auto-restarts the engine on the new route.
+                // Brief flash to indicate route change.
+                self.errorMessage = "Audio device changed — reconnected"
+                Task {
+                    try? await Task.sleep(nanoseconds: 2_000_000_000)
+                    if self.errorMessage == "Audio device changed — reconnected" {
+                        self.errorMessage = nil
+                    }
                 }
             }
         }

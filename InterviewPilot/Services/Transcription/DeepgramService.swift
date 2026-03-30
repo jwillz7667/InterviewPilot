@@ -6,14 +6,24 @@ final class DeepgramService {
     private var webSocket: URLSessionWebSocketTask?
     private var urlSession: URLSession?
     private(set) var isConnected = false
+    private(set) var isReconnecting = false
 
     @ObservationIgnored var onPartialTranscript: ((String) -> Void)?
     @ObservationIgnored var onFinalTranscript: ((String) -> Void)?
     @ObservationIgnored var onSpeechStarted: (() -> Void)?
     @ObservationIgnored var onSpeechEnded: (() -> Void)?
     @ObservationIgnored var onError: ((String) -> Void)?
+    @ObservationIgnored var onReconnected: (() -> Void)?
 
     private let apiKey: String
+    private var lastConnectKeywords: [String] = []
+    private var reconnectAttempts = 0
+    private var intentionalDisconnect = false
+    private var keepAliveTask: Task<Void, Never>?
+    private var reconnectTask: Task<Void, Never>?
+
+    private static let maxReconnectAttempts = 5
+    private static let keepAliveIntervalSeconds: UInt64 = 8
 
     init(apiKey: String) {
         self.apiKey = apiKey
@@ -27,6 +37,16 @@ final class DeepgramService {
                 userInfo: [NSLocalizedDescriptionKey: "Deepgram API key not configured"]
             )
         }
+
+        intentionalDisconnect = false
+        reconnectAttempts = 0
+        lastConnectKeywords = keywords
+        try await connectInternal(keywords: keywords)
+    }
+
+    private func connectInternal(keywords: [String]) async throws {
+        // Clean up previous connection
+        cleanupConnection()
 
         var components = URLComponents(string: "wss://api.deepgram.com/v1/listen")!
         components.queryItems = [
@@ -60,28 +80,39 @@ final class DeepgramService {
         var request = URLRequest(url: components.url!)
         request.setValue("Token \(apiKey)", forHTTPHeaderField: "Authorization")
 
-        let session = URLSession(configuration: .default)
+        let config = URLSessionConfiguration.default
+        config.timeoutIntervalForRequest = 30
+        config.timeoutIntervalForResource = 3600  // 1 hour for long interviews
+        let session = URLSession(configuration: config)
         self.urlSession = session
         self.webSocket = session.webSocketTask(with: request)
         self.webSocket?.resume()
         self.isConnected = true
 
+        startKeepAlive()
         Task { await receiveMessages() }
     }
 
     func sendAudio(_ data: Data) {
-        guard isConnected else { return }
+        guard isConnected, !isReconnecting else { return }
         webSocket?.send(.data(data)) { error in
             if let error {
                 Task { @MainActor [weak self] in
-                    self?.isConnected = false
-                    self?.onError?(error.localizedDescription)
+                    guard let self, self.isConnected else { return }
+                    self.isConnected = false
+                    self.attemptReconnect(reason: error.localizedDescription)
                 }
             }
         }
     }
 
     func disconnect() {
+        intentionalDisconnect = true
+        reconnectTask?.cancel()
+        reconnectTask = nil
+        keepAliveTask?.cancel()
+        keepAliveTask = nil
+
         let socket = webSocket
         let session = urlSession
         let closeMessage = #"{"type": "CloseStream"}"#
@@ -96,7 +127,78 @@ final class DeepgramService {
             self?.webSocket = nil
             self?.urlSession = nil
             self?.isConnected = false
+            self?.isReconnecting = false
+            self?.reconnectAttempts = 0
         }
+    }
+
+    // MARK: - Keep-Alive
+
+    private func startKeepAlive() {
+        keepAliveTask?.cancel()
+        keepAliveTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: Self.keepAliveIntervalSeconds * 1_000_000_000)
+                guard !Task.isCancelled else { break }
+                guard let self, self.isConnected, !self.isReconnecting else { continue }
+
+                // Send a Deepgram KeepAlive message to prevent idle timeout
+                let keepAlive = #"{"type": "KeepAlive"}"#
+                self.webSocket?.send(.string(keepAlive)) { error in
+                    if let error {
+                        Task { @MainActor [weak self] in
+                            guard let self, self.isConnected else { return }
+                            self.isConnected = false
+                            self.attemptReconnect(reason: "Keep-alive failed: \(error.localizedDescription)")
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // MARK: - Auto-Reconnection
+
+    private func attemptReconnect(reason: String) {
+        guard !intentionalDisconnect else { return }
+        guard reconnectAttempts < Self.maxReconnectAttempts else {
+            isReconnecting = false
+            onError?("Connection lost after \(Self.maxReconnectAttempts) reconnect attempts: \(reason)")
+            return
+        }
+
+        isReconnecting = true
+        reconnectAttempts += 1
+        let attempt = reconnectAttempts
+        let keywords = lastConnectKeywords
+
+        // Exponential backoff: 0.5s, 1s, 2s, 4s, 8s
+        let delaySeconds = 0.5 * pow(2.0, Double(attempt - 1))
+
+        reconnectTask?.cancel()
+        reconnectTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: UInt64(delaySeconds * 1_000_000_000))
+            guard !Task.isCancelled else { return }
+            guard let self, !self.intentionalDisconnect else { return }
+
+            do {
+                try await self.connectInternal(keywords: keywords)
+                self.reconnectAttempts = 0
+                self.isReconnecting = false
+                self.onReconnected?()
+            } catch {
+                self.attemptReconnect(reason: error.localizedDescription)
+            }
+        }
+    }
+
+    private func cleanupConnection() {
+        keepAliveTask?.cancel()
+        keepAliveTask = nil
+        webSocket?.cancel(with: .normalClosure, reason: nil)
+        webSocket = nil
+        urlSession?.invalidateAndCancel()
+        urlSession = nil
     }
 
     private func receiveMessages() async {
@@ -117,9 +219,12 @@ final class DeepgramService {
                 }
             }
         } catch {
-            let shouldReportError = isConnected
+            guard isConnected else { return }
             isConnected = false
-            if shouldReportError {
+
+            if !intentionalDisconnect {
+                attemptReconnect(reason: error.localizedDescription)
+            } else {
                 onError?(error.localizedDescription)
             }
         }
