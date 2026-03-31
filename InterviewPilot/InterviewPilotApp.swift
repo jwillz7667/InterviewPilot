@@ -20,13 +20,15 @@ struct InterviewAceApp: App {
 
     var body: some Scene {
         WindowGroup {
-            if versionService.requiresUpdate {
-                ForceUpdateView()
-            } else {
-                ContentView()
+            Group {
+                if versionService.requiresUpdate {
+                    ForceUpdateView()
+                } else {
+                    ContentView()
+                }
             }
+            .task { await versionService.checkVersion() }
         }
         .modelContainer(sharedModelContainer)
-        .task { await versionService.checkVersion() }
     }
 }
