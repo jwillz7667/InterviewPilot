@@ -1,0 +1,34 @@
+# Xcode build artifacts
+build/
+DerivedData/
+*.xcresult
+
+# Xcode user state
+*.xcuserstate
+*.xcuserdatad/
+xcuserdata/
+*.xcworkspace/xcuserdata/
+
+# Swift Package Manager
+.build/
+.swiftpm/
+
+# CocoaPods (if used)
+Pods/
+
+# OS files
+.DS_Store
+*.swp
+*~
+
+# Environment & secrets
+.env
+.env.*
+
+# Logs
+*.log
+logs.md
+
+# Screenshots & misc
+*.png
+!InterviewPilot/Assets.xcassets/**/*.png
