@@ -1,164 +1,160 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct OnboardingView: View {
-    @State private var currentPage = 0
+    @State private var viewModel = OnboardingViewModel()
+    @State private var showFilePicker = false
     var onComplete: () -> Void
-
-    private let pages: [(icon: String, title: String, description: String)] = [
-        (
-            "waveform.and.mic",
-            "See the room and your answer separately",
-            "Live mode keeps the interviewer transcript and your on-screen guidance in distinct lanes so the answer stays readable while you speak."
-        ),
-        (
-            "briefcase.fill",
-            "Anchor every session to the role",
-            "Paste the job listing URL and Interview Ace AI infers category, level, and the framing that should guide your answers."
-        ),
-        (
-            "sparkles.rectangle.stack",
-            "Prepare likely answers before the call",
-            "Upload your resume, build a prep bank, and reuse fast-response scaffolds during the interview."
-        ),
-        (
-            "moon.stars.fill",
-            "Stay polished in any environment",
-            "The interface is tuned for both bright rooms and darker setups, with the same branded hierarchy in each appearance."
-        ),
-    ]
 
     var body: some View {
         ZStack {
-            IAAppBackground()
+            IATheme.surfaceWhite.ignoresSafeArea()
 
             VStack(spacing: 0) {
                 header
-                introHeader
-                cards
-                footer
+                    .padding(.horizontal, IATheme.spacing20)
+                    .padding(.top, IATheme.spacing16)
+
+                ScrollView {
+                    stepContent
+                        .padding(.horizontal, IATheme.spacing20)
+                        .padding(.top, IATheme.spacing20)
+                        .padding(.bottom, 120)
+                }
+                .iaScrollablePage()
+            }
+        }
+        .safeAreaInset(edge: .bottom) {
+            footerButtons
+                .padding(.horizontal, IATheme.spacing20)
+                .padding(.bottom, IATheme.spacing24)
+                .background(.ultraThinMaterial)
+        }
+        .fileImporter(
+            isPresented: $showFilePicker,
+            allowedContentTypes: [.pdf],
+            allowsMultipleSelection: false
+        ) { result in
+            switch result {
+            case .success(let urls):
+                if let url = urls.first {
+                    viewModel.handleResumeFile(result: .success(url))
+                }
+            case .failure(let error):
+                viewModel.handleResumeFile(result: .failure(error))
             }
         }
     }
 
     private var header: some View {
         HStack {
-            IABrandLogo(size: 44, showShadow: false, variant: .filled)
+            IABrandLogo(size: 36, showShadow: false, variant: .outlined)
 
             Spacer()
 
-            Button("Skip", action: onComplete)
-                .buttonStyle(IASecondaryButtonStyle())
-                .opacity(currentPage == pages.count - 1 ? 0 : 1)
-                .allowsHitTesting(currentPage < pages.count - 1)
-        }
-        .padding(.horizontal, IATheme.spacing20)
-        .padding(.top, IATheme.spacing16)
-    }
+            StepIndicator(
+                currentStep: viewModel.currentStep.rawValue,
+                totalSteps: OnboardingViewModel.Step.allCases.count
+            )
 
-    private var introHeader: some View {
-        HStack(alignment: .top, spacing: 16) {
-            VStack(alignment: .leading, spacing: 10) {
-                Text("Interview prep that feels\nnative on iPhone")
-                    .font(IATypography.displayMedium)
-                    .foregroundStyle(IATheme.textPrimary)
-                    .lineSpacing(-4)
+            Spacer()
 
-                Text("A quick walkthrough of how Interview Ace AI organizes prep, live guidance, and review.")
-                    .font(IATypography.bodyLarge)
-                    .foregroundStyle(IATheme.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            Spacer(minLength: 0)
-
-            IAStarburst(size: 34)
-                .padding(.top, 8)
-        }
-        .padding(.horizontal, IATheme.spacing20)
-        .padding(.top, 18)
-    }
-
-    private var cards: some View {
-        TabView(selection: $currentPage) {
-            ForEach(Array(pages.enumerated()), id: \.offset) { index, page in
-                IAPanel(tone: .secondary, padding: 24, cornerRadius: 36) {
-                    VStack(alignment: .leading, spacing: 22) {
-                        HStack(alignment: .top) {
-                            IABrandLogo(size: 96, variant: .surface)
-
-                            Spacer()
-
-                            VStack(spacing: 10) {
-                                IAStarburst(size: 34)
-
-                                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                                    .fill(IATheme.accent.opacity(0.10))
-                                    .frame(width: 54, height: 54)
-                                    .overlay {
-                                        Image(systemName: page.icon)
-                                            .font(.system(size: 22, weight: .semibold))
-                                            .foregroundStyle(IATheme.accent)
-                                    }
-                            }
-                        }
-
-                        VStack(alignment: .leading, spacing: 10) {
-                            Text(page.title)
-                                .font(IATypography.headlineLarge)
-                                .foregroundStyle(IATheme.textPrimary)
-
-                            Text(page.description)
-                                .font(IATypography.bodyLarge)
-                                .foregroundStyle(IATheme.textSecondary)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-
-                        HStack(spacing: 10) {
-                            ForEach(0..<pages.count, id: \.self) { dotIndex in
-                                Capsule()
-                                    .fill(dotIndex == currentPage ? IATheme.accent : IATheme.divider)
-                                    .frame(width: dotIndex == currentPage ? 34 : 10, height: 10)
-                            }
-                        }
-
-                        Spacer(minLength: 0)
-                    }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            if !viewModel.isLastStep {
+                Button("Skip") {
+                    viewModel.advance()
                 }
-                .padding(.horizontal, IATheme.spacing20)
-                .padding(.vertical, 18)
-                .tag(index)
-            }
-        }
-        .tabViewStyle(.page(indexDisplayMode: .never))
-    }
-
-    private var footer: some View {
-        VStack(spacing: 12) {
-            Button(action: advance) {
-                HStack(spacing: 10) {
-                    Text(currentPage == pages.count - 1 ? "Get Started" : "Continue")
-                    Image(systemName: currentPage == pages.count - 1 ? "checkmark.circle.fill" : "arrow.right.circle.fill")
-                }
-            }
-            .buttonStyle(IAPrimaryButtonStyle())
-
-            Text(currentPage == pages.count - 1 ? "You can change theme and prep defaults later in settings." : "Swipe through the overview or continue step by step.")
-                .font(IATypography.bodySmall)
+                .font(IATypography.labelLarge)
                 .foregroundStyle(IATheme.textSecondary)
-                .multilineTextAlignment(.center)
+            } else {
+                Color.clear.frame(width: 40)
+            }
         }
-        .padding(.horizontal, IATheme.spacing20)
-        .padding(.bottom, IATheme.spacing24)
     }
 
-    private func advance() {
-        if currentPage < pages.count - 1 {
-            withAnimation(IAAnimations.hero) {
-                currentPage += 1
+    @ViewBuilder
+    private var stepContent: some View {
+        switch viewModel.currentStep {
+        case .setGoal:
+            SetGoalView(selectedGoal: $viewModel.selectedGoal)
+        case .connectLinkedIn:
+            ConnectLinkedInView(linkedInURL: $viewModel.linkedInURL)
+        case .uploadResume:
+            UploadResumeView(
+                resumeText: $viewModel.resumeText,
+                resumeDocumentName: $viewModel.resumeDocumentName,
+                onFilePick: { showFilePicker = true }
+            )
+        case .profileReview:
+            ProfileReviewView(
+                displayName: $viewModel.displayName,
+                currentRole: $viewModel.currentRole,
+                currentCompany: $viewModel.currentCompany,
+                skills: $viewModel.skills,
+                newSkillText: $viewModel.newSkillText,
+                onAddSkill: { viewModel.addSkill() },
+                onRemoveSkill: { viewModel.removeSkill($0) },
+                resumeLoaded: !viewModel.resumeText.isEmpty,
+                linkedInConnected: !viewModel.linkedInURL.isEmpty
+            )
+        }
+    }
+
+    private var footerButtons: some View {
+        VStack(spacing: 12) {
+            if let error = viewModel.errorMessage {
+                Label(error, systemImage: "exclamationmark.triangle.fill")
+                    .font(IATypography.bodySmall)
+                    .foregroundStyle(IATheme.error)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(12)
+                    .background(IATheme.error.opacity(0.10), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+            }
+
+            HStack(spacing: 12) {
+                if !viewModel.isFirstStep {
+                    Button(action: { viewModel.goBack() }) {
+                        Image(systemName: "chevron.left")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundStyle(IATheme.textPrimary)
+                            .frame(width: 52, height: 52)
+                            .background(IATheme.surface, in: Circle())
+                            .overlay {
+                                Circle()
+                                    .stroke(IATheme.outlineVariant, lineWidth: 1)
+                            }
+                    }
+                    .buttonStyle(.plain)
+                }
+
+                Button(action: handleNext) {
+                    HStack(spacing: 10) {
+                        if viewModel.isLoading {
+                            ProgressView()
+                                .tint(.white)
+                        } else {
+                            Text(viewModel.isLastStep ? "Looks Good, Let's Start!" : "Continue")
+                            if !viewModel.isLastStep {
+                                Image(systemName: "arrow.right")
+                            }
+                        }
+                    }
+                }
+                .buttonStyle(IAPrimaryButtonStyle(isEnabled: viewModel.canAdvance && !viewModel.isLoading))
+                .disabled(!viewModel.canAdvance || viewModel.isLoading)
+            }
+        }
+    }
+
+    private func handleNext() {
+        if viewModel.isLastStep {
+            Task {
+                let success = await viewModel.completeOnboarding()
+                if success {
+                    onComplete()
+                }
             }
         } else {
-            onComplete()
+            viewModel.advance()
         }
     }
 }

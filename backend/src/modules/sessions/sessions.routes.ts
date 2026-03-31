@@ -34,6 +34,12 @@ const createSessionSchema = z.object({
   totalTokensUsed: z.number().int().default(0),
   estimatedCost: z.number().default(0),
   telemetrySummary: sessionTelemetrySummarySchema.optional(),
+  technicalAccuracyScore: z.number().min(0).max(100).optional(),
+  communicationScore: z.number().min(0).max(100).optional(),
+  confidenceScore: z.number().min(0).max(100).optional(),
+  aiStrengths: z.array(z.string()).optional(),
+  aiImprovements: z.array(z.string()).optional(),
+  overallScore: z.number().int().min(0).max(100).optional(),
 });
 
 const updateSessionSchema = z.object({
@@ -41,6 +47,12 @@ const updateSessionSchema = z.object({
   totalTokensUsed: z.number().int().optional(),
   estimatedCost: z.number().optional(),
   telemetrySummary: sessionTelemetrySummarySchema.optional(),
+  technicalAccuracyScore: z.number().min(0).max(100).optional(),
+  communicationScore: z.number().min(0).max(100).optional(),
+  confidenceScore: z.number().min(0).max(100).optional(),
+  aiStrengths: z.array(z.string()).optional(),
+  aiImprovements: z.array(z.string()).optional(),
+  overallScore: z.number().int().min(0).max(100).optional(),
 });
 
 const listQuerySchema = z.object({
@@ -112,6 +124,12 @@ export async function sessionsRoutes(app: FastifyInstance) {
           totalTokensUsed: input.totalTokensUsed,
           estimatedCost: input.estimatedCost,
           telemetrySummary: input.telemetrySummary,
+          technicalAccuracyScore: input.technicalAccuracyScore,
+          communicationScore: input.communicationScore,
+          confidenceScore: input.confidenceScore,
+          aiStrengths: input.aiStrengths,
+          aiImprovements: input.aiImprovements,
+          overallScore: input.overallScore,
         },
       })
     );

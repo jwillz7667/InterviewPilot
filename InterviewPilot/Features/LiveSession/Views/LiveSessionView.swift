@@ -14,28 +14,27 @@ struct LiveSessionView: View {
 
     var body: some View {
         ZStack {
-            // Pure white background (light) or dark background
             (colorScheme == .dark ? Color(UIColor.systemBackground) : Color.white)
                 .ignoresSafeArea()
 
             VStack(spacing: 0) {
                 headerBar
+                    .padding(.horizontal, 16)
+                    .padding(.top, 12)
 
                 ScrollViewReader { proxy in
                     ScrollView {
-                        VStack(alignment: .leading, spacing: 14) {
-                            transcriptSection
+                        VStack(alignment: .leading, spacing: 16) {
+                            questionSection
                             responseSection
                                 .id("responseTop")
                             Color.clear.frame(height: 1).id("bottom")
                         }
                         .padding(.horizontal, 16)
-                        .padding(.top, 10)
+                        .padding(.top, 14)
                         .padding(.bottom, 130)
                     }
                     .onChange(of: viewModel.currentResponse) { oldValue, newValue in
-                        // Scroll to the top of the response once when generation starts,
-                        // then stay put so the user can read from the beginning
                         if oldValue.isEmpty && !newValue.isEmpty {
                             withAnimation(IAAnimations.standard) {
                                 proxy.scrollTo("responseTop", anchor: .top)
@@ -79,50 +78,60 @@ struct LiveSessionView: View {
     // MARK: - Header
 
     private var headerBar: some View {
-        HStack(spacing: 10) {
-            IAUtilityCircleButton(symbol: "chevron.left") {
-                showEndConfirmation = true
+        HStack(spacing: 12) {
+            Button(action: { showEndConfirmation = true }) {
+                Image(systemName: "chevron.left")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(IATheme.textPrimary)
+                    .frame(width: 40, height: 40)
+                    .background(Circle().fill(IATheme.surface))
             }
-
-            AnimatedStatusBadge(text: "Live", color: IATheme.live, isActive: true)
-
-            IAStatusPill(
-                title: formatTime(viewModel.elapsedTime),
-                symbol: "clock",
-                tint: IATheme.textSecondary
-            )
-
-            if let questionType = viewModel.questionType {
-                QuestionTypeBadge(classification: questionType)
-            }
+            .buttonStyle(.plain)
 
             Spacer()
 
-            IAStatusPill(title: liveStateTitle, symbol: liveStateSymbol, tint: liveStateTint)
+            Text("Interview Ace")
+                .font(IATypography.labelLarge)
+                .foregroundStyle(IATheme.textPrimary)
+
+            Spacer()
+
+            HStack(spacing: 8) {
+                AnimatedStatusBadge(text: "Live", color: IATheme.live, isActive: true)
+
+                IAStatusPill(
+                    title: formatTime(viewModel.elapsedTime),
+                    symbol: "clock",
+                    tint: IATheme.textSecondary
+                )
+            }
         }
-        .padding(.horizontal, 16)
-        .padding(.top, 12)
     }
 
-    // MARK: - Interviewer Bubble (solid blue, white text)
+    // MARK: - Interviewer Question Section
 
-    private var transcriptSection: some View {
+    private var questionSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Label("Interviewer", systemImage: "person.fill")
-                .font(IATypography.labelLarge)
-                .foregroundStyle(colorScheme == .dark ? IATheme.textSecondary : Color(UIColor.secondaryLabel))
+            Text("INTERVIEWER QUESTION")
+                .font(IATypography.labelSmall)
+                .tracking(1.2)
+                .foregroundStyle(IATheme.textSecondary)
 
             Text(interviewerText)
                 .font(IATypography.bodyLarge)
-                .foregroundStyle(.white)
+                .foregroundStyle(IATheme.textPrimary)
                 .lineSpacing(4)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(16)
+                .frame(maxWidth: .infinity, alignment: .center)
+                .multilineTextAlignment(.center)
+                .padding(20)
                 .background(
-                    RoundedRectangle(cornerRadius: 22, style: .continuous)
-                        .fill(IATheme.accent)
+                    RoundedRectangle(cornerRadius: IATheme.radiusMedium, style: .continuous)
+                        .fill(colorScheme == .dark ? Color(UIColor.secondarySystemBackground) : Color.white)
                 )
-                .shadow(color: Color.black.opacity(0.08), radius: 6, y: 3)
+                .overlay {
+                    RoundedRectangle(cornerRadius: IATheme.radiusMedium, style: .continuous)
+                        .stroke(IATheme.outlineVariant, lineWidth: 1)
+                }
 
             if viewModel.audioCapture.isCapturing &&
                 (viewModel.sessionState == .listening || viewModel.sessionState == .interviewerSpeaking) {
@@ -130,62 +139,126 @@ struct LiveSessionView: View {
                     .frame(height: 28)
                     .padding(.top, 2)
             }
+
+            if let questionType = viewModel.questionType {
+                QuestionTypeBadge(classification: questionType)
+            }
         }
     }
 
-    // MARK: - Response Bubble (white bg, black text, blue border, slight shadow)
+    // MARK: - Response Bubble (large blue rounded)
 
     private var responseSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Label("Suggested Response", systemImage: "sparkles")
-                .font(IATypography.labelLarge)
-                .foregroundStyle(IATheme.accent)
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                HStack(spacing: 6) {
+                    Circle()
+                        .fill(IATheme.live)
+                        .frame(width: 8, height: 8)
+                        .opacity(viewModel.sessionState == .generating ? 1 : 0.5)
 
-            if let error = viewModel.errorMessage {
-                Label(error, systemImage: "exclamationmark.triangle.fill")
-                    .font(IATypography.bodySmall)
-                    .foregroundStyle(IATheme.error)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(12)
-                    .background(IATheme.error.opacity(0.10), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    Text("LIVE SUGGESTION")
+                        .font(IATypography.labelSmall)
+                        .tracking(1.0)
+                        .foregroundStyle(.white.opacity(0.9))
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(Capsule().fill(.white.opacity(0.15)))
+
+                Spacer()
+
+                IAStatusPill(title: liveStateTitle, symbol: liveStateSymbol, tint: .white)
             }
+            .padding(.horizontal, 18)
+            .padding(.top, 18)
 
             Group {
+                if let error = viewModel.errorMessage {
+                    Label(error, systemImage: "exclamationmark.triangle.fill")
+                        .font(IATypography.bodySmall)
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 18)
+                        .padding(.top, 12)
+                }
+
                 if viewModel.currentResponse.isEmpty && viewModel.sessionState == .generating {
                     VStack(alignment: .leading, spacing: 10) {
                         ForEach(0..<3, id: \.self) { index in
                             RoundedRectangle(cornerRadius: 7, style: .continuous)
-                                .fill(IATheme.accent.opacity(0.12))
+                                .fill(Color.white.opacity(0.2))
                                 .frame(height: 16)
                                 .frame(maxWidth: index == 2 ? 180 : .infinity)
                                 .shimmer()
                         }
                     }
+                    .padding(.horizontal, 18)
+                    .padding(.top, 16)
                 } else if viewModel.currentResponse.isEmpty {
                     Text(responsePlaceholder)
                         .font(IATypography.bodyMedium)
-                        .foregroundStyle(Color(UIColor.secondaryLabel))
+                        .foregroundStyle(.white.opacity(0.6))
                         .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 18)
+                        .padding(.top, 16)
                 } else {
                     Text(viewModel.currentResponse)
                         .font(IATypography.responseText)
-                        .foregroundStyle(colorScheme == .dark ? Color.white : Color.black)
+                        .foregroundStyle(.white)
                         .lineSpacing(6)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .textSelection(.enabled)
+                        .padding(.horizontal, 18)
+                        .padding(.top, 16)
                 }
             }
-            .padding(18)
-            .background(
-                RoundedRectangle(cornerRadius: 22, style: .continuous)
-                    .fill(colorScheme == .dark ? Color(UIColor.secondarySystemBackground) : Color.white)
-            )
-            .overlay {
-                RoundedRectangle(cornerRadius: 22, style: .continuous)
-                    .stroke(IATheme.accent, lineWidth: 2)
+
+            HStack(spacing: 10) {
+                Button(action: {
+                    viewModel.resumeListeningForNextQuestion()
+                }) {
+                    Label("Regenerate", systemImage: "arrow.counterclockwise")
+                        .font(IATypography.labelLarge)
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 10)
+                        .background(Capsule().fill(.white.opacity(0.15)))
+                }
+                .buttonStyle(.plain)
+                .opacity(viewModel.currentResponse.isEmpty ? 0.4 : 1)
+                .disabled(viewModel.currentResponse.isEmpty)
+
+                Button(action: {
+                    withAnimation(IAAnimations.standard) {
+                        viewModel.resumeListeningForNextQuestion()
+                    }
+                }) {
+                    Label("Next", systemImage: "forward.fill")
+                        .font(IATypography.labelLarge)
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 10)
+                        .background(Capsule().fill(.white.opacity(0.15)))
+                }
+                .buttonStyle(.plain)
+
+                Spacer()
             }
-            .shadow(color: Color.black.opacity(0.06), radius: 8, y: 4)
+            .padding(.horizontal, 18)
+            .padding(.top, 16)
+            .padding(.bottom, 18)
         }
+        .background(
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [IATheme.primaryContainer, IATheme.primary],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+        )
+        .shadow(color: IATheme.accent.opacity(0.2), radius: 16, y: 8)
     }
 
     // MARK: - Controls
@@ -194,7 +267,6 @@ struct LiveSessionView: View {
         IABottomDock {
             HStack(spacing: 10) {
                 muteButton
-                nextButton
                 endButton
             }
         }
@@ -236,7 +308,7 @@ struct LiveSessionView: View {
         case .generating:
             return "Drafting"
         case .responseReady:
-            return "Answer Ready"
+            return "Ready"
         case .postResponseSpeech:
             return "Waiting"
         }
@@ -259,17 +331,6 @@ struct LiveSessionView: View {
         }
     }
 
-    private var liveStateTint: Color {
-        switch viewModel.sessionState {
-        case .idle:
-            return IATheme.textSecondary
-        case .listening, .responseReady:
-            return IATheme.success
-        case .interviewerSpeaking, .generating, .postResponseSpeech:
-            return IATheme.accent
-        }
-    }
-
     // MARK: - Buttons
 
     private var muteButton: some View {
@@ -283,19 +344,6 @@ struct LiveSessionView: View {
                 viewModel.audioCapture.stopCapture()
             } else {
                 try? viewModel.audioCapture.startCapture()
-            }
-        }
-    }
-
-    private var nextButton: some View {
-        ControlButton(
-            icon: "forward.fill",
-            label: "Next",
-            isActive: true,
-            tint: IATheme.accent
-        ) {
-            withAnimation(IAAnimations.standard) {
-                viewModel.resumeListeningForNextQuestion()
             }
         }
     }

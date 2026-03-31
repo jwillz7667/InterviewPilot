@@ -4,12 +4,9 @@ import SwiftUI
 
 struct LoginView: View {
     @AppStorage("hasSeenOnboarding") private var hasSeenOnboarding = false
-    @State private var email = ""
-    @State private var password = ""
-    @State private var displayName = ""
-    @State private var isRegistering = false
     @State private var authService = AuthService.shared
     @State private var currentNonce = ""
+    @State private var showEmailAuth = false
     @Environment(\.colorScheme) private var colorScheme
 
     private let hasSeenOnboardingOverride: Bool?
@@ -26,175 +23,64 @@ struct LoginView: View {
                 }
             }
         } else {
-            loginForm
+            signInScreen
         }
     }
 
-    private var loginForm: some View {
-        NavigationStack {
-            ZStack {
-                IAAppBackground()
+    private var signInScreen: some View {
+        ZStack {
+            IATheme.surfaceWhite.ignoresSafeArea()
 
-                ScrollView {
-                    VStack(alignment: .leading, spacing: IATheme.spacing24) {
-                        topUtilityBar
-                        heroSection
-                        credentialsPanel
-                    }
-                    .padding(.horizontal, IATheme.spacing20)
-                    .padding(.top, IATheme.spacing20)
-                    .padding(.bottom, 40)
-                }
-                .iaScrollablePage()
-            }
-            .toolbar(.hidden, for: .navigationBar)
-        }
-    }
+            VStack(spacing: 0) {
+                Spacer()
 
-    private var topUtilityBar: some View {
-        HStack {
-            HStack(spacing: 12) {
-                IABrandLogo(size: 42, showShadow: false, variant: .filled)
+                VStack(spacing: 24) {
+                    IABrandLogo(size: 80, showShadow: false, variant: .outlined)
 
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Interview Ace AI")
-                        .font(IATypography.labelLarge)
-                        .foregroundStyle(IATheme.textPrimary)
+                    VStack(spacing: 8) {
+                        Text("Interview Ace")
+                            .font(IATypography.displayLarge)
+                            .foregroundStyle(IATheme.textPrimary)
 
-                    Text(isRegistering ? "Create account" : "Secure sign in")
-                        .font(IATypography.bodySmall)
-                        .foregroundStyle(IATheme.textSecondary)
-                }
-            }
-
-            Spacer()
-
-            IAStatusPill(
-                title: isRegistering ? "Create account" : "Secure sign in",
-                symbol: isRegistering ? "person.crop.circle.badge.plus" : "lock.fill"
-            )
-        }
-    }
-
-    private var heroSection: some View {
-        HStack(alignment: .top, spacing: 16) {
-            VStack(alignment: .leading, spacing: 12) {
-                Text("Interview Ace AI")
-                    .font(IATypography.displayMedium)
-                    .foregroundStyle(IATheme.textPrimary)
-
-                Text("Real-time interview support with role-aware prompts, low-latency response guidance, and post-call review.")
-                    .font(IATypography.bodyLarge)
-                    .foregroundStyle(IATheme.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                HStack(spacing: 10) {
-                    featurePill("Resume aware", symbol: "doc.text")
-                    featurePill("Live guidance", symbol: "waveform")
-                    featurePill("Instant review", symbol: "chart.xyaxis.line")
-                }
-            }
-
-            Spacer()
-
-            VStack(alignment: .trailing, spacing: 12) {
-                IAStarburst(size: 42)
-                IABrandLogo(size: 72, variant: .surface)
-            }
-        }
-    }
-
-    private var credentialsPanel: some View {
-        IAPanel(tone: .primary, padding: 22, cornerRadius: 30) {
-            VStack(alignment: .leading, spacing: 16) {
-                Text(isRegistering ? "Create your workspace" : "Welcome back")
-                    .font(IATypography.headlineSmall)
-                    .foregroundStyle(IATheme.textPrimary)
-
-                Text(isRegistering ? "Set up your account to start live interview practice." : "Sign in to continue into your interview dashboard.")
-                    .font(IATypography.bodyMedium)
-                    .foregroundStyle(IATheme.textSecondary)
-
-                if isRegistering {
-                    authField(
-                        title: "Display name",
-                        placeholder: "How should we label your sessions?",
-                        text: $displayName,
-                        icon: "person.text.rectangle"
-                    )
-                }
-
-                authField(
-                    title: "Email",
-                    placeholder: "name@company.com",
-                    text: $email,
-                    icon: "envelope.badge"
-                )
-                .textInputAutocapitalization(.never)
-                .keyboardType(.emailAddress)
-
-                secureAuthField(
-                    title: "Password",
-                    placeholder: "At least 8 characters",
-                    text: $password,
-                    icon: "lock.shield"
-                )
-
-                if let error = authService.errorMessage {
-                    Label(error, systemImage: "exclamationmark.triangle.fill")
-                        .font(IATypography.bodySmall)
-                        .foregroundStyle(IATheme.error)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(12)
-                        .background(IATheme.error.opacity(0.10), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-                }
-
-                Button(action: submit) {
-                    HStack(spacing: 10) {
-                        if authService.isLoading {
-                            ProgressView()
-                                .tint(.white)
-                        } else {
-                            Text(isRegistering ? "Create Account" : "Sign In")
-                            Image(systemName: isRegistering ? "arrow.up.right.circle.fill" : "arrow.right.circle.fill")
-                        }
+                        Text("Real-time AI interview guidance\nthat helps you land the job.")
+                            .font(IATypography.bodyLarge)
+                            .foregroundStyle(IATheme.textSecondary)
+                            .multilineTextAlignment(.center)
                     }
                 }
-                .buttonStyle(IAPrimaryButtonStyle(isEnabled: canSubmit && !authService.isLoading))
-                .disabled(!canSubmit || authService.isLoading)
 
-                appleSignInButton
+                Spacer()
 
-                Button(action: {
-                    withAnimation(IAAnimations.standard) {
-                        isRegistering.toggle()
-                        authService.errorMessage = nil
+                VStack(spacing: IATheme.spacing16) {
+                    if let error = authService.errorMessage {
+                        Label(error, systemImage: "exclamationmark.triangle.fill")
+                            .font(IATypography.bodySmall)
+                            .foregroundStyle(IATheme.error)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(12)
+                            .background(IATheme.error.opacity(0.10), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
                     }
-                }) {
-                    Text(isRegistering ? "Already have an account? Sign In" : "Need an account? Sign Up")
-                        .frame(maxWidth: .infinity)
+
+                    appleSignInButton
+
+                    Button(action: { showEmailAuth = true }) {
+                        Text("Continue with Email")
+                            .font(IATypography.bodyMedium)
+                            .foregroundStyle(IATheme.accent)
+                    }
                 }
-                .buttonStyle(IASecondaryButtonStyle())
+                .padding(.horizontal, IATheme.spacing24)
+
+                Spacer()
+                    .frame(height: 40)
+
+                footer
+                    .padding(.bottom, IATheme.spacing24)
             }
         }
-    }
-
-    private func featurePill(_ title: String, symbol: String) -> some View {
-        Label(title, systemImage: symbol)
-            .font(IATypography.labelSmall)
-            .foregroundStyle(IATheme.textPrimary)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .background(Color.white.opacity(colorScheme == .dark ? 0.10 : 0.85), in: Capsule())
-            .overlay {
-                Capsule()
-                    .stroke(IATheme.borderColor(for: colorScheme), lineWidth: 1)
-            }
-    }
-
-    private var canSubmit: Bool {
-        !email.trimmingCharacters(in: .whitespaces).isEmpty &&
-        password.count >= 8
+        .sheet(isPresented: $showEmailAuth) {
+            EmailAuthSheet()
+        }
     }
 
     private var appleSignInButton: some View {
@@ -206,26 +92,31 @@ struct LoginView: View {
         } onCompletion: { result in
             handleAppleSignIn(result)
         }
-        .signInWithAppleButtonStyle(colorScheme == .dark ? .white : .black)
+        .signInWithAppleButtonStyle(.black)
         .frame(height: 56)
-        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .clipShape(Capsule())
         .disabled(authService.isLoading)
     }
 
-    private func submit() {
-        Task {
-            if isRegistering {
-                await authService.register(
-                    email: email.trimmingCharacters(in: .whitespaces),
-                    password: password,
-                    displayName: displayName.isEmpty ? nil : displayName
-                )
-            } else {
-                await authService.login(
-                    email: email.trimmingCharacters(in: .whitespaces),
-                    password: password
-                )
+    private var footer: some View {
+        VStack(spacing: 8) {
+            HStack(spacing: 16) {
+                Link("Terms of Service", destination: URL(string: "https://interviewpilot-production.up.railway.app/terms")!)
+                    .font(IATypography.labelSmall)
+                    .foregroundStyle(IATheme.textTertiary)
+
+                Text("|")
+                    .font(IATypography.labelSmall)
+                    .foregroundStyle(IATheme.textTertiary)
+
+                Link("Privacy Policy", destination: URL(string: "https://interviewpilot-production.up.railway.app/privacy")!)
+                    .font(IATypography.labelSmall)
+                    .foregroundStyle(IATheme.textTertiary)
             }
+
+            Text("\u{00A9} 2026 Interview Ace AI")
+                .font(IATypography.labelSmall)
+                .foregroundStyle(IATheme.textTertiary)
         }
     }
 
@@ -282,40 +173,6 @@ struct LoginView: View {
     private func sha256(_ input: String) -> String {
         let hashed = SHA256.hash(data: Data(input.utf8))
         return hashed.compactMap { String(format: "%02x", $0) }.joined()
-    }
-
-    private func authField(
-        title: String,
-        placeholder: String,
-        text: Binding<String>,
-        icon: String
-    ) -> some View {
-        IAInputShell(icon: icon, title: title, subtitle: nil) {
-            TextField(placeholder, text: text)
-                .font(IATypography.bodyMedium)
-                .foregroundStyle(IATheme.insetSurfacePrimaryText(for: colorScheme))
-                .autocorrectionDisabled()
-                .padding(.horizontal, 14)
-                .padding(.vertical, 14)
-                .iaInsetSurface(cornerRadius: 20)
-        }
-    }
-
-    private func secureAuthField(
-        title: String,
-        placeholder: String,
-        text: Binding<String>,
-        icon: String
-    ) -> some View {
-        IAInputShell(icon: icon, title: title, subtitle: nil) {
-            SecureField(placeholder, text: text)
-                .font(IATypography.bodyMedium)
-                .foregroundStyle(IATheme.insetSurfacePrimaryText(for: colorScheme))
-                .autocorrectionDisabled()
-                .padding(.horizontal, 14)
-                .padding(.vertical, 14)
-                .iaInsetSurface(cornerRadius: 20)
-        }
     }
 }
 

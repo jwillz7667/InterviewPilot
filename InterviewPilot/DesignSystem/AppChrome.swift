@@ -9,6 +9,7 @@ enum IASurfaceTone {
 enum IABrandLogoVariant {
     case surface
     case filled
+    case outlined
 }
 
 struct IAAppBackground: View {
@@ -88,6 +89,12 @@ struct IABrandLogo: View {
                 .foregroundStyle(glyphFill)
         }
         .frame(width: size, height: size)
+        .overlay {
+            if variant == .outlined {
+                Circle()
+                    .stroke(IATheme.accent, lineWidth: 2)
+            }
+        }
         .shadow(
             color: showShadow ? IATheme.shadowColor(for: colorScheme).opacity(variant == .filled ? 0.34 : 0.18) : .clear,
             radius: showShadow ? size * 0.14 : 0,
@@ -110,6 +117,12 @@ struct IABrandLogo: View {
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
+        case .outlined:
+            return LinearGradient(
+                colors: [Color.clear, Color.clear],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
         }
     }
 
@@ -119,6 +132,8 @@ struct IABrandLogo: View {
             return IATheme.accent
         case .filled:
             return .white
+        case .outlined:
+            return IATheme.accent
         }
     }
 }
@@ -601,7 +616,7 @@ struct IAPrimaryButtonStyle: ButtonStyle {
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
                     ),
-                in: RoundedRectangle(cornerRadius: 18, style: .continuous)
+                in: Capsule()
             )
             .scaleEffect(configuration.isPressed ? 0.985 : 1)
             .shadow(color: isEnabled ? IATheme.accent.opacity(0.16) : .clear, radius: 10, y: 6)
@@ -622,10 +637,10 @@ struct IASecondaryButtonStyle: ButtonStyle {
             .padding(.vertical, 11)
             .background(
                 IATheme.secondaryButtonGradient(for: colorScheme),
-                in: RoundedRectangle(cornerRadius: 16, style: .continuous)
+                in: Capsule()
             )
             .overlay {
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                Capsule()
                     .stroke(IATheme.borderColor(for: colorScheme), lineWidth: 1)
             }
             .scaleEffect(configuration.isPressed ? 0.985 : 1)
@@ -700,34 +715,138 @@ struct IATabAccessory: View {
     private var compactTitle: String {
         switch selectedTab {
         case 0:
-            return "Prepare"
+            return "Home"
         case 1:
-            return "History"
+            return "Insights"
         default:
-            return "Settings"
+            return "Profile"
         }
     }
 
     private var title: String {
         switch selectedTab {
         case 0:
-            return "Job-aligned interview setup"
+            return "Your interview dashboard"
         case 1:
-            return "Past session reports"
+            return "Interview performance insights"
         default:
-            return "Preferences and billing"
+            return "Account and preferences"
         }
     }
 
     private var subtitle: String {
         switch selectedTab {
         case 0:
-            return "Resume, listing, and launch controls"
+            return "Start sessions and track progress"
         case 1:
-            return "Latency, quality, and exchange review"
+            return "Scores, metrics, and AI feedback"
         default:
-            return "Theme, defaults, and subscription status"
+            return "Profile, billing, and settings"
         }
+    }
+}
+
+// MARK: - Settings Row
+
+struct IASettingsRow: View {
+    let icon: String
+    let iconColor: Color
+    let title: String
+    var action: (() -> Void)? = nil
+
+    var body: some View {
+        Button(action: { action?() }) {
+            HStack(spacing: 14) {
+                Circle()
+                    .fill(iconColor.opacity(0.12))
+                    .frame(width: 40, height: 40)
+                    .overlay {
+                        Image(systemName: icon)
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundStyle(iconColor)
+                    }
+
+                Text(title)
+                    .font(IATypography.bodyLarge)
+                    .foregroundStyle(IATheme.textPrimary)
+
+                Spacer()
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(IATheme.textTertiary)
+            }
+            .padding(.vertical, 4)
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+// MARK: - Progress Bar
+
+struct IAProgressBar: View {
+    let progress: Double
+    let label: String
+    var tint: Color = IATheme.accent
+
+    private var clampedProgress: Double {
+        min(max(progress, 0), 1)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text(label)
+                    .font(IATypography.labelLarge)
+                    .foregroundStyle(IATheme.textPrimary)
+
+                Spacer()
+
+                Text("\(Int(clampedProgress * 100))%")
+                    .font(IATypography.labelMedium)
+                    .foregroundStyle(IATheme.textSecondary)
+            }
+
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule()
+                        .fill(tint.opacity(0.15))
+                        .frame(height: 8)
+
+                    Capsule()
+                        .fill(tint)
+                        .frame(width: geo.size.width * clampedProgress, height: 8)
+                }
+            }
+            .frame(height: 8)
+        }
+    }
+}
+
+// MARK: - Skill Chip
+
+struct IASkillChip: View {
+    let name: String
+    var onRemove: (() -> Void)? = nil
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Text(name)
+                .font(IATypography.labelMedium)
+                .foregroundStyle(IATheme.accent)
+
+            if let onRemove {
+                Button(action: onRemove) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(IATheme.textSecondary)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(IATheme.accent.opacity(0.10), in: Capsule())
     }
 }
 

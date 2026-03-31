@@ -131,7 +131,7 @@ struct SessionReviewView: View {
                         .foregroundStyle(IATheme.textPrimary)
 
                     ForEach(improvements, id: \.self) { item in
-                        bulletRow(item, tint: IATheme.accentWarm)
+                        bulletRow(item, tint: IATheme.warning)
                     }
                 }
             }

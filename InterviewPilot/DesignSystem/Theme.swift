@@ -1,91 +1,94 @@
 import SwiftUI
 
 enum IATheme {
-    private static func uiColor(hex: Int) -> UIColor {
-        UIColor(
-            red: CGFloat((hex >> 16) & 0xFF) / 255,
-            green: CGFloat((hex >> 8) & 0xFF) / 255,
-            blue: CGFloat(hex & 0xFF) / 255,
-            alpha: 1
-        )
-    }
-
     private static func color(hex: Int) -> Color {
-        Color(uiColor: uiColor(hex: hex))
-    }
-
-    private static func dynamicColor(lightHex: Int, darkHex: Int) -> Color {
         Color(
-            uiColor: UIColor { traits in
-                traits.userInterfaceStyle == .dark
-                    ? uiColor(hex: darkHex)
-                    : uiColor(hex: lightHex)
-            }
+            red: Double((hex >> 16) & 0xFF) / 255,
+            green: Double((hex >> 8) & 0xFF) / 255,
+            blue: Double(hex & 0xFF) / 255
         )
     }
 
-    // MARK: - Primary Violet Palette
+    // MARK: - Material 3 Blue Palette
 
-    static let accent = dynamicColor(lightHex: 0x6C5CE7, darkHex: 0x6C5CE7)
-    static let accentForeground = Color.white
-    static let accentSecondary = dynamicColor(lightHex: 0xA29BFE, darkHex: 0xC4B5FD)
-    static let accentWarm = dynamicColor(lightHex: 0xE17055, darkHex: 0xF0896B)
-    static let teal = dynamicColor(lightHex: 0x00CEC9, darkHex: 0x55EFC4)
-    static let accentSelected = dynamicColor(lightHex: 0x4834D4, darkHex: 0x4834D4)
+    static let primary = color(hex: 0x0059BB)
+    static let primaryContainer = color(hex: 0x0070EA)
+    static let onPrimary = Color.white
+    static let onPrimaryContainer = Color.white
 
-    static let brand = accent
-    static let brandLight = dynamicColor(lightHex: 0xEDE7F6, darkHex: 0x2D1B4E)
-    static let brandDark = dynamicColor(lightHex: 0x4A1D96, darkHex: 0xD1C4E9)
+    static let secondary = color(hex: 0x535F71)
+    static let secondaryContainer = color(hex: 0xD7E3F9)
 
-    // MARK: - Semantic
-
-    static let success = dynamicColor(lightHex: 0x00CEC9, darkHex: 0x55EFC4)
-    static let warning = dynamicColor(lightHex: 0xE39A1F, darkHex: 0xF3BF5C)
-    static let error = dynamicColor(lightHex: 0xD14343, darkHex: 0xFF7A7A)
-    static let live = dynamicColor(lightHex: 0xFF3B30, darkHex: 0xFF6B63)
-
-    // MARK: - Text
-
-    static let textPrimary = dynamicColor(lightHex: 0x000000, darkHex: 0xF7FAFF)
-    static let textSecondary = dynamicColor(lightHex: 0x4E596C, darkHex: 0xB7C4DD)
-    static let textTertiary = dynamicColor(lightHex: 0x8A94A6, darkHex: 0x8390AA)
-    static let pageTextPrimary = textPrimary
-    static let pageTextSecondary = textSecondary
-    static let pageTextTertiary = textTertiary
-    static let divider = dynamicColor(lightHex: 0xD6DDEB, darkHex: 0x2A3346)
+    static let tertiary = color(hex: 0x006951)
+    static let tertiaryContainer = color(hex: 0x008468)
 
     // MARK: - Surfaces
 
-    static let surfacePrimary = dynamicColor(lightHex: 0xFFFFFF, darkHex: 0x2C2C2E)
-    static let surfaceSecondary = dynamicColor(lightHex: 0xF9FBFF, darkHex: 0x3A3A3C)
-    static let surfaceTertiary = dynamicColor(lightHex: 0xE9F1FC, darkHex: 0x3A3A3C)
-    static let groupedBackground = dynamicColor(lightHex: 0xDDE5EF, darkHex: 0x0B1120)
+    static let surface = color(hex: 0xFAF9FF)
+    static let surfaceContainer = color(hex: 0xE9EDFF)
+    static let surfaceContainerLow = color(hex: 0xF1F3FF)
 
-    static let interviewerBg = dynamicColor(lightHex: 0xFFFFFF, darkHex: 0x1A2436)
-    static let responseBg = dynamicColor(lightHex: 0xEDE7F6, darkHex: 0x2D1B4E)
+    static let onSurface = color(hex: 0x151B2A)
+    static let onSurfaceVariant = color(hex: 0x414753)
 
-    static let backgroundTop = dynamicColor(lightHex: 0xF4F7FD, darkHex: 0x1C1C1E)
-    static let backgroundBottom = dynamicColor(lightHex: 0xDDE5EF, darkHex: 0x1C1C1E)
+    static let outline = color(hex: 0x717785)
+    static let outlineVariant = color(hex: 0xC1C6D5)
 
-    // MARK: - Dynamic Helpers
+    static let inverseSurface = color(hex: 0x2A303F)
+
+    // MARK: - Semantic
+
+    static let error = color(hex: 0xBA1A1A)
+    static let errorContainer = color(hex: 0xFFDAD6)
+    static let success = color(hex: 0x006D3B)
+    static let successContainer = color(hex: 0xD0F5E0)
+    static let warning = color(hex: 0xE39A1F)
+    static let live = color(hex: 0xFF3B30)
+
+    // MARK: - Backward-Compatible Aliases
+
+    static let accent = primary
+    static let accentForeground = Color.white
+    static let accentSecondary = primaryContainer
+    static let accentSelected = primary
+
+    static let textPrimary = onSurface
+    static let textSecondary = onSurfaceVariant
+    static let textTertiary = outline
+    static let pageTextPrimary = onSurface
+    static let pageTextSecondary = onSurfaceVariant
+    static let pageTextTertiary = outline
+    static let divider = outlineVariant
+
+    static let surfacePrimary = Color.white
+    static let surfaceSecondary = surface
+    static let surfaceTertiary = surfaceContainerLow
+    static let groupedBackground = surfaceContainer
+
+    static let interviewerBg = color(hex: 0xF1F3FF)
+    static let responseBg = primaryContainer
+
+    // MARK: - Button Colors
+
+    static let buttonBlue = color(hex: 0x1978E5)
+    static let buttonBlueShadow = color(hex: 0x1978E5).opacity(0.20)
+
+    // MARK: - Dynamic Helpers (simplified for light-mode-first design)
 
     static func pageBackground(for colorScheme: ColorScheme) -> Color {
-        colorScheme == .dark ? color(hex: 0x1C1C1E) : color(hex: 0xEEF2FA)
+        colorScheme == .dark ? Color(UIColor.systemBackground) : surface
     }
 
     static func selectionFill(for colorScheme: ColorScheme, selected: Bool) -> AnyShapeStyle {
         if selected {
-            return AnyShapeStyle(colorScheme == .dark ? accent.opacity(0.28) : accent.opacity(0.12))
+            return AnyShapeStyle(primary.opacity(0.12))
         }
-
-        return AnyShapeStyle(colorScheme == .dark ? surfaceSecondary : Color.white.opacity(0.76))
+        return AnyShapeStyle(Color.white)
     }
 
     static func buttonGradient(for colorScheme: ColorScheme) -> LinearGradient {
         LinearGradient(
-            colors: colorScheme == .dark
-                ? [color(hex: 0x3A3A3C), color(hex: 0x2C2C2E)]
-                : [color(hex: 0x7C6CF0), color(hex: 0x6C5CE7)],
+            colors: [buttonBlue, primary],
             startPoint: .topLeading,
             endPoint: .bottomTrailing
         )
@@ -93,28 +96,14 @@ enum IATheme {
 
     static func secondaryButtonGradient(for colorScheme: ColorScheme) -> LinearGradient {
         LinearGradient(
-            colors: colorScheme == .dark
-                ? [color(hex: 0x3A3A3C), color(hex: 0x2C2C2E)]
-                : [Color.white, color(hex: 0xF7FAFF)],
+            colors: [Color.white, Color.white],
             startPoint: .topLeading,
             endPoint: .bottomTrailing
         )
     }
 
     static func tabAccessoryFill(for colorScheme: ColorScheme) -> AnyShapeStyle {
-        AnyShapeStyle(
-            colorScheme == .dark
-                ? LinearGradient(
-                    colors: [color(hex: 0x1A2436), color(hex: 0x131B2B)],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-                : LinearGradient(
-                    colors: [Color.white.opacity(0.97), color(hex: 0xF7FAFF).opacity(0.96)],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-        )
+        AnyShapeStyle(Color.white)
     }
 
     static func primaryButtonLabelColor(for colorScheme: ColorScheme) -> Color {
@@ -122,87 +111,71 @@ enum IATheme {
     }
 
     static func secondaryButtonLabelColor(for colorScheme: ColorScheme) -> Color {
-        colorScheme == .dark ? Color.white : textPrimary
+        onSurface
     }
 
     static func controlFill(for colorScheme: ColorScheme, isActive: Bool) -> Color {
-        if isActive {
-            return colorScheme == .dark ? accent.opacity(0.28) : accent.opacity(0.14)
-        }
-
-        return colorScheme == .dark ? Color.white.opacity(0.08) : Color.black.opacity(0.03)
+        isActive ? primary.opacity(0.12) : Color.black.opacity(0.03)
     }
 
     static func controlForeground(for colorScheme: ColorScheme, isActive: Bool) -> Color {
-        if isActive {
-            return colorScheme == .dark ? Color.white : accent
-        }
-
-        return colorScheme == .dark ? textSecondary : pageTextSecondary
+        isActive ? primary : onSurfaceVariant
     }
 
     static func borderColor(for colorScheme: ColorScheme) -> Color {
-        colorScheme == .dark ? Color.white.opacity(0.08) : Color.black.opacity(0.07)
+        outlineVariant
     }
 
     static func shadowColor(for colorScheme: ColorScheme) -> Color {
-        colorScheme == .dark ? Color.black.opacity(0.32) : accent.opacity(0.10)
+        primary.opacity(0.08)
     }
 
     static func inputFill(for colorScheme: ColorScheme) -> Color {
-        colorScheme == .dark ? color(hex: 0x2C2C2E) : Color.white
+        Color.white
     }
 
     static func insetSurfacePrimaryText(for colorScheme: ColorScheme) -> Color {
-        colorScheme == .dark ? Color.white : textPrimary
+        onSurface
     }
 
     static func insetSurfaceSecondaryText(for colorScheme: ColorScheme) -> Color {
-        colorScheme == .dark ? textSecondary : pageTextSecondary
+        onSurfaceVariant
     }
 
     static func insetSurfaceTertiaryText(for colorScheme: ColorScheme) -> Color {
-        colorScheme == .dark ? textTertiary : pageTextTertiary
+        outline
     }
 
     static func insetSurfaceBorder(for colorScheme: ColorScheme, selected: Bool) -> Color {
-        if selected {
-            return Color.white.opacity(0.35)
-        }
-
-        return borderColor(for: colorScheme)
+        selected ? primary : outlineVariant
     }
 
     static func insetSurfaceShadow(for colorScheme: ColorScheme, selected: Bool) -> Color {
-        if colorScheme == .dark {
-            return Color.black.opacity(selected ? 0.30 : 0.18)
-        }
-
-        return accent.opacity(selected ? 0.14 : 0.06)
+        selected ? primary.opacity(0.12) : Color.black.opacity(0.04)
     }
 
-    // MARK: - Question Type Colors (Violet / Teal / Coral spread)
+    // MARK: - Question Type Colors (blue-based)
 
     static func questionTypeColor(_ type: QuestionType) -> Color {
         switch type {
         case .behavioral:
-            return color(hex: 0x6C5CE7)
+            return color(hex: 0x0059BB)
         case .technical:
-            return dynamicColor(lightHex: 0x00CEC9, darkHex: 0x55EFC4)
+            return color(hex: 0x006D3B)
         case .systemDesign:
-            return dynamicColor(lightHex: 0xE17055, darkHex: 0xF0896B)
+            return color(hex: 0xE17055)
         case .coding:
-            return color(hex: 0x4834D4)
+            return color(hex: 0x0070EA)
         case .situational:
-            return color(hex: 0xA29BFE)
+            return color(hex: 0x535F71)
         case .background:
-            return dynamicColor(lightHex: 0x7C8596, darkHex: 0x95A0B7)
+            return color(hex: 0x717785)
         case .curveball:
-            return color(hex: 0xD63031)
+            return color(hex: 0xBA1A1A)
         case .followUp:
-            return color(hex: 0x7C6CF0)
+            return color(hex: 0x006951)
         case .unknown:
-            return dynamicColor(lightHex: 0x8A94A6, darkHex: 0x7B869E)
+            return color(hex: 0x717785)
         }
     }
 
@@ -216,10 +189,15 @@ enum IATheme {
     static let spacing24: CGFloat = 24
     static let spacing32: CGFloat = 32
 
+    // MARK: - Additional Surfaces
+
+    static let surfaceWhite = Color.white
+
     // MARK: - Radii
 
-    static let radiusSmall: CGFloat = 14
-    static let radiusMedium: CGFloat = 20
-    static let radiusLarge: CGFloat = 28
-    static let radiusXL: CGFloat = 34
+    static let radiusSmall: CGFloat = 8
+    static let radiusMedium: CGFloat = 16
+    static let radiusLarge: CGFloat = 24
+    static let radiusXL: CGFloat = 24
+    static let radiusFull: CGFloat = 9999
 }

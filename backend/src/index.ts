@@ -10,6 +10,7 @@ import {
 } from './config/database.js';
 import { authRoutes } from './modules/auth/auth.routes.js';
 import { usersRoutes } from './modules/users/users.routes.js';
+import { profileRoutes } from './modules/users/profile.routes.js';
 import { settingsRoutes } from './modules/settings/settings.routes.js';
 import { apiKeysRoutes } from './modules/api-keys/api-keys.routes.js';
 import { sessionsRoutes } from './modules/sessions/sessions.routes.js';
@@ -94,6 +95,7 @@ app.setErrorHandler((error: Error & { statusCode?: number; code?: string }, _req
 // Routes
 await app.register(authRoutes);
 await app.register(usersRoutes);
+await app.register(profileRoutes);
 await app.register(settingsRoutes);
 await app.register(apiKeysRoutes);
 await app.register(sessionsRoutes);

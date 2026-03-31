@@ -66,6 +66,14 @@ model User {
   googleId      String?   @unique
   isSandboxTester Boolean @default(false)
 
+  linkedinUrl          String?
+  primaryGoal          String?
+  resumeFileUrl        String?
+  currentRole          String?
+  currentCompany       String?
+  yearsInRole          Int?
+  onboardingCompleted  Boolean  @default(false)
+
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
   lastLoginAt   DateTime?
@@ -79,6 +87,8 @@ model User {
   entitlement   UserEntitlement?
   billingEvents BillingEvent[]
   sessionAccessGrants SessionAccessGrant[]
+  workExperiences WorkExperience[]
+  skills          UserSkill[]
 
   @@map("users")
 }
@@ -236,6 +246,13 @@ model InterviewSession {
   estimatedCost   Float      @default(0)
   telemetrySummary Json?
 
+  technicalAccuracyScore  Float?
+  communicationScore      Float?
+  confidenceScore         Float?
+  aiStrengths             Json?
+  aiImprovements          Json?
+  overallScore            Int?
+
   exchanges       Exchange[]
 
   createdAt       DateTime   @default(now())
@@ -298,4 +315,30 @@ model PreComputedAnswer {
 
   @@index([bankId])
   @@map("pre_computed_answers")
+}
+
+model WorkExperience {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  company   String
+  startYear Int
+  endYear   Int?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@map("work_experiences")
+}
+
+model UserSkill {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  createdAt DateTime @default(now())
+
+  @@unique([userId, name])
+  @@index([userId])
+  @@map("user_skills")
 }

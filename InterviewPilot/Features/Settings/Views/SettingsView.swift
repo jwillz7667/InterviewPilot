@@ -35,36 +35,19 @@ struct SettingsView: View {
 
                 ScrollView {
                     VStack(spacing: IATheme.spacing20) {
-                        topUtilityBar
-                        headerSection
-                        accountSummaryPanel
-
-                        if let error = viewModel.errorMessage {
-                            Label(error, systemImage: "exclamationmark.triangle.fill")
-                                .font(IATypography.bodySmall)
-                                .foregroundStyle(IATheme.error)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding(14)
-                                .background(IATheme.error.opacity(0.10), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-                        }
-
-                        subscriptionSection
-                        appearanceSection
-                        aboutSection
-                        accountDangerSection
+                        profilePreviewSection
+                        accountSettingsSection
+                        supportSection
+                        logoutSection
+                        versionFooter
                     }
                     .padding(.horizontal, IATheme.spacing20)
                     .padding(.vertical, IATheme.spacing20)
-                    .padding(.bottom, 120)
+                    .padding(.bottom, 40)
                 }
                 .iaScrollablePage()
             }
             .toolbar(.hidden, for: .navigationBar)
-            .safeAreaInset(edge: .bottom) {
-                signOutDock
-                    .padding(.horizontal, IATheme.spacing16)
-                    .padding(.bottom, IATheme.spacing8)
-            }
             .confirmationDialog("Sign Out", isPresented: $showSignOutConfirm) {
                 Button("Sign Out", role: .destructive) {
                     Task { await authService.logout() }
@@ -89,51 +72,16 @@ struct SettingsView: View {
         }
     }
 
-    private var topUtilityBar: some View {
-        HStack {
-            HStack(spacing: 12) {
-                IABrandLogo(size: 38, showShadow: false, variant: .surface)
+    // MARK: - Profile Preview
 
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Interview Ace AI")
-                        .font(IATypography.labelLarge)
-                        .foregroundStyle(IATheme.textPrimary)
-
-                    Text("Settings")
-                        .font(IATypography.bodySmall)
-                        .foregroundStyle(IATheme.textSecondary)
-                }
-            }
-
-            Spacer()
-
-            IAUtilityCircleButton(symbol: "xmark") { dismiss() }
-        }
-    }
-
-    private var headerSection: some View {
-        IAPanel(tone: .secondary, padding: 20, cornerRadius: 30) {
-            VStack(alignment: .leading, spacing: 10) {
-                Text("Settings")
-                    .font(IATypography.displayMedium)
-                    .foregroundStyle(IATheme.textPrimary)
-
-                Text("Control appearance, prep defaults, and subscription details from a cleaner account surface.")
-                    .font(IATypography.bodyLarge)
-                    .foregroundStyle(IATheme.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        }
-    }
-
-    private var accountSummaryPanel: some View {
-        IAPanel(tone: .secondary, padding: 20, cornerRadius: 30) {
-            HStack(spacing: 16) {
-                IABrandLogo(size: 54, showShadow: false, variant: .filled)
+    private var profilePreviewSection: some View {
+        Button(action: { showProfile = true }) {
+            HStack(spacing: 14) {
+                IABrandLogo(size: 56, showShadow: false, variant: .filled)
 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(currentUser?.displayName ?? "Interview Ace AI User")
-                        .font(IATypography.headlineSmall)
+                    Text(currentUser?.displayName ?? "Interview Ace User")
+                        .font(IATypography.headlineMedium)
                         .foregroundStyle(IATheme.textPrimary)
 
                     if let email = currentUser?.email {
@@ -143,179 +91,164 @@ struct SettingsView: View {
                     }
 
                     if let entitlement = currentEntitlement {
-                        Text(entitlement.statusDetail)
-                            .font(IATypography.bodySmall)
-                            .foregroundStyle(IATheme.textSecondary)
-                            .fixedSize(horizontal: false, vertical: true)
+                        IAStatusPill(
+                            title: entitlement.planTitle,
+                            symbol: entitlement.sandboxFullAccess ? "checkmark.seal.fill" : "creditcard.fill",
+                            tint: entitlement.sandboxFullAccess ? IATheme.success : IATheme.accent
+                        )
+                        .padding(.top, 4)
                     }
                 }
 
                 Spacer()
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(IATheme.textTertiary)
+            }
+            .padding(18)
+            .background(
+                RoundedRectangle(cornerRadius: IATheme.radiusLarge, style: .continuous)
+                    .fill(IATheme.surfaceWhite)
+            )
+            .overlay {
+                RoundedRectangle(cornerRadius: IATheme.radiusLarge, style: .continuous)
+                    .stroke(IATheme.outlineVariant, lineWidth: 1)
+            }
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: - Account Settings
+
+    private var accountSettingsSection: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Account Settings")
+                .font(IATypography.headlineSmall)
+                .foregroundStyle(IATheme.textPrimary)
+                .padding(.leading, 4)
+
+            VStack(spacing: 0) {
+                IASettingsRow(icon: "bell.fill", iconColor: IATheme.accent, title: "Notification Preferences")
+
+                Divider().padding(.leading, 54)
+
+                IASettingsRow(icon: "creditcard.fill", iconColor: IATheme.tertiary, title: "Subscription & Billing") {
+                    showPaywall = true
+                }
+
+                Divider().padding(.leading, 54)
+
+                IASettingsRow(icon: "lock.shield.fill", iconColor: IATheme.warning, title: "Privacy & Security")
+            }
+            .padding(.vertical, 8)
+            .padding(.horizontal, 14)
+            .background(
+                RoundedRectangle(cornerRadius: IATheme.radiusLarge, style: .continuous)
+                    .fill(IATheme.surfaceWhite)
+            )
+            .overlay {
+                RoundedRectangle(cornerRadius: IATheme.radiusLarge, style: .continuous)
+                    .stroke(IATheme.outlineVariant, lineWidth: 1)
             }
         }
     }
 
-    private var subscriptionSection: some View {
-        IAPanel(tone: .secondary, padding: 22, cornerRadius: 30) {
-            VStack(alignment: .leading, spacing: 14) {
-                Text("Subscription")
-                    .font(IATypography.headlineSmall)
-                    .foregroundStyle(IATheme.textPrimary)
+    // MARK: - Support
 
-                infoRow(
-                    icon: "creditcard.fill",
-                    title: currentEntitlement?.planTitle ?? "Trial",
-                    detail: currentEntitlement?.statusDetail ?? "5 free live interviews are included for new accounts."
-                )
+    private var supportSection: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Support")
+                .font(IATypography.headlineSmall)
+                .foregroundStyle(IATheme.textPrimary)
+                .padding(.leading, 4)
 
-                Button(action: { showPaywall = true }) {
-                    Label(
-                        currentEntitlement?.hasActiveSubscription == true ? "Manage Subscription" : "Upgrade to Continue",
-                        systemImage: "sparkles"
-                    )
-                    .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(IASecondaryButtonStyle())
-            }
-        }
-    }
-
-    private var appearanceSection: some View {
-        IAPanel(tone: .primary, padding: 22, cornerRadius: 30) {
-            VStack(alignment: .leading, spacing: 14) {
-                Text("Appearance")
-                    .font(IATypography.headlineSmall)
-                    .foregroundStyle(IATheme.textPrimary)
-
-                ForEach(AppAppearance.allCases) { appearance in
-                    Button(action: { appearanceRawValue = appearance.rawValue }) {
-                        HStack(spacing: 14) {
-                            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                .fill(currentAppearance == appearance ? IATheme.accentSelected : IATheme.surfaceTertiary)
-                                .frame(width: 42, height: 42)
-                                .overlay {
-                                    Image(systemName: appearance.symbol)
-                                        .font(.system(size: 17, weight: .semibold))
-                                        .foregroundStyle(
-                                            currentAppearance == appearance
-                                                ? Color.white
-                                                : IATheme.insetSurfaceSecondaryText(for: colorScheme)
-                                        )
-                                }
-
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(appearance.title)
-                                    .font(IATypography.bodyLarge)
-                                    .foregroundStyle(currentAppearance == appearance ? Color.white : IATheme.insetSurfacePrimaryText(for: colorScheme))
-                                Text(appearance.subtitle)
-                                    .font(IATypography.bodySmall)
-                                    .foregroundStyle(currentAppearance == appearance ? Color.white : IATheme.insetSurfaceSecondaryText(for: colorScheme))
-                            }
-
-                            Spacer()
-
-                            Image(systemName: currentAppearance == appearance ? "checkmark.circle.fill" : "circle")
-                                .font(.system(size: 18, weight: .semibold))
-                                .foregroundStyle(
-                                    currentAppearance == appearance
-                                        ? Color.white
-                                        : IATheme.insetSurfaceTertiaryText(for: colorScheme)
-                                )
-                        }
-                        .padding(16)
-                        .iaInsetSurface(selected: currentAppearance == appearance, cornerRadius: 22)
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-        }
-    }
-
-    private var currentAppearance: AppAppearance {
-        AppAppearance(rawValue: appearanceRawValue) ?? .system
-    }
-
-    private var aboutSection: some View {
-        IAPanel(tone: .primary, padding: 22, cornerRadius: 30) {
-            VStack(alignment: .leading, spacing: 14) {
-                Text("About & Support")
-                    .font(IATypography.headlineSmall)
-                    .foregroundStyle(IATheme.textPrimary)
-
-                Button(action: { showProfile = true }) {
-                    infoRow(icon: "person.crop.circle.fill", title: "Profile", detail: "Display name, resume, and LinkedIn settings.")
-                }
-                .buttonStyle(.plain)
-
+            VStack(spacing: 0) {
                 NavigationLink {
                     HelpView()
                 } label: {
-                    infoRow(icon: "questionmark.circle.fill", title: "Help & FAQ", detail: "Common questions about live sessions and prep.")
+                    IASettingsRow(icon: "questionmark.circle.fill", iconColor: IATheme.accent, title: "Help & Support")
                 }
                 .buttonStyle(.plain)
+
+                Divider().padding(.leading, 54)
 
                 NavigationLink {
                     LegalWebView(url: URL(string: "https://interviewpilot-production.up.railway.app/privacy")!, title: "Privacy Policy")
                 } label: {
-                    infoRow(icon: "hand.raised.fill", title: "Privacy Policy", detail: "How your data is handled.")
+                    IASettingsRow(icon: "hand.raised.fill", iconColor: IATheme.secondary, title: "Privacy Policy")
                 }
                 .buttonStyle(.plain)
+
+                Divider().padding(.leading, 54)
 
                 NavigationLink {
                     LegalWebView(url: URL(string: "https://interviewpilot-production.up.railway.app/terms")!, title: "Terms of Service")
                 } label: {
-                    infoRow(icon: "doc.text.fill", title: "Terms of Service", detail: "Usage agreement and conditions.")
+                    IASettingsRow(icon: "doc.text.fill", iconColor: IATheme.secondary, title: "Terms of Service")
                 }
                 .buttonStyle(.plain)
-
-                infoRow(icon: "lock.shield.fill", title: "Security", detail: "Authentication tokens are stored in the iOS Keychain.")
+            }
+            .padding(.vertical, 8)
+            .padding(.horizontal, 14)
+            .background(
+                RoundedRectangle(cornerRadius: IATheme.radiusLarge, style: .continuous)
+                    .fill(IATheme.surfaceWhite)
+            )
+            .overlay {
+                RoundedRectangle(cornerRadius: IATheme.radiusLarge, style: .continuous)
+                    .stroke(IATheme.outlineVariant, lineWidth: 1)
             }
         }
     }
 
-    private var accountDangerSection: some View {
-        IAPanel(tone: .primary, padding: 22, cornerRadius: 30) {
-            VStack(alignment: .leading, spacing: 14) {
-                Text("Account")
-                    .font(IATypography.headlineSmall)
-                    .foregroundStyle(IATheme.textPrimary)
+    // MARK: - Logout
 
-                Button(action: { showDeleteAccountConfirm = true }) {
-                    HStack(spacing: 12) {
-                        Circle()
-                            .fill(IATheme.error.opacity(0.10))
-                            .frame(width: 34, height: 34)
-                            .overlay {
-                                Image(systemName: "trash.fill")
-                                    .font(.system(size: 14, weight: .semibold))
-                                    .foregroundStyle(IATheme.error)
-                            }
-
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Delete Account")
-                                .font(IATypography.bodyLarge)
-                                .foregroundStyle(IATheme.error)
-                            Text("Permanently remove your account and all data.")
-                                .font(IATypography.bodySmall)
-                                .foregroundStyle(IATheme.textSecondary)
-                        }
-
-                        Spacer()
-                    }
-                }
-                .buttonStyle(.plain)
-            }
-        }
-    }
-
-    private var signOutDock: some View {
-        IABottomDock {
+    private var logoutSection: some View {
+        VStack(spacing: 12) {
             Button(action: { showSignOutConfirm = true }) {
-                Label("Sign Out", systemImage: "rectangle.portrait.and.arrow.right")
-                    .frame(maxWidth: .infinity)
+                HStack(spacing: 10) {
+                    Image(systemName: "rectangle.portrait.and.arrow.right")
+                        .font(.system(size: 16, weight: .semibold))
+                    Text("Log Out")
+                        .font(IATypography.bodyLarge)
+                }
+                .foregroundStyle(IATheme.error)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 14)
+                .background(
+                    RoundedRectangle(cornerRadius: IATheme.radiusLarge, style: .continuous)
+                        .fill(IATheme.error.opacity(0.08))
+                )
+                .overlay {
+                    RoundedRectangle(cornerRadius: IATheme.radiusLarge, style: .continuous)
+                        .stroke(IATheme.error.opacity(0.2), lineWidth: 1)
+                }
             }
-            .buttonStyle(IAPrimaryButtonStyle(isEnabled: true))
+            .buttonStyle(.plain)
+
+            Button(action: { showDeleteAccountConfirm = true }) {
+                Text("Delete Account")
+                    .font(IATypography.bodySmall)
+                    .foregroundStyle(IATheme.error.opacity(0.7))
+            }
         }
+    }
+
+    // MARK: - Version Footer
+
+    private var versionFooter: some View {
+        VStack(spacing: 4) {
+            Text("Interview Ace AI")
+                .font(IATypography.labelMedium)
+                .foregroundStyle(IATheme.textTertiary)
+
+            Text("Version \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0") (\(Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "1"))")
+                .font(IATypography.labelSmall)
+                .foregroundStyle(IATheme.textTertiary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.top, IATheme.spacing16)
     }
 
     private var currentUser: AuthUser? {
@@ -324,30 +257,6 @@ struct SettingsView: View {
 
     private var currentEntitlement: BillingEntitlement? {
         previewEntitlement ?? subscriptionService.currentEntitlement
-    }
-
-    private func infoRow(icon: String, title: String, detail: String) -> some View {
-        HStack(alignment: .top, spacing: 12) {
-            Circle()
-                .fill(IATheme.accent.opacity(0.10))
-                .frame(width: 34, height: 34)
-                .overlay {
-                    Image(systemName: icon)
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(IATheme.accent)
-                }
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(IATypography.bodyLarge)
-                    .foregroundStyle(IATheme.textPrimary)
-                Text(detail)
-                    .font(IATypography.bodySmall)
-                    .foregroundStyle(IATheme.textSecondary)
-            }
-
-            Spacer()
-        }
     }
 }
 

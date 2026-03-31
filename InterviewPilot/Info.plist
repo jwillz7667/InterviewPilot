@@ -6,6 +6,12 @@
 	<string>https://interviewpilot-production.up.railway.app</string>
 	<key>CFBundleDisplayName</key>
 	<string>Interview Ace AI</string>
+	<key>UIAppFonts</key>
+	<array>
+		<string>PublicSans-Variable.ttf</string>
+		<string>SourceSans3-Variable.ttf</string>
+		<string>PlusJakartaSans-Variable.ttf</string>
+	</array>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Interview Ace AI needs microphone access to hear and transcribe the interviewer's questions in real-time.</string>
 	<key>UIBackgroundModes</key>
