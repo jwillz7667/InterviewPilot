@@ -1,6 +1,6 @@
 import SwiftUI
 
-struct IPInsetSurfaceStyle: ViewModifier {
+struct IAInsetSurfaceStyle: ViewModifier {
     let selected: Bool
     let cornerRadius: CGFloat
 
@@ -10,17 +10,17 @@ struct IPInsetSurfaceStyle: ViewModifier {
         content
             .background {
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .fill(selected ? IPTheme.accentSelected : IPTheme.inputFill(for: colorScheme))
+                    .fill(selected ? IATheme.accentSelected : IATheme.inputFill(for: colorScheme))
                     .overlay {
                         RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                             .stroke(
-                                IPTheme.insetSurfaceBorder(for: colorScheme, selected: selected),
+                                IATheme.insetSurfaceBorder(for: colorScheme, selected: selected),
                                 lineWidth: selected ? 1.5 : 1
                             )
                     }
             }
             .shadow(
-                color: IPTheme.insetSurfaceShadow(for: colorScheme, selected: selected),
+                color: IATheme.insetSurfaceShadow(for: colorScheme, selected: selected),
                 radius: selected ? 20 : 12,
                 y: selected ? 10 : 6
             )
@@ -28,7 +28,7 @@ struct IPInsetSurfaceStyle: ViewModifier {
 }
 
 extension View {
-    func ipInsetSurface(selected: Bool = false, cornerRadius: CGFloat = 18) -> some View {
-        modifier(IPInsetSurfaceStyle(selected: selected, cornerRadius: cornerRadius))
+    func iaInsetSurface(selected: Bool = false, cornerRadius: CGFloat = 18) -> some View {
+        modifier(IAInsetSurfaceStyle(selected: selected, cornerRadius: cornerRadius))
     }
 }

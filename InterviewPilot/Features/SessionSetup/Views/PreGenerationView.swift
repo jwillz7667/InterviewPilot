@@ -6,65 +6,65 @@ struct PreGenerationView: View {
     let isGenerating: Bool
 
     var body: some View {
-        VStack(spacing: IPTheme.spacing16) {
+        VStack(spacing: IATheme.spacing16) {
             if isGenerating {
-                IPPanel(tone: .secondary, padding: 18, cornerRadius: 24) {
+                IAPanel(tone: .secondary, padding: 18, cornerRadius: 24) {
                     VStack(alignment: .leading, spacing: 12) {
                         HStack(spacing: 10) {
                             ProgressView()
                                 .progressViewStyle(.circular)
-                                .tint(IPTheme.accent)
+                                .tint(IATheme.accent)
 
                             VStack(alignment: .leading, spacing: 2) {
                                 Text("Building your prep bank")
-                                    .font(IPTypography.bodyLarge)
-                                    .foregroundStyle(IPTheme.textPrimary)
+                                    .font(IATypography.bodyLarge)
+                                    .foregroundStyle(IATheme.textPrimary)
 
                                 Text("Personalized questions and fast-answer scaffolds are being prepared.")
-                                    .font(IPTypography.bodySmall)
-                                    .foregroundStyle(IPTheme.textSecondary)
+                                    .font(IATypography.bodySmall)
+                                    .foregroundStyle(IATheme.textSecondary)
                             }
                         }
 
                         if progress.total > 0 {
                             ProgressView(value: Double(progress.current), total: Double(progress.total))
-                                .tint(IPTheme.accent)
+                                .tint(IATheme.accent)
 
                             Text("\(progress.current) of \(progress.total) questions ready")
-                                .font(IPTypography.bodySmall)
-                                .foregroundStyle(IPTheme.textSecondary)
+                                .font(IATypography.bodySmall)
+                                .foregroundStyle(IATheme.textSecondary)
                         }
                     }
                 }
             }
 
             if !answers.isEmpty {
-                IPPanel(tone: .secondary, padding: 18, cornerRadius: 24) {
+                IAPanel(tone: .secondary, padding: 18, cornerRadius: 24) {
                     VStack(alignment: .leading, spacing: 12) {
                         Text("Prepared questions")
-                            .font(IPTypography.bodyLarge)
-                            .foregroundStyle(IPTheme.textPrimary)
+                            .font(IATypography.bodyLarge)
+                            .foregroundStyle(IATheme.textPrimary)
 
                         ForEach(answers.prefix(5)) { answer in
                             HStack(alignment: .top, spacing: 10) {
                                 Circle()
-                                    .fill(IPTheme.questionTypeColor(answer.questionType).opacity(0.14))
+                                    .fill(IATheme.questionTypeColor(answer.questionType).opacity(0.14))
                                     .frame(width: 28, height: 28)
                                     .overlay {
                                         Image(systemName: "checkmark")
                                             .font(.system(size: 11, weight: .bold))
-                                            .foregroundStyle(IPTheme.questionTypeColor(answer.questionType))
+                                            .foregroundStyle(IATheme.questionTypeColor(answer.questionType))
                                     }
 
                                 VStack(alignment: .leading, spacing: 4) {
                                     Text(answer.question)
-                                        .font(IPTypography.bodyMedium)
-                                        .foregroundStyle(IPTheme.textPrimary)
+                                        .font(IATypography.bodyMedium)
+                                        .foregroundStyle(IATheme.textPrimary)
                                         .lineLimit(2)
 
                                     Text(answer.questionType.displayName)
-                                        .font(IPTypography.labelSmall)
-                                        .foregroundStyle(IPTheme.questionTypeColor(answer.questionType))
+                                        .font(IATypography.labelSmall)
+                                        .foregroundStyle(IATheme.questionTypeColor(answer.questionType))
                                 }
 
                                 Spacer()
@@ -73,8 +73,8 @@ struct PreGenerationView: View {
 
                         if answers.count > 5 {
                             Text("+\(answers.count - 5) more questions ready")
-                                .font(IPTypography.bodySmall)
-                                .foregroundStyle(IPTheme.textSecondary)
+                                .font(IATypography.bodySmall)
+                                .foregroundStyle(IATheme.textSecondary)
                         }
                     }
                 }

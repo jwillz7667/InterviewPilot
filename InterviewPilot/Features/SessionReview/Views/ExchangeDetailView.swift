@@ -5,37 +5,37 @@ struct ExchangeDetailView: View {
     @State private var isExpanded = false
 
     var body: some View {
-        IPPanel(tone: .primary, padding: 18, cornerRadius: 26) {
+        IAPanel(tone: .primary, padding: 18, cornerRadius: 26) {
             VStack(alignment: .leading, spacing: 12) {
                 Button(action: {
-                    withAnimation(IPAnimations.standard) {
+                    withAnimation(IAAnimations.standard) {
                         isExpanded.toggle()
                     }
                 }) {
                     HStack(alignment: .top, spacing: 12) {
                         Circle()
-                            .fill(IPTheme.accent.opacity(0.10))
+                            .fill(IATheme.accent.opacity(0.10))
                             .frame(width: 38, height: 38)
                             .overlay {
                                 Image(systemName: "questionmark.circle.fill")
                                     .font(.system(size: 15, weight: .semibold))
-                                    .foregroundStyle(IPTheme.accent)
+                                    .foregroundStyle(IATheme.accent)
                             }
 
                         VStack(alignment: .leading, spacing: 8) {
                             Text(exchange.questionTranscript)
-                                .font(IPTypography.bodyLarge)
-                                .foregroundStyle(IPTheme.textPrimary)
+                                .font(IATypography.bodyLarge)
+                                .foregroundStyle(IATheme.textPrimary)
                                 .lineLimit(isExpanded ? nil : 2)
                                 .multilineTextAlignment(.leading)
 
                             HStack(spacing: 8) {
                                 let type = QuestionType(rawValue: exchange.questionType) ?? .unknown
-                                labelChip(type.displayName, color: IPTheme.questionTypeColor(type))
-                                labelChip("\(exchange.responseLatencyMs)ms", color: IPTheme.textSecondary)
+                                labelChip(type.displayName, color: IATheme.questionTypeColor(type))
+                                labelChip("\(exchange.responseLatencyMs)ms", color: IATheme.textSecondary)
 
                                 if exchange.wasPreComputed {
-                                    labelChip("Cached", color: IPTheme.accent)
+                                    labelChip("Cached", color: IATheme.accent)
                                 }
                             }
                         }
@@ -44,7 +44,7 @@ struct ExchangeDetailView: View {
 
                         Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
                             .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(IPTheme.textTertiary)
+                            .foregroundStyle(IATheme.textTertiary)
                     }
                 }
                 .buttonStyle(.plain)
@@ -62,13 +62,13 @@ struct ExchangeDetailView: View {
 
                         VStack(alignment: .leading, spacing: 6) {
                             Text("Generated response")
-                                .font(IPTypography.labelSmall)
+                                .font(IATypography.labelSmall)
                                 .tracking(0.8)
-                                .foregroundStyle(IPTheme.textSecondary)
+                                .foregroundStyle(IATheme.textSecondary)
 
                             Text(exchange.generatedResponse)
-                                .font(IPTypography.bodyMedium)
-                                .foregroundStyle(IPTheme.textPrimary)
+                                .font(IATypography.bodyMedium)
+                                .foregroundStyle(IATheme.textPrimary)
                                 .lineSpacing(4)
                         }
                     }
@@ -80,7 +80,7 @@ struct ExchangeDetailView: View {
 
     private func labelChip(_ title: String, color: Color) -> some View {
         Text(title)
-            .font(IPTypography.labelSmall)
+            .font(IATypography.labelSmall)
             .foregroundStyle(color)
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
@@ -90,16 +90,16 @@ struct ExchangeDetailView: View {
     private func telemetryChip(title: String, value: String) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(title)
-                .font(IPTypography.labelSmall)
-                .foregroundStyle(IPTheme.textSecondary)
+                .font(IATypography.labelSmall)
+                .foregroundStyle(IATheme.textSecondary)
             Text(value)
-                .font(IPTypography.bodyMedium)
-                .foregroundStyle(IPTheme.textPrimary)
+                .font(IATypography.bodyMedium)
+                .foregroundStyle(IATheme.textPrimary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 12)
         .padding(.vertical, 12)
-        .ipInsetSurface(cornerRadius: 18)
+        .iaInsetSurface(cornerRadius: 18)
     }
 
     private func formattedLatency(_ value: Int?) -> String {

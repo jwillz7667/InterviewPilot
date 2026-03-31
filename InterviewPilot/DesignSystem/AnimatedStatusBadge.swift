@@ -14,10 +14,10 @@ struct AnimatedStatusBadge: View {
                 .frame(width: 8, height: 8)
                 .scaleEffect(isPulsing && isActive ? 1.25 : 1.0)
                 .opacity(isPulsing && isActive ? 0.45 : 1.0)
-                .animation(IPAnimations.pulse, value: isPulsing)
+                .animation(IAAnimations.pulse, value: isPulsing)
 
             Text(text.uppercased())
-                .font(IPTypography.labelSmall)
+                .font(IATypography.labelSmall)
                 .tracking(0.9)
                 .foregroundStyle(color)
                 .lineLimit(1)

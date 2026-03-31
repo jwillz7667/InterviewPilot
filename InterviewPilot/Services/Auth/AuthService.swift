@@ -213,6 +213,38 @@ final class AuthService {
         }
     }
 
+    func updateProfile(displayName: String) async throws {
+        guard let token = KeychainService.load(key: .accessToken) else {
+            throw AuthError.serverError("Not authenticated")
+        }
+
+        let _: [String: String] = try await post(
+            path: "/api/v1/auth/profile",
+            body: ["displayName": displayName],
+            token: token
+        )
+
+        _ = KeychainService.save(key: .displayName, value: displayName)
+        currentUser = AuthUser(
+            id: currentUser?.id ?? "",
+            email: currentUser?.email ?? "",
+            displayName: displayName,
+            appAccountToken: currentUser?.appAccountToken ?? ""
+        )
+    }
+
+    func deleteAccount(password: String) async throws {
+        guard let token = KeychainService.load(key: .accessToken) else {
+            throw AuthError.serverError("Not authenticated")
+        }
+
+        let _: [String: String] = try await post(
+            path: "/api/v1/auth/delete-account",
+            body: ["password": password],
+            token: token
+        )
+    }
+
     func authenticatedRequest(url: URL) async -> URLRequest? {
         var token = KeychainService.load(key: .accessToken)
         if token == nil {

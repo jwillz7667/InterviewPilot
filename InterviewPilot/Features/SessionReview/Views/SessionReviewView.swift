@@ -7,10 +7,10 @@ struct SessionReviewView: View {
     var body: some View {
         ScrollViewReader { proxy in
             ZStack {
-                IPAppBackground()
+                IAAppBackground()
 
                 ScrollView {
-                    VStack(spacing: IPTheme.spacing20) {
+                    VStack(spacing: IATheme.spacing20) {
                         topUtilityBar
                         reportHeader
                         insightSection
@@ -25,11 +25,11 @@ struct SessionReviewView: View {
 
                         actionPanel(proxy: proxy)
                     }
-                    .padding(.horizontal, IPTheme.spacing20)
-                    .padding(.vertical, IPTheme.spacing20)
+                    .padding(.horizontal, IATheme.spacing20)
+                    .padding(.vertical, IATheme.spacing20)
                     .padding(.bottom, 40)
                 }
-                .ipScrollablePage()
+                .iaScrollablePage()
             }
             .toolbar(.hidden, for: .navigationBar)
         }
@@ -38,43 +38,43 @@ struct SessionReviewView: View {
     private var topUtilityBar: some View {
         HStack {
             HStack(spacing: 12) {
-                IPBrandLogo(size: 38, showShadow: false, variant: .surface)
+                IABrandLogo(size: 38, showShadow: false, variant: .surface)
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Job Hopper")
-                        .font(IPTypography.labelLarge)
-                        .foregroundStyle(IPTheme.textPrimary)
+                    Text("Interview Ace AI")
+                        .font(IATypography.labelLarge)
+                        .foregroundStyle(IATheme.textPrimary)
 
                     Text("Session Report")
-                        .font(IPTypography.bodySmall)
-                        .foregroundStyle(IPTheme.textSecondary)
+                        .font(IATypography.bodySmall)
+                        .foregroundStyle(IATheme.textSecondary)
                 }
             }
 
             Spacer()
 
             Button("Done") { dismiss() }
-                .buttonStyle(IPSecondaryButtonStyle())
+                .buttonStyle(IASecondaryButtonStyle())
         }
     }
 
     private var reportHeader: some View {
-        IPPanel(tone: .secondary, padding: 24, cornerRadius: 34) {
+        IAPanel(tone: .secondary, padding: 24, cornerRadius: 34) {
             VStack(alignment: .leading, spacing: 18) {
                 Text("Session Report")
-                    .font(IPTypography.displayMedium)
-                    .foregroundStyle(IPTheme.textPrimary)
+                    .font(IATypography.displayMedium)
+                    .foregroundStyle(IATheme.textPrimary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.9)
 
                 Text("Review support quality, response speed, and the key exchanges from the live interview.")
-                    .font(IPTypography.bodyLarge)
-                    .foregroundStyle(IPTheme.textSecondary)
+                    .font(IATypography.bodyLarge)
+                    .foregroundStyle(IATheme.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
 
                 HStack {
                     Spacer()
-                    IPScoreRing(
+                    IAScoreRing(
                         progress: performanceProgress,
                         title: "Support\nScore",
                         value: performanceGrade,
@@ -93,45 +93,45 @@ struct SessionReviewView: View {
     }
 
     private func actionPanel(proxy: ScrollViewProxy) -> some View {
-        IPPanel(tone: .secondary, padding: 18, cornerRadius: 28) {
+        IAPanel(tone: .secondary, padding: 18, cornerRadius: 28) {
             HStack(spacing: 10) {
                 Button("Back to History") {
                     dismiss()
                 }
-                .buttonStyle(IPSecondaryButtonStyle())
+                .buttonStyle(IASecondaryButtonStyle())
 
                 Button("Jump to Exchanges") {
-                    withAnimation(IPAnimations.standard) {
+                    withAnimation(IAAnimations.standard) {
                         proxy.scrollTo("exchanges-anchor", anchor: .top)
                     }
                 }
-                .buttonStyle(IPPrimaryButtonStyle())
+                .buttonStyle(IAPrimaryButtonStyle())
             }
         }
     }
 
     private var insightSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            IPPanel(tone: .primary, padding: 18, cornerRadius: 28) {
+            IAPanel(tone: .primary, padding: 18, cornerRadius: 28) {
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Strengths")
-                        .font(IPTypography.headlineSmall)
-                        .foregroundStyle(IPTheme.textPrimary)
+                        .font(IATypography.headlineSmall)
+                        .foregroundStyle(IATheme.textPrimary)
 
                     ForEach(strengths, id: \.self) { item in
-                        bulletRow(item, tint: IPTheme.success)
+                        bulletRow(item, tint: IATheme.success)
                     }
                 }
             }
 
-            IPPanel(tone: .primary, padding: 18, cornerRadius: 28) {
+            IAPanel(tone: .primary, padding: 18, cornerRadius: 28) {
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Improvements")
-                        .font(IPTypography.headlineSmall)
-                        .foregroundStyle(IPTheme.textPrimary)
+                        .font(IATypography.headlineSmall)
+                        .foregroundStyle(IATheme.textPrimary)
 
                     ForEach(improvements, id: \.self) { item in
-                        bulletRow(item, tint: IPTheme.accent)
+                        bulletRow(item, tint: IATheme.accentWarm)
                     }
                 }
             }
@@ -139,11 +139,11 @@ struct SessionReviewView: View {
     }
 
     private var questionTypeSection: some View {
-        IPPanel(tone: .primary, padding: 20, cornerRadius: 28) {
+        IAPanel(tone: .primary, padding: 20, cornerRadius: 28) {
             VStack(alignment: .leading, spacing: 12) {
                 Text("Question mix")
-                    .font(IPTypography.headlineSmall)
-                    .foregroundStyle(IPTheme.textPrimary)
+                    .font(IATypography.headlineSmall)
+                    .foregroundStyle(IATheme.textPrimary)
 
                 FlowLayout(spacing: 10) {
                     ForEach(viewModel.questionTypeBreakdown, id: \.0) { type, count in
@@ -151,11 +151,11 @@ struct SessionReviewView: View {
                             Text(type.displayName)
                             Text("\(count)")
                         }
-                        .font(IPTypography.labelSmall)
-                        .foregroundStyle(IPTheme.questionTypeColor(type))
+                        .font(IATypography.labelSmall)
+                        .foregroundStyle(IATheme.questionTypeColor(type))
                         .padding(.horizontal, 12)
                         .padding(.vertical, 8)
-                        .background(IPTheme.questionTypeColor(type).opacity(0.10), in: Capsule())
+                        .background(IATheme.questionTypeColor(type).opacity(0.10), in: Capsule())
                     }
                 }
             }
@@ -163,15 +163,15 @@ struct SessionReviewView: View {
     }
 
     private var exchangesSection: some View {
-        IPPanel(tone: .primary, padding: 20, cornerRadius: 28) {
+        IAPanel(tone: .primary, padding: 20, cornerRadius: 28) {
             VStack(alignment: .leading, spacing: 14) {
                 Text("Exchange timeline")
-                    .font(IPTypography.headlineSmall)
-                    .foregroundStyle(IPTheme.textPrimary)
+                    .font(IATypography.headlineSmall)
+                    .foregroundStyle(IATheme.textPrimary)
 
                 ForEach(Array(viewModel.exchanges.enumerated()), id: \.element.id) { index, exchange in
                     VStack(spacing: 10) {
-                        IPTimelineRow(
+                        IATimelineRow(
                             time: exchange.timestamp.formatted(date: .omitted, time: .shortened),
                             title: "Prompt \(index + 1)",
                             detail: exchange.questionTranscript
@@ -186,17 +186,17 @@ struct SessionReviewView: View {
     private func statCard(title: String, value: String) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(title)
-                .font(IPTypography.labelSmall)
-                .foregroundStyle(IPTheme.textSecondary)
+                .font(IATypography.labelSmall)
+                .foregroundStyle(IATheme.textSecondary)
 
             Text(value)
-                .font(IPTypography.headlineSmall)
-                .foregroundStyle(IPTheme.textPrimary)
+                .font(IATypography.headlineSmall)
+                .foregroundStyle(IATheme.textPrimary)
                 .minimumScaleFactor(0.7)
         }
         .frame(maxWidth: .infinity, minHeight: 108, alignment: .topLeading)
         .padding(14)
-        .ipInsetSurface(cornerRadius: 22)
+        .iaInsetSurface(cornerRadius: 22)
     }
 
     private func bulletRow(_ text: String, tint: Color) -> some View {
@@ -207,8 +207,8 @@ struct SessionReviewView: View {
                 .padding(.top, 7)
 
             Text(text)
-                .font(IPTypography.bodyMedium)
-                .foregroundStyle(IPTheme.textSecondary)
+                .font(IATypography.bodyMedium)
+                .foregroundStyle(IATheme.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
     }

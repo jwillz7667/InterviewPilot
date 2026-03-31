@@ -8,19 +8,19 @@ struct JobDescriptionInputView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                IPAppBackground()
+                IAAppBackground()
 
                 ScrollView {
-                    VStack(spacing: IPTheme.spacing20) {
-                        IPPanel(tone: .primary, padding: 22, cornerRadius: 30) {
+                    VStack(spacing: IATheme.spacing20) {
+                        IAPanel(tone: .primary, padding: 22, cornerRadius: 30) {
                             VStack(alignment: .leading, spacing: 16) {
                                 HStack {
-                                    IPBrandLogo(size: 42, showShadow: false, variant: .surface)
+                                    IABrandLogo(size: 42, showShadow: false, variant: .surface)
                                     Spacer()
-                                    IPStarburst(size: 28)
+                                    IAStarburst(size: 28)
                                 }
 
-                                IPSectionHeader(
+                                IASectionHeader(
                                     eyebrow: "Job Post",
                                     title: "Paste the full job description",
                                     subtitle: "Include responsibilities, requirements, and preferred skills so the session stays grounded in the actual role.",
@@ -28,40 +28,40 @@ struct JobDescriptionInputView: View {
                                 )
 
                                 TextEditor(text: $jobDescription)
-                                    .font(IPTypography.bodyMedium)
-                                    .foregroundStyle(IPTheme.insetSurfacePrimaryText(for: colorScheme))
+                                    .font(IATypography.bodyMedium)
+                                    .foregroundStyle(IATheme.insetSurfacePrimaryText(for: colorScheme))
                                     .scrollContentBackground(.hidden)
                                     .frame(minHeight: 300)
                                     .padding(16)
-                                    .ipInsetSurface(cornerRadius: 24)
+                                    .iaInsetSurface(cornerRadius: 24)
 
                                 let keywords = JobDescriptionService.extractKeywords(from: jobDescription)
                                 if !keywords.isEmpty {
                                     FlowLayout(spacing: 8) {
                                         ForEach(keywords, id: \.self) { keyword in
                                             Text(keyword)
-                                                .font(IPTypography.labelSmall)
-                                                .foregroundStyle(IPTheme.accent)
+                                                .font(IATypography.labelSmall)
+                                                .foregroundStyle(IATheme.accent)
                                                 .padding(.horizontal, 12)
                                                 .padding(.vertical, 8)
-                                                .background(IPTheme.accent.opacity(0.10), in: Capsule())
+                                                .background(IATheme.accent.opacity(0.10), in: Capsule())
                                         }
                                     }
                                 }
                             }
                         }
                     }
-                    .padding(.horizontal, IPTheme.spacing20)
-                    .padding(.vertical, IPTheme.spacing20)
+                    .padding(.horizontal, IATheme.spacing20)
+                    .padding(.vertical, IATheme.spacing20)
                 }
-                .ipScrollablePage()
+                .iaScrollablePage()
             }
             .navigationTitle("Job Description")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Done") { dismiss() }
-                        .foregroundStyle(IPTheme.accent)
+                        .foregroundStyle(IATheme.accent)
                 }
             }
         }

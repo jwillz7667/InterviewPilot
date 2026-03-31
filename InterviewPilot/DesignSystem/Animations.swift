@@ -1,6 +1,6 @@
 import SwiftUI
 
-enum IPAnimations {
+enum IAAnimations {
     static let standard = Animation.spring(duration: 0.45, bounce: 0.16)
     static let snappy = Animation.spring(duration: 0.28, bounce: 0.24)
     static let gentle = Animation.spring(duration: 0.55, bounce: 0.08)

@@ -7,13 +7,13 @@ struct SessionControlBar: View {
     let onSkip: () -> Void
 
     var body: some View {
-        IPBottomDock {
+        IABottomDock {
             HStack(spacing: 18) {
                 ControlButton(
                     icon: isCapturing ? "mic.fill" : "mic.slash.fill",
                     label: isCapturing ? "Mute" : "Unmute",
                     isActive: isCapturing,
-                    tint: IPTheme.accent,
+                    tint: IATheme.accent,
                     action: onToggleMute
                 )
 
@@ -24,8 +24,8 @@ struct SessionControlBar: View {
                         .font(.system(size: 20, weight: .bold))
                         .foregroundStyle(.white)
                         .frame(width: 58, height: 58)
-                        .background(IPTheme.error.gradient, in: Circle())
-                        .shadow(color: IPTheme.error.opacity(0.24), radius: 16, y: 10)
+                        .background(IATheme.error.gradient, in: Circle())
+                        .shadow(color: IATheme.error.opacity(0.24), radius: 16, y: 10)
                 }
                 .buttonStyle(.plain)
 
@@ -35,7 +35,7 @@ struct SessionControlBar: View {
                     icon: "forward.fill",
                     label: "Next",
                     isActive: true,
-                    tint: IPTheme.accent,
+                    tint: IATheme.accent,
                     action: onSkip
                 )
             }

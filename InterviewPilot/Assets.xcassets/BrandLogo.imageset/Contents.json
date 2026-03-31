@@ -1,7 +1,7 @@
 {
   "images" : [
     {
-      "filename" : "hopper-logo-x3-default.png",
+      "filename" : "spade copy 3.png",
       "idiom" : "universal",
       "scale" : "1x"
     },
@@ -12,12 +12,12 @@
           "value" : "dark"
         }
       ],
-      "filename" : "hopper-logo-x3-dark.png",
+      "filename" : "spade copy 4.png",
       "idiom" : "universal",
       "scale" : "1x"
     },
     {
-      "filename" : "hopper-logo-x3-default@2x.png",
+      "filename" : "spade copy 3@2x.png",
       "idiom" : "universal",
       "scale" : "2x"
     },
@@ -28,12 +28,12 @@
           "value" : "dark"
         }
       ],
-      "filename" : "hopper-logo-x3-dark@2x.png",
+      "filename" : "spade copy 3@2x 1.png",
       "idiom" : "universal",
       "scale" : "2x"
     },
     {
-      "filename" : "hopper-logo-x3-default@3x.png",
+      "filename" : "spade copy 3@3x.png",
       "idiom" : "universal",
       "scale" : "3x"
     },
@@ -44,7 +44,7 @@
           "value" : "dark"
         }
       ],
-      "filename" : "hopper-logo-x3-dark@3x.png",
+      "filename" : "spade copy 3@3x 1.png",
       "idiom" : "universal",
       "scale" : "3x"
     }

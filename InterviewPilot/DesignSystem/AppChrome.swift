@@ -1,134 +1,34 @@
 import SwiftUI
 
-enum IPSurfaceTone {
+enum IASurfaceTone {
     case primary
     case secondary
     case accent(Color)
 }
 
-enum IPBrandLogoVariant {
+enum IABrandLogoVariant {
     case surface
     case filled
 }
 
-struct IPAppBackground: View {
-    @Environment(\.colorScheme) private var colorScheme
-
+struct IAAppBackground: View {
     var body: some View {
-        GeometryReader { geometry in
-            ZStack {
-                IPTheme.appBackgroundGradient(for: colorScheme)
-                    .ignoresSafeArea()
-
-                if colorScheme == .dark {
-                    darkAmbientLayers(size: geometry.size)
-                } else {
-                    lightAmbientLayers(size: geometry.size)
-                }
-
-                VStack {
-                    HStack {
-                        Spacer()
-                        IPStarburst(size: 46, tint: IPTheme.accent.opacity(colorScheme == .dark ? 0.62 : 0.28))
-                            .padding(.top, 62)
-                            .padding(.trailing, 28)
-                    }
-                    Spacer()
-                }
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func lightAmbientLayers(size: CGSize) -> some View {
-        Circle()
-            .fill(IPTheme.accent.opacity(0.12))
-            .frame(width: size.width * 0.9)
-            .blur(radius: 70)
-            .offset(x: size.width * 0.22, y: -size.height * 0.20)
-
-        Ellipse()
-            .fill(Color.white.opacity(0.55))
-            .frame(width: size.width * 0.7, height: size.width * 0.38)
-            .blur(radius: 24)
-            .offset(x: -size.width * 0.18, y: size.height * 0.18)
-
-        Circle()
-            .fill(IPTheme.brandLight.opacity(0.58))
-            .frame(width: size.width * 0.45)
-            .blur(radius: 48)
-            .offset(x: -size.width * 0.28, y: size.height * 0.34)
-    }
-
-    @ViewBuilder
-    private func darkAmbientLayers(size: CGSize) -> some View {
-        RadialGradient(
-            colors: [
-                Color.white.opacity(0.24),
-                Color.white.opacity(0.07),
-                .clear
-            ],
-            center: .topLeading,
-            startRadius: 8,
-            endRadius: size.width * 0.88
-        )
-        .frame(width: size.width * 1.18, height: size.height * 0.84)
-        .blur(radius: 12)
-        .offset(x: -size.width * 0.22, y: -size.height * 0.26)
-
-        Ellipse()
-            .fill(
-                LinearGradient(
-                    colors: [
-                        Color.white.opacity(0.16),
-                        Color.white.opacity(0.03),
-                        .clear
-                    ],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-            )
-            .frame(width: size.width * 0.90, height: size.width * 0.42)
-            .blur(radius: 34)
-            .rotationEffect(.degrees(-11))
-            .offset(x: -size.width * 0.06, y: -size.height * 0.02)
-
-        Circle()
-            .fill(IPTheme.accent.opacity(0.26))
-            .frame(width: size.width * 0.94)
-            .blur(radius: 116)
-            .offset(x: size.width * 0.28, y: -size.height * 0.24)
-
-        Circle()
-            .fill(IPTheme.accentSecondary.opacity(0.18))
-            .frame(width: size.width * 0.54)
-            .blur(radius: 82)
-            .offset(x: -size.width * 0.24, y: size.height * 0.40)
-
-        RoundedRectangle(cornerRadius: 42, style: .continuous)
-            .fill(Color.white.opacity(0.04))
-            .frame(width: size.width * 0.76, height: size.height * 0.16)
-            .overlay {
-                RoundedRectangle(cornerRadius: 42, style: .continuous)
-                    .stroke(Color.white.opacity(0.08), lineWidth: 1)
-            }
-            .blur(radius: 6)
-            .offset(x: size.width * 0.08, y: -size.height * 0.05)
+        Color.clear
+            .background(.regularMaterial)
+            .ignoresSafeArea()
     }
 }
 
-struct IPPanel<Content: View>: View {
-    let tone: IPSurfaceTone
+struct IAPanel<Content: View>: View {
+    let tone: IASurfaceTone
     let padding: CGFloat
     let cornerRadius: CGFloat
     @ViewBuilder let content: Content
 
-    @Environment(\.colorScheme) private var colorScheme
-
     init(
-        tone: IPSurfaceTone = .primary,
-        padding: CGFloat = IPTheme.spacing20,
-        cornerRadius: CGFloat = IPTheme.radiusLarge,
+        tone: IASurfaceTone = .primary,
+        padding: CGFloat = IATheme.spacing20,
+        cornerRadius: CGFloat = IATheme.radiusLarge,
         @ViewBuilder content: () -> Content
     ) {
         self.tone = tone
@@ -142,14 +42,8 @@ struct IPPanel<Content: View>: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(padding)
             .background {
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .fill(fillStyle)
-                    .overlay {
-                        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                            .stroke(borderColor, lineWidth: 1)
-                    }
+                panelBackground
             }
-            .shadow(color: IPTheme.shadowColor(for: colorScheme), radius: 14, y: 8)
             .scrollTransition(.interactive, axis: .vertical) { view, phase in
                 view
                     .opacity(phase.isIdentity ? 1 : 0.96)
@@ -158,32 +52,30 @@ struct IPPanel<Content: View>: View {
             }
     }
 
-    private var fillStyle: AnyShapeStyle {
-        switch tone {
-        case .primary:
-            return IPTheme.elevatedFill(for: colorScheme)
-        case .secondary:
-            return IPTheme.panelFill(for: colorScheme)
-        case .accent(let tint):
-            return IPTheme.elevatedFill(for: colorScheme, tint: tint)
-        }
-    }
-
-    private var borderColor: Color {
-        switch tone {
-        case .accent:
-            return IPTheme.accent.opacity(colorScheme == .dark ? 0.24 : 0.18)
-        case .primary, .secondary:
-            return IPTheme.borderColor(for: colorScheme)
+    @ViewBuilder
+    private var panelBackground: some View {
+        if case .accent(let tint) = tone {
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                .fill(.regularMaterial)
+                .overlay {
+                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                        .fill(tint.opacity(0.12))
+                }
+        } else if case .secondary = tone {
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                .fill(.thinMaterial)
+        } else {
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                .fill(.ultraThinMaterial)
         }
     }
 }
 
-struct IPBrandLogo: View {
+struct IABrandLogo: View {
     var size: CGFloat = 60
     var cornerRadius: CGFloat? = nil
     var showShadow: Bool = true
-    var variant: IPBrandLogoVariant = .surface
+    var variant: IABrandLogoVariant = .surface
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
@@ -191,28 +83,17 @@ struct IPBrandLogo: View {
             Circle()
                 .fill(backgroundFill)
 
-            HStack(alignment: .bottom, spacing: size * 0.05) {
-                Circle()
-                    .fill(glyphFill)
-                    .frame(width: size * 0.18, height: size * 0.18)
-
-                RoundedRectangle(cornerRadius: size * 0.11, style: .continuous)
-                    .fill(glyphFill)
-                    .frame(width: size * 0.18, height: size * 0.42)
-
-                RoundedRectangle(cornerRadius: size * 0.12, style: .continuous)
-                    .fill(glyphFill)
-                    .frame(width: size * 0.18, height: size * 0.58)
-            }
-            .padding(.bottom, size * 0.06)
+            Text("A")
+                .font(.system(size: size * 0.48, weight: .black, design: .rounded))
+                .foregroundStyle(glyphFill)
         }
         .frame(width: size, height: size)
         .shadow(
-            color: showShadow ? IPTheme.shadowColor(for: colorScheme).opacity(variant == .filled ? 0.34 : 0.18) : .clear,
+            color: showShadow ? IATheme.shadowColor(for: colorScheme).opacity(variant == .filled ? 0.34 : 0.18) : .clear,
             radius: showShadow ? size * 0.14 : 0,
             y: showShadow ? size * 0.08 : 0
         )
-        .accessibilityLabel("Job Hopper logo")
+        .accessibilityLabel("Interview Ace AI logo")
     }
 
     private var backgroundFill: LinearGradient {
@@ -225,7 +106,7 @@ struct IPBrandLogo: View {
             )
         case .filled:
             return LinearGradient(
-                colors: [IPTheme.accentSecondary, IPTheme.accent],
+                colors: [IATheme.accentSecondary, IATheme.accent],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
@@ -235,19 +116,19 @@ struct IPBrandLogo: View {
     private var glyphFill: Color {
         switch variant {
         case .surface:
-            return IPTheme.accent
+            return IATheme.accent
         case .filled:
             return .white
         }
     }
 }
 
-struct IPStarburst: View {
+struct IAStarburst: View {
     var size: CGFloat = 34
-    var tint: Color = IPTheme.accent
+    var tint: Color = IATheme.accent
 
     var body: some View {
-        IPStarburstShape()
+        IAStarburstShape()
             .fill(
                 LinearGradient(
                     colors: [tint, tint.opacity(0.82)],
@@ -257,27 +138,27 @@ struct IPStarburst: View {
             )
             .frame(width: size, height: size)
             .overlay {
-                IPStarburstShape()
+                IAStarburstShape()
                     .stroke(Color.black.opacity(0.14), lineWidth: 1)
             }
             .shadow(color: tint.opacity(0.18), radius: 12, y: 6)
     }
 }
 
-struct IPSectionHeader: View {
+struct IASectionHeader: View {
     let eyebrow: String?
     let title: String
     let subtitle: String?
     let symbol: String?
-    var tint: Color = IPTheme.accent
+    var tint: Color = IATheme.accent
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             if let eyebrow, !eyebrow.isEmpty {
                 Text(eyebrow.uppercased())
-                    .font(IPTypography.labelSmall)
+                    .font(IATypography.labelSmall)
                     .tracking(1.2)
-                    .foregroundStyle(IPTheme.textSecondary)
+                    .foregroundStyle(IATheme.textSecondary)
             }
 
             HStack(alignment: .top, spacing: 12) {
@@ -294,15 +175,15 @@ struct IPSectionHeader: View {
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text(title)
-                        .font(IPTypography.headlineMedium)
-                        .foregroundStyle(IPTheme.textPrimary)
+                        .font(IATypography.headlineMedium)
+                        .foregroundStyle(IATheme.textPrimary)
                         .lineLimit(2)
                         .minimumScaleFactor(0.88)
 
                     if let subtitle, !subtitle.isEmpty {
                         Text(subtitle)
-                            .font(IPTypography.bodyMedium)
-                            .foregroundStyle(IPTheme.textSecondary)
+                            .font(IATypography.bodyMedium)
+                            .foregroundStyle(IATheme.textSecondary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }
@@ -311,14 +192,14 @@ struct IPSectionHeader: View {
     }
 }
 
-struct IPStatusPill: View {
+struct IAStatusPill: View {
     let title: String
     let symbol: String
-    var tint: Color = IPTheme.accent
+    var tint: Color = IATheme.accent
 
     var body: some View {
         Label(title, systemImage: symbol)
-            .font(IPTypography.labelSmall)
+            .font(IATypography.labelSmall)
             .foregroundStyle(tint)
             .lineLimit(1)
             .minimumScaleFactor(0.78)
@@ -333,31 +214,31 @@ struct IPStatusPill: View {
     }
 }
 
-struct IPEmptyState: View {
+struct IAEmptyState: View {
     let title: String
     let subtitle: String
     let symbol: String
 
     var body: some View {
-        IPPanel(tone: .secondary, padding: IPTheme.spacing24) {
+        IAPanel(tone: .secondary, padding: IATheme.spacing24) {
             VStack(spacing: 16) {
                 ZStack {
                     Circle()
-                        .fill(IPTheme.accent.opacity(0.10))
+                        .fill(IATheme.accent.opacity(0.10))
                         .frame(width: 74, height: 74)
                     Image(systemName: symbol)
                         .font(.system(size: 28, weight: .semibold))
-                        .foregroundStyle(IPTheme.accent)
+                        .foregroundStyle(IATheme.accent)
                 }
 
                 Text(title)
-                    .font(IPTypography.headlineMedium)
-                    .foregroundStyle(IPTheme.textPrimary)
+                    .font(IATypography.headlineMedium)
+                    .foregroundStyle(IATheme.textPrimary)
                     .multilineTextAlignment(.center)
 
                 Text(subtitle)
-                    .font(IPTypography.bodyMedium)
-                    .foregroundStyle(IPTheme.textSecondary)
+                    .font(IATypography.bodyMedium)
+                    .foregroundStyle(IATheme.textSecondary)
                     .multilineTextAlignment(.center)
             }
             .frame(maxWidth: .infinity)
@@ -365,7 +246,7 @@ struct IPEmptyState: View {
     }
 }
 
-struct IPInputShell<Content: View>: View {
+struct IAInputShell<Content: View>: View {
     let icon: String
     let title: String
     let subtitle: String?
@@ -382,23 +263,23 @@ struct IPInputShell<Content: View>: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 10) {
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(IPTheme.accent.opacity(0.10))
+                    .fill(IATheme.accent.opacity(0.10))
                     .frame(width: 34, height: 34)
                     .overlay {
                         Image(systemName: icon)
                             .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(IPTheme.accent)
+                            .foregroundStyle(IATheme.accent)
                     }
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title)
-                        .font(IPTypography.labelLarge)
-                        .foregroundStyle(IPTheme.textPrimary)
+                        .font(IATypography.labelLarge)
+                        .foregroundStyle(IATheme.textPrimary)
 
                     if let subtitle, !subtitle.isEmpty {
                         Text(subtitle)
-                            .font(IPTypography.bodySmall)
-                            .foregroundStyle(IPTheme.textSecondary)
+                            .font(IATypography.bodySmall)
+                            .foregroundStyle(IATheme.textSecondary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }
@@ -409,7 +290,7 @@ struct IPInputShell<Content: View>: View {
     }
 }
 
-struct IPUtilityCircleButton: View {
+struct IAUtilityCircleButton: View {
     let symbol: String
     var filled: Bool = false
     var action: () -> Void
@@ -419,7 +300,7 @@ struct IPUtilityCircleButton: View {
         Button(action: action) {
             Image(systemName: symbol)
                 .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(filled ? Color.white : IPTheme.textPrimary)
+                .foregroundStyle(filled ? Color.white : IATheme.textPrimary)
                 .frame(width: 48, height: 48)
                 .background(
                     Circle()
@@ -432,21 +313,21 @@ struct IPUtilityCircleButton: View {
                             lineWidth: 1
                         )
                 }
-                .shadow(color: IPTheme.shadowColor(for: colorScheme).opacity(0.28), radius: 10, y: 4)
+                .shadow(color: IATheme.shadowColor(for: colorScheme).opacity(0.28), radius: 10, y: 4)
         }
         .buttonStyle(.plain)
     }
 
     private var buttonFill: AnyShapeStyle {
         if filled {
-            return AnyShapeStyle(IPTheme.buttonGradient(for: colorScheme))
+            return AnyShapeStyle(IATheme.buttonGradient(for: colorScheme))
         }
 
         return AnyShapeStyle(.regularMaterial)
     }
 }
 
-struct IPBottomDock<Content: View>: View {
+struct IABottomDock<Content: View>: View {
     let title: String?
     let subtitle: String?
     @ViewBuilder let content: Content
@@ -463,14 +344,14 @@ struct IPBottomDock<Content: View>: View {
         VStack(alignment: .leading, spacing: 12) {
             if let title, !title.isEmpty {
                 Text(title)
-                    .font(IPTypography.labelLarge)
-                    .foregroundStyle(IPTheme.textPrimary)
+                    .font(IATypography.labelLarge)
+                    .foregroundStyle(IATheme.textPrimary)
             }
 
             if let subtitle, !subtitle.isEmpty {
                 Text(subtitle)
-                    .font(IPTypography.bodySmall)
-                    .foregroundStyle(IPTheme.textSecondary)
+                    .font(IATypography.bodySmall)
+                    .foregroundStyle(IATheme.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
 
@@ -478,23 +359,23 @@ struct IPBottomDock<Content: View>: View {
         }
         .padding(16)
         .background {
-            RoundedRectangle(cornerRadius: IPTheme.radiusXL, style: .continuous)
+            RoundedRectangle(cornerRadius: IATheme.radiusXL, style: .continuous)
                 .fill(.regularMaterial)
                 .overlay {
-                    RoundedRectangle(cornerRadius: IPTheme.radiusXL, style: .continuous)
-                        .stroke(IPTheme.borderColor(for: colorScheme), lineWidth: 1)
+                    RoundedRectangle(cornerRadius: IATheme.radiusXL, style: .continuous)
+                        .stroke(IATheme.borderColor(for: colorScheme), lineWidth: 1)
                 }
         }
-        .shadow(color: IPTheme.shadowColor(for: colorScheme).opacity(0.36), radius: 12, y: 6)
+        .shadow(color: IATheme.shadowColor(for: colorScheme).opacity(0.36), radius: 12, y: 6)
     }
 }
 
-struct IPScoreRing: View {
+struct IAScoreRing: View {
     let progress: Double
     let title: String
     let value: String
     var size: CGFloat = 132
-    var tint: Color = IPTheme.accent
+    var tint: Color = IATheme.accent
 
     private var clampedProgress: Double {
         min(max(progress, 0), 1)
@@ -515,13 +396,13 @@ struct IPScoreRing: View {
 
             VStack(spacing: 4) {
                 Text(title)
-                    .font(IPTypography.labelSmall)
-                    .foregroundStyle(IPTheme.textSecondary)
+                    .font(IATypography.labelSmall)
+                    .foregroundStyle(IATheme.textSecondary)
                     .multilineTextAlignment(.center)
 
                 Text(value)
-                    .font(IPTypography.displayMedium)
-                    .foregroundStyle(IPTheme.textPrimary)
+                    .font(IATypography.displayMedium)
+                    .foregroundStyle(IATheme.textPrimary)
                     .minimumScaleFactor(0.7)
             }
             .padding(.horizontal, 18)
@@ -530,7 +411,7 @@ struct IPScoreRing: View {
     }
 }
 
-struct IPConversationBubble: View {
+struct IAConversationBubble: View {
     enum Role {
         case interviewer
         case user
@@ -565,12 +446,12 @@ struct IPConversationBubble: View {
 
                 VStack(alignment: .leading, spacing: 1) {
                     Text(title)
-                        .font(IPTypography.labelLarge)
-                        .foregroundStyle(IPTheme.textPrimary)
+                        .font(IATypography.labelLarge)
+                        .foregroundStyle(IATheme.textPrimary)
 
                     Text(roleLabel)
-                        .font(IPTypography.labelSmall)
-                        .foregroundStyle(IPTheme.textSecondary)
+                        .font(IATypography.labelSmall)
+                        .foregroundStyle(IATheme.textSecondary)
                 }
 
                 Spacer()
@@ -578,13 +459,13 @@ struct IPConversationBubble: View {
                 if let trailingSymbol {
                     Image(systemName: trailingSymbol)
                         .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(IPTheme.textSecondary)
+                        .foregroundStyle(IATheme.textSecondary)
                 }
             }
 
             Text(text)
-                .font(IPTypography.bodyLarge)
-                .foregroundStyle(IPTheme.textPrimary)
+                .font(IATypography.bodyLarge)
+                .foregroundStyle(IATheme.textPrimary)
                 .lineSpacing(4)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
@@ -596,7 +477,7 @@ struct IPConversationBubble: View {
                 .stroke(bubbleBorder, lineWidth: 1)
         }
         .shadow(
-            color: colorScheme == .dark ? Color.black.opacity(0.18) : IPTheme.accent.opacity(0.08),
+            color: colorScheme == .dark ? Color.black.opacity(0.18) : IATheme.accent.opacity(0.08),
             radius: 14,
             y: 8
         )
@@ -606,18 +487,18 @@ struct IPConversationBubble: View {
         Group {
             switch role {
             case .assistant:
-                IPBrandLogo(size: 28, showShadow: false, variant: .surface)
+                IABrandLogo(size: 28, showShadow: false, variant: .surface)
             case .interviewer:
                 Circle()
-                    .fill(IPTheme.accent.opacity(0.14))
+                    .fill(IATheme.accent.opacity(0.14))
                     .overlay {
                         Image(systemName: symbol)
                             .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(IPTheme.accent)
+                            .foregroundStyle(IATheme.accent)
                     }
             case .user:
                 Circle()
-                    .fill(IPTheme.accent)
+                    .fill(IATheme.accent)
                     .overlay {
                         Image(systemName: symbol)
                             .font(.system(size: 12, weight: .semibold))
@@ -631,20 +512,20 @@ struct IPConversationBubble: View {
     private var bubbleFill: Color {
         switch role {
         case .assistant:
-            return IPTheme.surfaceSecondary
+            return IATheme.surfaceSecondary
         case .interviewer:
-            return IPTheme.interviewerBg
+            return IATheme.interviewerBg
         case .user:
-            return IPTheme.responseBg
+            return IATheme.responseBg
         }
     }
 
     private var bubbleBorder: Color {
         switch role {
         case .assistant, .interviewer:
-            return IPTheme.borderColor(for: colorScheme)
+            return IATheme.borderColor(for: colorScheme)
         case .user:
-            return IPTheme.accent.opacity(0.18)
+            return IATheme.accent.opacity(0.18)
         }
     }
 
@@ -660,11 +541,11 @@ struct IPConversationBubble: View {
     }
 }
 
-struct IPTimelineRow: View {
+struct IATimelineRow: View {
     let time: String
     let title: String
     let detail: String
-    var tint: Color = IPTheme.accent
+    var tint: Color = IATheme.accent
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
@@ -680,16 +561,16 @@ struct IPTimelineRow: View {
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(time)
-                    .font(IPTypography.labelSmall)
-                    .foregroundStyle(IPTheme.textSecondary)
+                    .font(IATypography.labelSmall)
+                    .foregroundStyle(IATheme.textSecondary)
 
                 Text(title)
-                    .font(IPTypography.labelLarge)
-                    .foregroundStyle(IPTheme.textPrimary)
+                    .font(IATypography.labelLarge)
+                    .foregroundStyle(IATheme.textPrimary)
 
                 Text(detail)
-                    .font(IPTypography.bodySmall)
-                    .foregroundStyle(IPTheme.textSecondary)
+                    .font(IATypography.bodySmall)
+                    .foregroundStyle(IATheme.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
 
@@ -698,23 +579,23 @@ struct IPTimelineRow: View {
     }
 }
 
-struct IPPrimaryButtonStyle: ButtonStyle {
+struct IAPrimaryButtonStyle: ButtonStyle {
     var isEnabled: Bool = true
-    var tint: Color = IPTheme.accent
+    var tint: Color = IATheme.accent
 
     @Environment(\.colorScheme) private var colorScheme
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(IPTypography.bodyLarge)
-            .foregroundStyle(IPTheme.primaryButtonLabelColor(for: colorScheme).opacity(isEnabled ? 1 : 0.82))
+            .font(IATypography.bodyLarge)
+            .foregroundStyle(IATheme.primaryButtonLabelColor(for: colorScheme).opacity(isEnabled ? 1 : 0.82))
             .frame(maxWidth: .infinity)
             .lineLimit(1)
             .minimumScaleFactor(0.88)
             .padding(.vertical, 15)
             .background(
                 isEnabled
-                    ? IPTheme.buttonGradient(for: colorScheme)
+                    ? IATheme.buttonGradient(for: colorScheme)
                     : LinearGradient(
                         colors: [Color(uiColor: .systemGray4), Color(uiColor: .systemGray5)],
                         startPoint: .topLeading,
@@ -723,44 +604,44 @@ struct IPPrimaryButtonStyle: ButtonStyle {
                 in: RoundedRectangle(cornerRadius: 18, style: .continuous)
             )
             .scaleEffect(configuration.isPressed ? 0.985 : 1)
-            .shadow(color: isEnabled ? IPTheme.accent.opacity(0.16) : .clear, radius: 10, y: 6)
-            .animation(IPAnimations.snappy, value: configuration.isPressed)
+            .shadow(color: isEnabled ? IATheme.accent.opacity(0.16) : .clear, radius: 10, y: 6)
+            .animation(IAAnimations.snappy, value: configuration.isPressed)
     }
 }
 
-struct IPSecondaryButtonStyle: ButtonStyle {
-    var tint: Color = IPTheme.accent
+struct IASecondaryButtonStyle: ButtonStyle {
+    var tint: Color = IATheme.accent
 
     @Environment(\.colorScheme) private var colorScheme
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(IPTypography.bodyMedium)
-            .foregroundStyle(IPTheme.secondaryButtonLabelColor(for: colorScheme))
+            .font(IATypography.bodyMedium)
+            .foregroundStyle(IATheme.secondaryButtonLabelColor(for: colorScheme))
             .padding(.horizontal, 14)
             .padding(.vertical, 11)
             .background(
-                IPTheme.secondaryButtonGradient(for: colorScheme),
+                IATheme.secondaryButtonGradient(for: colorScheme),
                 in: RoundedRectangle(cornerRadius: 16, style: .continuous)
             )
             .overlay {
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .stroke(IPTheme.borderColor(for: colorScheme), lineWidth: 1)
+                    .stroke(IATheme.borderColor(for: colorScheme), lineWidth: 1)
             }
             .scaleEffect(configuration.isPressed ? 0.985 : 1)
             .shadow(color: colorScheme == .dark ? Color.black.opacity(0.16) : Color.black.opacity(0.03), radius: 6, y: 3)
-            .animation(IPAnimations.snappy, value: configuration.isPressed)
+            .animation(IAAnimations.snappy, value: configuration.isPressed)
     }
 }
 
 extension View {
-    func ipScrollablePage() -> some View {
+    func iaScrollablePage() -> some View {
         scrollIndicators(.hidden)
             .scrollEdgeEffectStyle(.soft, for: [.top, .bottom])
     }
 }
 
-struct IPTabAccessory: View {
+struct IATabAccessory: View {
     let selectedTab: Int
     @Environment(\.tabViewBottomAccessoryPlacement) private var placement
     @Environment(\.colorScheme) private var colorScheme
@@ -769,24 +650,24 @@ struct IPTabAccessory: View {
         Group {
             if placement == .inline {
                 HStack(spacing: 8) {
-                    IPBrandLogo(size: 22, showShadow: false, variant: .filled)
+                    IABrandLogo(size: 22, showShadow: false, variant: .filled)
                     Text(compactTitle)
-                        .font(IPTypography.labelSmall)
+                        .font(IATypography.labelSmall)
                         .foregroundStyle(accessoryPrimaryText)
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
             } else {
                 HStack(spacing: 12) {
-                    IPBrandLogo(size: 38, showShadow: false, variant: .filled)
+                    IABrandLogo(size: 38, showShadow: false, variant: .filled)
 
                     VStack(alignment: .leading, spacing: 2) {
                         Text(title)
-                            .font(IPTypography.labelLarge)
+                            .font(IATypography.labelLarge)
                             .foregroundStyle(accessoryPrimaryText)
 
                         Text(subtitle)
-                            .font(IPTypography.bodySmall)
+                            .font(IATypography.bodySmall)
                             .foregroundStyle(accessorySecondaryText)
                     }
 
@@ -798,22 +679,22 @@ struct IPTabAccessory: View {
         }
         .background {
             Capsule()
-                .fill(IPTheme.tabAccessoryFill(for: colorScheme))
+                .fill(IATheme.tabAccessoryFill(for: colorScheme))
         }
         .overlay {
             Capsule()
-                .stroke(IPTheme.borderColor(for: colorScheme), lineWidth: 1)
+                .stroke(IATheme.borderColor(for: colorScheme), lineWidth: 1)
         }
-        .shadow(color: IPTheme.shadowColor(for: colorScheme), radius: 14, y: 8)
-        .animation(IPAnimations.snappy, value: selectedTab)
+        .shadow(color: IATheme.shadowColor(for: colorScheme), radius: 14, y: 8)
+        .animation(IAAnimations.snappy, value: selectedTab)
     }
 
     private var accessoryPrimaryText: Color {
-        IPTheme.pageTextPrimary
+        IATheme.pageTextPrimary
     }
 
     private var accessorySecondaryText: Color {
-        IPTheme.pageTextSecondary
+        IATheme.pageTextSecondary
     }
 
     private var compactTitle: String {
@@ -850,7 +731,7 @@ struct IPTabAccessory: View {
     }
 }
 
-private struct IPStarburstShape: Shape {
+private struct IAStarburstShape: Shape {
     var points: Int = 8
     var innerRatio: CGFloat = 0.58
 

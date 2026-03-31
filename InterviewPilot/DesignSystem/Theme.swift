@@ -1,6 +1,6 @@
 import SwiftUI
 
-enum IPTheme {
+enum IATheme {
     private static func uiColor(hex: Int) -> UIColor {
         UIColor(
             red: CGFloat((hex >> 16) & 0xFF) / 255,
@@ -24,20 +24,27 @@ enum IPTheme {
         )
     }
 
-    static let accent = dynamicColor(lightHex: 0x2D59F0, darkHex: 0x2D59F0)
+    // MARK: - Primary Violet Palette
+
+    static let accent = dynamicColor(lightHex: 0x6C5CE7, darkHex: 0x6C5CE7)
     static let accentForeground = Color.white
-    static let accentSecondary = dynamicColor(lightHex: 0x8AA5FF, darkHex: 0xAFC0FF)
-    static let accentWarm = dynamicColor(lightHex: 0x6B85F8, darkHex: 0x88A2FF)
-    static let accentSelected = dynamicColor(lightHex: 0x1B3AA0, darkHex: 0x1B3AA0)
+    static let accentSecondary = dynamicColor(lightHex: 0xA29BFE, darkHex: 0xC4B5FD)
+    static let accentWarm = dynamicColor(lightHex: 0xE17055, darkHex: 0xF0896B)
+    static let teal = dynamicColor(lightHex: 0x00CEC9, darkHex: 0x55EFC4)
+    static let accentSelected = dynamicColor(lightHex: 0x4834D4, darkHex: 0x4834D4)
 
     static let brand = accent
-    static let brandLight = dynamicColor(lightHex: 0xDCE7FF, darkHex: 0x25334D)
-    static let brandDark = dynamicColor(lightHex: 0x1D3FC3, darkHex: 0xD9E3FF)
+    static let brandLight = dynamicColor(lightHex: 0xEDE7F6, darkHex: 0x2D1B4E)
+    static let brandDark = dynamicColor(lightHex: 0x4A1D96, darkHex: 0xD1C4E9)
 
-    static let success = dynamicColor(lightHex: 0x22A06B, darkHex: 0x42D392)
+    // MARK: - Semantic
+
+    static let success = dynamicColor(lightHex: 0x00CEC9, darkHex: 0x55EFC4)
     static let warning = dynamicColor(lightHex: 0xE39A1F, darkHex: 0xF3BF5C)
     static let error = dynamicColor(lightHex: 0xD14343, darkHex: 0xFF7A7A)
     static let live = dynamicColor(lightHex: 0xFF3B30, darkHex: 0xFF6B63)
+
+    // MARK: - Text
 
     static let textPrimary = dynamicColor(lightHex: 0x000000, darkHex: 0xF7FAFF)
     static let textSecondary = dynamicColor(lightHex: 0x4E596C, darkHex: 0xB7C4DD)
@@ -47,118 +54,23 @@ enum IPTheme {
     static let pageTextTertiary = textTertiary
     static let divider = dynamicColor(lightHex: 0xD6DDEB, darkHex: 0x2A3346)
 
+    // MARK: - Surfaces
+
     static let surfacePrimary = dynamicColor(lightHex: 0xFFFFFF, darkHex: 0x2C2C2E)
     static let surfaceSecondary = dynamicColor(lightHex: 0xF9FBFF, darkHex: 0x3A3A3C)
     static let surfaceTertiary = dynamicColor(lightHex: 0xE9F1FC, darkHex: 0x3A3A3C)
     static let groupedBackground = dynamicColor(lightHex: 0xDDE5EF, darkHex: 0x0B1120)
 
     static let interviewerBg = dynamicColor(lightHex: 0xFFFFFF, darkHex: 0x1A2436)
-    static let responseBg = dynamicColor(lightHex: 0xE9F1FC, darkHex: 0x21314E)
+    static let responseBg = dynamicColor(lightHex: 0xEDE7F6, darkHex: 0x2D1B4E)
 
     static let backgroundTop = dynamicColor(lightHex: 0xF4F7FD, darkHex: 0x1C1C1E)
     static let backgroundBottom = dynamicColor(lightHex: 0xDDE5EF, darkHex: 0x1C1C1E)
 
+    // MARK: - Dynamic Helpers
+
     static func pageBackground(for colorScheme: ColorScheme) -> Color {
         colorScheme == .dark ? color(hex: 0x1C1C1E) : color(hex: 0xEEF2FA)
-    }
-
-    static func meshColors(for colorScheme: ColorScheme) -> [Color] {
-        if colorScheme == .dark {
-            return [
-                color(hex: 0x08101F),
-                color(hex: 0x121C34),
-                accent.opacity(0.50),
-                color(hex: 0x1B2A48),
-                accentSecondary.opacity(0.24),
-                Color.white.opacity(0.08)
-            ]
-        }
-
-        return [
-            color(hex: 0xF8FBFF),
-            color(hex: 0xE9F1FC),
-            accent.opacity(0.16),
-            color(hex: 0xDDE5EF),
-            Color.white.opacity(0.85),
-            accentSecondary.opacity(0.14)
-        ]
-    }
-
-    static func appBackgroundGradient(for colorScheme: ColorScheme) -> LinearGradient {
-        if colorScheme == .dark {
-            return LinearGradient(
-                stops: [
-                    .init(color: color(hex: 0x1C1C1E), location: 0.00),
-                    .init(color: color(hex: 0x1C1C1E), location: 1.00)
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-        }
-
-        return LinearGradient(
-            stops: [
-                .init(color: color(hex: 0x2D59F0), location: 0.00),
-                .init(color: color(hex: 0x2D59F0), location: 1.00)
-            ],
-            startPoint: .topLeading,
-            endPoint: .bottomTrailing
-        )
-    }
-
-    static func panelFill(for colorScheme: ColorScheme, emphasis: Double = 0) -> AnyShapeStyle {
-        let clampedEmphasis = min(max(emphasis, 0), 0.20)
-        if colorScheme == .dark {
-            return AnyShapeStyle(
-                LinearGradient(
-                    colors: [
-                        color(hex: 0x3A3A3C).opacity(0.96),
-                        color(hex: 0x3A3A3C).opacity(0.98 + clampedEmphasis)
-                    ],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-            )
-        }
-
-        return AnyShapeStyle(
-            LinearGradient(
-                colors: [
-                    Color.white,
-                    color(hex: 0xF8FBFF).opacity(0.96 + clampedEmphasis)
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-        )
-    }
-
-    static func elevatedFill(for colorScheme: ColorScheme, tint: Color? = nil) -> AnyShapeStyle {
-        if let tint {
-            return AnyShapeStyle(
-                LinearGradient(
-                    colors: colorScheme == .dark
-                        ? [tint.opacity(0.34), color(hex: 0x1B2540)]
-                        : [tint.opacity(0.20), Color.white],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-            )
-        }
-
-        return AnyShapeStyle(
-            colorScheme == .dark
-                ? LinearGradient(
-                    colors: [color(hex: 0x2C2C2E), color(hex: 0x2C2C2E)],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-                : LinearGradient(
-                    colors: [Color.white, color(hex: 0xF6FAFF)],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-        )
     }
 
     static func selectionFill(for colorScheme: ColorScheme, selected: Bool) -> AnyShapeStyle {
@@ -173,7 +85,7 @@ enum IPTheme {
         LinearGradient(
             colors: colorScheme == .dark
                 ? [color(hex: 0x3A3A3C), color(hex: 0x2C2C2E)]
-                : [color(hex: 0x4770F5), color(hex: 0x2D59F0)],
+                : [color(hex: 0x7C6CF0), color(hex: 0x6C5CE7)],
             startPoint: .topLeading,
             endPoint: .bottomTrailing
         )
@@ -269,28 +181,32 @@ enum IPTheme {
         return accent.opacity(selected ? 0.14 : 0.06)
     }
 
+    // MARK: - Question Type Colors (Violet / Teal / Coral spread)
+
     static func questionTypeColor(_ type: QuestionType) -> Color {
         switch type {
         case .behavioral:
-            return color(hex: 0x2D59F0)
+            return color(hex: 0x6C5CE7)
         case .technical:
-            return color(hex: 0x5A64D8)
+            return dynamicColor(lightHex: 0x00CEC9, darkHex: 0x55EFC4)
         case .systemDesign:
-            return color(hex: 0x7289F5)
+            return dynamicColor(lightHex: 0xE17055, darkHex: 0xF0896B)
         case .coding:
-            return color(hex: 0x2451E7)
+            return color(hex: 0x4834D4)
         case .situational:
-            return color(hex: 0x3C79FF)
+            return color(hex: 0xA29BFE)
         case .background:
             return dynamicColor(lightHex: 0x7C8596, darkHex: 0x95A0B7)
         case .curveball:
-            return color(hex: 0x1E2F86)
+            return color(hex: 0xD63031)
         case .followUp:
-            return color(hex: 0x5772FF)
+            return color(hex: 0x7C6CF0)
         case .unknown:
             return dynamicColor(lightHex: 0x8A94A6, darkHex: 0x7B869E)
         }
     }
+
+    // MARK: - Spacing
 
     static let spacing4: CGFloat = 4
     static let spacing8: CGFloat = 8
@@ -300,9 +216,10 @@ enum IPTheme {
     static let spacing24: CGFloat = 24
     static let spacing32: CGFloat = 32
 
+    // MARK: - Radii
+
     static let radiusSmall: CGFloat = 14
     static let radiusMedium: CGFloat = 20
     static let radiusLarge: CGFloat = 28
     static let radiusXL: CGFloat = 34
 }
-

@@ -15,14 +15,6 @@ enum APIConfig {
     static let deepgramSampleRate = 16000
     static let deepgramEncoding = "linear16"
 
-    // OpenAI Realtime prep mode
-    static let realtimePrepModel = "gpt-realtime-1.5"
-    static let realtimePrepVoice = "marin"
-    static let realtimePrepAlternateVoice = "cedar"
-    static let realtimePrepTranscriptionModel = "gpt-4o-mini-transcribe"
-    static let realtimePrepSampleRate = 24000
-    static let realtimePrepBufferDurationSeconds = 0.05
-
     // Thresholds
     static let predictiveFireMinWords = 10
     static let predictiveFireConfidence: Float = 0.75

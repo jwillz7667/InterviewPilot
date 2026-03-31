@@ -8,7 +8,7 @@ struct InterviewTypePickerView: View {
         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
             ForEach(InterviewType.allCases, id: \.self) { type in
                 Button(action: {
-                    withAnimation(IPAnimations.snappy) {
+                    withAnimation(IAAnimations.snappy) {
                         selectedType = type
                     }
                 }) {
@@ -16,7 +16,7 @@ struct InterviewTypePickerView: View {
                         HStack {
                             Image(systemName: iconForType(type))
                                 .font(.system(size: 18, weight: .semibold))
-                                .foregroundStyle(selectedType == type ? Color.white : IPTheme.insetSurfaceSecondaryText(for: colorScheme))
+                                .foregroundStyle(selectedType == type ? Color.white : IATheme.insetSurfaceSecondaryText(for: colorScheme))
 
                             Spacer()
 
@@ -28,12 +28,12 @@ struct InterviewTypePickerView: View {
                         }
 
                         Text(type.displayName)
-                            .font(IPTypography.bodyMedium)
-                            .foregroundStyle(selectedType == type ? Color.white : IPTheme.insetSurfacePrimaryText(for: colorScheme))
+                            .font(IATypography.bodyMedium)
+                            .foregroundStyle(selectedType == type ? Color.white : IATheme.insetSurfacePrimaryText(for: colorScheme))
                     }
                     .frame(maxWidth: .infinity, minHeight: 84, alignment: .topLeading)
                     .padding(16)
-                    .ipInsetSurface(selected: selectedType == type, cornerRadius: 22)
+                    .iaInsetSurface(selected: selectedType == type, cornerRadius: 22)
                 }
                 .buttonStyle(.plain)
             }

@@ -5,16 +5,16 @@ struct PerformanceView: View {
     let summary: SessionTelemetrySummary?
 
     var body: some View {
-        IPPanel(tone: .primary, padding: 20, cornerRadius: 28) {
-            VStack(alignment: .leading, spacing: IPTheme.spacing16) {
+        IAPanel(tone: .primary, padding: 20, cornerRadius: 28) {
+            VStack(alignment: .leading, spacing: IATheme.spacing16) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Performance Metrics")
-                        .font(IPTypography.headlineSmall)
-                        .foregroundStyle(IPTheme.textPrimary)
+                        .font(IATypography.headlineSmall)
+                        .foregroundStyle(IATheme.textPrimary)
 
                     Text("Key speed and reliability signals from the interview session.")
-                        .font(IPTypography.bodySmall)
-                        .foregroundStyle(IPTheme.textSecondary)
+                        .font(IATypography.bodySmall)
+                        .foregroundStyle(IATheme.textSecondary)
                 }
 
                 LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
@@ -36,14 +36,14 @@ struct PerformanceView: View {
                         title: "Cache hit rate",
                         value: String(format: "%.0f%%", summary?.cacheHitRate ?? cacheHitRate),
                         icon: "arrow.triangle.2.circlepath",
-                        color: (summary?.cacheHitRate ?? cacheHitRate) > 50 ? IPTheme.success : IPTheme.accent
+                        color: (summary?.cacheHitRate ?? cacheHitRate) > 50 ? IATheme.success : IATheme.accent
                     )
 
                     metricTile(
                         title: "Questions answered",
                         value: "\(exchanges.count)",
                         icon: "checkmark.circle.fill",
-                        color: IPTheme.success
+                        color: IATheme.success
                     )
                 }
 
@@ -61,7 +61,7 @@ struct PerformanceView: View {
                         title: "Predictive fire rate",
                         value: String(format: "%.0f%%", predictiveFireRate),
                         icon: "bolt.badge.clock.fill",
-                        color: predictiveFireRate > 40 ? IPTheme.success : IPTheme.accent
+                        color: predictiveFireRate > 40 ? IATheme.success : IATheme.accent
                     )
                 }
             }
@@ -79,16 +79,16 @@ struct PerformanceView: View {
             }
 
             Text(value)
-                .font(IPTypography.headlineSmall)
-                .foregroundStyle(IPTheme.textPrimary)
+                .font(IATypography.headlineSmall)
+                .foregroundStyle(IATheme.textPrimary)
 
             Text(title)
-                .font(IPTypography.bodySmall)
-                .foregroundStyle(IPTheme.textSecondary)
+                .font(IATypography.bodySmall)
+                .foregroundStyle(IATheme.textSecondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)
-        .ipInsetSurface(cornerRadius: 22)
+        .iaInsetSurface(cornerRadius: 22)
     }
 
     private func infoRow(title: String, value: String, icon: String, color: Color) -> some View {
@@ -104,12 +104,12 @@ struct PerformanceView: View {
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
-                    .font(IPTypography.bodyMedium)
-                    .foregroundStyle(IPTheme.textPrimary)
+                    .font(IATypography.bodyMedium)
+                    .foregroundStyle(IATheme.textPrimary)
 
                 Text(value)
-                    .font(IPTypography.bodySmall)
-                    .foregroundStyle(IPTheme.textSecondary)
+                    .font(IATypography.bodySmall)
+                    .foregroundStyle(IATheme.textSecondary)
             }
 
             Spacer()
@@ -141,13 +141,13 @@ struct PerformanceView: View {
 
     private func latencyColor(_ latencyMs: Int, successThreshold: Int, warningThreshold: Int) -> Color {
         if latencyMs <= successThreshold {
-            return IPTheme.success
+            return IATheme.success
         }
 
         if latencyMs <= warningThreshold {
-            return IPTheme.accent
+            return IATheme.accent
         }
 
-        return IPTheme.warning
+        return IATheme.warning
     }
 }

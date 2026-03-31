@@ -37,7 +37,7 @@ struct LiveSessionView: View {
                         // Scroll to the top of the response once when generation starts,
                         // then stay put so the user can read from the beginning
                         if oldValue.isEmpty && !newValue.isEmpty {
-                            withAnimation(IPAnimations.standard) {
+                            withAnimation(IAAnimations.standard) {
                                 proxy.scrollTo("responseTop", anchor: .top)
                             }
                         }
@@ -80,16 +80,16 @@ struct LiveSessionView: View {
 
     private var headerBar: some View {
         HStack(spacing: 10) {
-            IPUtilityCircleButton(symbol: "chevron.left") {
+            IAUtilityCircleButton(symbol: "chevron.left") {
                 showEndConfirmation = true
             }
 
-            AnimatedStatusBadge(text: "Live", color: IPTheme.live, isActive: true)
+            AnimatedStatusBadge(text: "Live", color: IATheme.live, isActive: true)
 
-            IPStatusPill(
+            IAStatusPill(
                 title: formatTime(viewModel.elapsedTime),
                 symbol: "clock",
-                tint: IPTheme.textSecondary
+                tint: IATheme.textSecondary
             )
 
             if let questionType = viewModel.questionType {
@@ -98,7 +98,7 @@ struct LiveSessionView: View {
 
             Spacer()
 
-            IPStatusPill(title: liveStateTitle, symbol: liveStateSymbol, tint: liveStateTint)
+            IAStatusPill(title: liveStateTitle, symbol: liveStateSymbol, tint: liveStateTint)
         }
         .padding(.horizontal, 16)
         .padding(.top, 12)
@@ -109,18 +109,18 @@ struct LiveSessionView: View {
     private var transcriptSection: some View {
         VStack(alignment: .leading, spacing: 10) {
             Label("Interviewer", systemImage: "person.fill")
-                .font(IPTypography.labelLarge)
-                .foregroundStyle(colorScheme == .dark ? IPTheme.textSecondary : Color(UIColor.secondaryLabel))
+                .font(IATypography.labelLarge)
+                .foregroundStyle(colorScheme == .dark ? IATheme.textSecondary : Color(UIColor.secondaryLabel))
 
             Text(interviewerText)
-                .font(IPTypography.bodyLarge)
+                .font(IATypography.bodyLarge)
                 .foregroundStyle(.white)
                 .lineSpacing(4)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(16)
                 .background(
                     RoundedRectangle(cornerRadius: 22, style: .continuous)
-                        .fill(IPTheme.accent)
+                        .fill(IATheme.accent)
                 )
                 .shadow(color: Color.black.opacity(0.08), radius: 6, y: 3)
 
@@ -138,16 +138,16 @@ struct LiveSessionView: View {
     private var responseSection: some View {
         VStack(alignment: .leading, spacing: 10) {
             Label("Suggested Response", systemImage: "sparkles")
-                .font(IPTypography.labelLarge)
-                .foregroundStyle(IPTheme.accent)
+                .font(IATypography.labelLarge)
+                .foregroundStyle(IATheme.accent)
 
             if let error = viewModel.errorMessage {
                 Label(error, systemImage: "exclamationmark.triangle.fill")
-                    .font(IPTypography.bodySmall)
-                    .foregroundStyle(IPTheme.error)
+                    .font(IATypography.bodySmall)
+                    .foregroundStyle(IATheme.error)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(12)
-                    .background(IPTheme.error.opacity(0.10), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    .background(IATheme.error.opacity(0.10), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
             }
 
             Group {
@@ -155,7 +155,7 @@ struct LiveSessionView: View {
                     VStack(alignment: .leading, spacing: 10) {
                         ForEach(0..<3, id: \.self) { index in
                             RoundedRectangle(cornerRadius: 7, style: .continuous)
-                                .fill(IPTheme.accent.opacity(0.12))
+                                .fill(IATheme.accent.opacity(0.12))
                                 .frame(height: 16)
                                 .frame(maxWidth: index == 2 ? 180 : .infinity)
                                 .shimmer()
@@ -163,12 +163,12 @@ struct LiveSessionView: View {
                     }
                 } else if viewModel.currentResponse.isEmpty {
                     Text(responsePlaceholder)
-                        .font(IPTypography.bodyMedium)
+                        .font(IATypography.bodyMedium)
                         .foregroundStyle(Color(UIColor.secondaryLabel))
                         .frame(maxWidth: .infinity, alignment: .leading)
                 } else {
                     Text(viewModel.currentResponse)
-                        .font(IPTypography.responseText)
+                        .font(IATypography.responseText)
                         .foregroundStyle(colorScheme == .dark ? Color.white : Color.black)
                         .lineSpacing(6)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -182,7 +182,7 @@ struct LiveSessionView: View {
             )
             .overlay {
                 RoundedRectangle(cornerRadius: 22, style: .continuous)
-                    .stroke(IPTheme.accent, lineWidth: 2)
+                    .stroke(IATheme.accent, lineWidth: 2)
             }
             .shadow(color: Color.black.opacity(0.06), radius: 8, y: 4)
         }
@@ -191,7 +191,7 @@ struct LiveSessionView: View {
     // MARK: - Controls
 
     private var controlDock: some View {
-        IPBottomDock {
+        IABottomDock {
             HStack(spacing: 10) {
                 muteButton
                 nextButton
@@ -262,11 +262,11 @@ struct LiveSessionView: View {
     private var liveStateTint: Color {
         switch viewModel.sessionState {
         case .idle:
-            return IPTheme.textSecondary
+            return IATheme.textSecondary
         case .listening, .responseReady:
-            return IPTheme.success
+            return IATheme.success
         case .interviewerSpeaking, .generating, .postResponseSpeech:
-            return IPTheme.accent
+            return IATheme.accent
         }
     }
 
@@ -277,7 +277,7 @@ struct LiveSessionView: View {
             icon: viewModel.audioCapture.isCapturing ? "mic.fill" : "mic.slash.fill",
             label: viewModel.audioCapture.isCapturing ? "Mute" : "Unmute",
             isActive: viewModel.audioCapture.isCapturing,
-            tint: IPTheme.accent
+            tint: IATheme.accent
         ) {
             if viewModel.audioCapture.isCapturing {
                 viewModel.audioCapture.stopCapture()
@@ -292,9 +292,9 @@ struct LiveSessionView: View {
             icon: "forward.fill",
             label: "Next",
             isActive: true,
-            tint: IPTheme.accent
+            tint: IATheme.accent
         ) {
-            withAnimation(IPAnimations.standard) {
+            withAnimation(IAAnimations.standard) {
                 viewModel.resumeListeningForNextQuestion()
             }
         }
@@ -305,7 +305,7 @@ struct LiveSessionView: View {
             icon: "stop.fill",
             label: "End",
             isActive: false,
-            tint: IPTheme.error
+            tint: IATheme.error
         ) {
             showEndConfirmation = true
         }
@@ -361,7 +361,7 @@ struct ControlButton: View {
     let icon: String
     let label: String
     let isActive: Bool
-    var tint: Color = IPTheme.accent
+    var tint: Color = IATheme.accent
     var action: () -> Void
 
     var body: some View {
@@ -372,8 +372,8 @@ struct ControlButton: View {
                     .foregroundStyle(isActive ? tint : tint.opacity(0.7))
 
                 Text(label)
-                    .font(IPTypography.labelSmall)
-                    .foregroundStyle(IPTheme.textPrimary)
+                    .font(IATypography.labelSmall)
+                    .foregroundStyle(IATheme.textPrimary)
                     .lineLimit(1)
             }
             .frame(maxWidth: .infinity, minHeight: 54)

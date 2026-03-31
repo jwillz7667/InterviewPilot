@@ -92,8 +92,6 @@ private struct RemoteSessionRecord: Decodable {
         switch rawValue {
         case "LIVE_INTERVIEW":
             return .liveInterview
-        case "VOICE_PREP":
-            return .voicePrep
         default:
             return nil
         }

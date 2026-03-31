@@ -2,11 +2,6 @@ import Foundation
 import SwiftUI
 import UniformTypeIdentifiers
 
-enum SessionLaunchDestination {
-    case live(UUID)
-    case voicePrep(UUID)
-}
-
 @Observable
 final class SessionSetupViewModel {
     var resumeText: String = ""
@@ -14,12 +9,12 @@ final class SessionSetupViewModel {
     var jobListingURL: String = ""
     var jobListingTitle: String?
     var jobListingText: String = ""
-    var sessionMode: SessionMode = .liveInterview
     var interviewType: InterviewType = .general
     var jobCategory: JobCategory?
     var positionLevel: PositionLevel?
     var responseFormat: ResponseFormat = .hybrid
     var responseQualityMode: ResponseQualityMode = .standard
+    var additionalNotes: String = ""
     var showResumeInput: Bool = false
     var shouldPresentPaywall: Bool = false
     var shouldPreGenerate: Bool = false
@@ -31,13 +26,6 @@ final class SessionSetupViewModel {
     var preparedAnswerBankName: String?
     var preparedAnswerBankIsCached: Bool = false
     var preGenerationProgress: (current: Int, total: Int) = (0, 0)
-
-    // GitHub integration
-    var githubUsername: String = ""
-    var githubProfile: GitHubProfileSummary?
-    var selectedRepoNames: Set<String> = []
-    var isLoadingGitHub: Bool = false
-    var hasGitHubProfile: Bool { githubProfile != nil }
 
     // LinkedIn integration
     var linkedInURL: String = ""
@@ -62,7 +50,7 @@ final class SessionSetupViewModel {
     var hasResume: Bool { !resumeText.isEmpty }
     var hasJobListingURL: Bool { !jobListingURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
     var hasJobListing: Bool { !jobListingText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
-    var isReady: Bool { hasResume && hasJobListing && jobCategory != nil && positionLevel != nil }
+    var isReady: Bool { hasResume && hasJobListing }
     var hasPreparedAnswers: Bool { !preparedAnswers.isEmpty }
     var derivedProfile: RoleResponseProfile {
         RoleResponseProfile.derive(
@@ -103,14 +91,12 @@ final class SessionSetupViewModel {
 
     var enrichedResume: String {
         var parts = [resumeText]
-        if let profile = githubProfile {
-            let featured = selectedRepoNames.isEmpty
-                ? profile.topRepos
-                : profile.topRepos.filter { selectedRepoNames.contains($0.name) }
-            parts.append("\nCANDIDATE'S GITHUB PROFILE:\n\(profile.formattedContext(featuredRepos: featured))")
-        }
         if let linkedin = linkedInProfile, !linkedin.isEmpty {
             parts.append("\nCANDIDATE'S LINKEDIN PROFILE:\n\(linkedin.formattedContext)")
+        }
+        let trimmedNotes = additionalNotes.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmedNotes.isEmpty {
+            parts.append("\nADDITIONAL NOTES:\n\(trimmedNotes)")
         }
         return parts.joined(separator: "\n")
     }
@@ -155,14 +141,6 @@ final class SessionSetupViewModel {
             hasLoadedDefaults = true
         }
 
-        // Restore saved GitHub username and repo selections
-        loadSelectedRepos()
-        if let savedUsername = KeychainService.load(key: .githubUsername),
-           !savedUsername.isEmpty {
-            githubUsername = savedUsername
-            await fetchGitHubProfile()
-        }
-
         // Restore saved LinkedIn URL and profile text
         if let savedLinkedIn = KeychainService.load(key: .linkedInURL),
            !savedLinkedIn.isEmpty {
@@ -174,69 +152,22 @@ final class SessionSetupViewModel {
             }
         }
 
+        // Restore additional notes
+        if let savedNotes = UserDefaults.standard.string(forKey: "additionalNotes") {
+            additionalNotes = savedNotes
+        }
+
         do {
             let settings = try await settingsService.fetchSettings()
             interviewType = settings.interviewType
-            responseFormat = settings.responseFormat
             shouldPreGenerate = settings.shouldPreGenerate
         } catch {
             // Keep local defaults if the backend is unavailable.
         }
     }
 
-    func fetchGitHubProfile() async {
-        let trimmed = githubUsername.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else {
-            githubProfile = nil
-            return
-        }
-
-        isLoadingGitHub = true
-        defer { isLoadingGitHub = false }
-
-        do {
-            let profile = try await GitHubService.fetchProfile(username: trimmed)
-            githubProfile = profile
-            _ = KeychainService.save(key: .githubUsername, value: profile.username)
-            invalidatePreparedAnswerBankIfNeeded()
-        } catch {
-            githubProfile = nil
-            errorMessage = error.localizedDescription
-        }
-    }
-
-    func toggleRepoSelection(_ repoName: String) {
-        if selectedRepoNames.contains(repoName) {
-            selectedRepoNames.remove(repoName)
-        } else {
-            guard selectedRepoNames.count < 3 else { return }
-            selectedRepoNames.insert(repoName)
-        }
-        saveSelectedRepos()
-        invalidatePreparedAnswerBankIfNeeded()
-    }
-
-    func isRepoSelected(_ repoName: String) -> Bool {
-        selectedRepoNames.contains(repoName)
-    }
-
-    func clearGitHubProfile() {
-        githubUsername = ""
-        githubProfile = nil
-        selectedRepoNames = []
-        _ = KeychainService.delete(key: .githubUsername)
-        UserDefaults.standard.removeObject(forKey: "selectedGitHubRepos")
-        invalidatePreparedAnswerBankIfNeeded()
-    }
-
-    private func saveSelectedRepos() {
-        UserDefaults.standard.set(Array(selectedRepoNames), forKey: "selectedGitHubRepos")
-    }
-
-    private func loadSelectedRepos() {
-        if let saved = UserDefaults.standard.stringArray(forKey: "selectedGitHubRepos") {
-            selectedRepoNames = Set(saved)
-        }
+    func saveAdditionalNotes() {
+        UserDefaults.standard.set(additionalNotes, forKey: "additionalNotes")
     }
 
     // MARK: - LinkedIn
@@ -397,7 +328,7 @@ final class SessionSetupViewModel {
         }
     }
 
-    func prepareSession() async -> SessionLaunchDestination? {
+    func prepareSession() async -> UUID? {
         guard isReady, !isPreparingSession else { return nil }
 
         isPreparingSession = true
@@ -432,20 +363,15 @@ final class SessionSetupViewModel {
                 return nil
             }
 
-            try await ensureRuntimeKeys(for: sessionMode)
+            try await ensureRuntimeKeys()
 
             let sessionId = UUID()
             _ = try await subscriptionService.claimInterviewAccess(
                 sessionClientId: sessionId,
-                sessionMode: sessionMode
+                sessionMode: .liveInterview
             )
 
-            switch sessionMode {
-            case .liveInterview:
-                return .live(sessionId)
-            case .voicePrep:
-                return .voicePrep(sessionId)
-            }
+            return sessionId
         } catch let error as BillingClientError {
             errorMessage = error.localizedDescription
             if case .paymentRequired = error {
@@ -483,40 +409,15 @@ final class SessionSetupViewModel {
         )
     }
 
-    func createPrepViewModel(sessionId: UUID) -> PrepSessionViewModel {
-        let openAIKey = KeychainService.load(key: .openAIAPIKey) ?? ""
+    private func ensureRuntimeKeys() async throws {
+        if KeychainService.load(key: .openAIAPIKey) == nil ||
+            KeychainService.load(key: .deepgramAPIKey) == nil {
+            await authService.fetchAndStoreAPIKeys()
+        }
 
-        return PrepSessionViewModel(
-            sessionId: sessionId,
-            resume: enrichedResume,
-            jobDescription: jobDescription,
-            interviewType: interviewType,
-            jobCategory: jobCategory ?? .generalBusiness,
-            positionLevel: positionLevel ?? .midLevel,
-            openAIKey: openAIKey
-        )
-    }
-
-    private func ensureRuntimeKeys(for sessionMode: SessionMode) async throws {
-        switch sessionMode {
-        case .liveInterview:
-            if KeychainService.load(key: .openAIAPIKey) == nil ||
-                KeychainService.load(key: .deepgramAPIKey) == nil {
-                await authService.fetchAndStoreAPIKeys()
-            }
-
-            guard KeychainService.load(key: .openAIAPIKey) != nil,
-                  KeychainService.load(key: .deepgramAPIKey) != nil else {
-                throw missingAccessError()
-            }
-        case .voicePrep:
-            if KeychainService.load(key: .openAIAPIKey) == nil {
-                await authService.fetchAndStoreAPIKeys()
-            }
-
-            guard KeychainService.load(key: .openAIAPIKey) != nil else {
-                throw missingAccessError()
-            }
+        guard KeychainService.load(key: .openAIAPIKey) != nil,
+              KeychainService.load(key: .deepgramAPIKey) != nil else {
+            throw missingAccessError()
         }
     }
 

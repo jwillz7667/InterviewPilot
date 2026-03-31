@@ -5,9 +5,9 @@
 	<key>BACKEND_BASE_URL</key>
 	<string>https://interviewpilot-production.up.railway.app</string>
 	<key>CFBundleDisplayName</key>
-	<string>Job Hopper</string>
+	<string>Interview Ace AI</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Job Hopper needs microphone access to hear and transcribe the interviewer's questions in real-time.</string>
+	<string>Interview Ace AI needs microphone access to hear and transcribe the interviewer's questions in real-time.</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>audio</string>

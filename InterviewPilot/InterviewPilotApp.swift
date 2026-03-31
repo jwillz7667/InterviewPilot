@@ -2,7 +2,9 @@ import SwiftUI
 import SwiftData
 
 @main
-struct JobHopperApp: App {
+struct InterviewAceApp: App {
+    @State private var versionService = VersionService.shared
+
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
             InterviewSession.self,
@@ -18,8 +20,13 @@ struct JobHopperApp: App {
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            if versionService.requiresUpdate {
+                ForceUpdateView()
+            } else {
+                ContentView()
+            }
         }
         .modelContainer(sharedModelContainer)
+        .task { await versionService.checkVersion() }
     }
 }

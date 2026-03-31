@@ -10,7 +10,6 @@ enum KeychainKey: String {
     case userId = "com.res.jobhopperAI.user-id"
     case displayName = "com.res.jobhopperAI.display-name"
     case appAccountToken = "com.res.jobhopperAI.app-account-token"
-    case githubUsername = "com.res.jobhopperAI.github-username"
     case linkedInURL = "com.res.jobhopperAI.linkedin-url"
 }
 

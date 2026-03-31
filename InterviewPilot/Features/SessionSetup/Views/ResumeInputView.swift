@@ -10,22 +10,22 @@ struct ResumeInputView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                IPAppBackground()
+                IAAppBackground()
 
                 ScrollView {
-                    VStack(spacing: IPTheme.spacing20) {
-                        IPPanel(tone: .primary, padding: 22, cornerRadius: 30) {
+                    VStack(spacing: IATheme.spacing20) {
+                        IAPanel(tone: .primary, padding: 22, cornerRadius: 30) {
                             VStack(alignment: .leading, spacing: 16) {
                                 HStack {
-                                    IPBrandLogo(size: 42, showShadow: false, variant: .surface)
+                                    IABrandLogo(size: 42, showShadow: false, variant: .surface)
                                     Spacer()
                                     Button(action: { showFilePicker = true }) {
                                         Label("Upload PDF", systemImage: "doc.badge.plus")
                                     }
-                                    .buttonStyle(IPSecondaryButtonStyle())
+                                    .buttonStyle(IASecondaryButtonStyle())
                                 }
 
-                                IPSectionHeader(
+                                IASectionHeader(
                                     eyebrow: "Resume",
                                     title: "Import or paste your resume",
                                     subtitle: "A full resume gives the app better role-specific language for response guidance and prep generation.",
@@ -33,26 +33,26 @@ struct ResumeInputView: View {
                                 )
 
                                 TextEditor(text: $resumeText)
-                                    .font(IPTypography.bodyMedium)
-                                    .foregroundStyle(IPTheme.insetSurfacePrimaryText(for: colorScheme))
+                                    .font(IATypography.bodyMedium)
+                                    .foregroundStyle(IATheme.insetSurfacePrimaryText(for: colorScheme))
                                     .scrollContentBackground(.hidden)
                                     .frame(minHeight: 320)
                                     .padding(16)
-                                    .ipInsetSurface(cornerRadius: 24)
+                                    .iaInsetSurface(cornerRadius: 24)
                             }
                         }
                     }
-                    .padding(.horizontal, IPTheme.spacing20)
-                    .padding(.vertical, IPTheme.spacing20)
+                    .padding(.horizontal, IATheme.spacing20)
+                    .padding(.vertical, IATheme.spacing20)
                 }
-                .ipScrollablePage()
+                .iaScrollablePage()
             }
             .navigationTitle("Resume")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Done") { dismiss() }
-                        .foregroundStyle(IPTheme.accent)
+                        .foregroundStyle(IATheme.accent)
                 }
             }
             .fileImporter(

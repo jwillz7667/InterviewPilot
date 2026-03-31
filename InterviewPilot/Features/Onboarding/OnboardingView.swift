@@ -13,7 +13,7 @@ struct OnboardingView: View {
         (
             "briefcase.fill",
             "Anchor every session to the role",
-            "Paste the job listing URL and Job Hopper infers category, level, and the framing that should guide your answers."
+            "Paste the job listing URL and Interview Ace AI infers category, level, and the framing that should guide your answers."
         ),
         (
             "sparkles.rectangle.stack",
@@ -29,7 +29,7 @@ struct OnboardingView: View {
 
     var body: some View {
         ZStack {
-            IPAppBackground()
+            IAAppBackground()
 
             VStack(spacing: 0) {
                 header
@@ -42,81 +42,81 @@ struct OnboardingView: View {
 
     private var header: some View {
         HStack {
-            IPBrandLogo(size: 44, showShadow: false, variant: .filled)
+            IABrandLogo(size: 44, showShadow: false, variant: .filled)
 
             Spacer()
 
             Button("Skip", action: onComplete)
-                .buttonStyle(IPSecondaryButtonStyle())
+                .buttonStyle(IASecondaryButtonStyle())
                 .opacity(currentPage == pages.count - 1 ? 0 : 1)
                 .allowsHitTesting(currentPage < pages.count - 1)
         }
-        .padding(.horizontal, IPTheme.spacing20)
-        .padding(.top, IPTheme.spacing16)
+        .padding(.horizontal, IATheme.spacing20)
+        .padding(.top, IATheme.spacing16)
     }
 
     private var introHeader: some View {
         HStack(alignment: .top, spacing: 16) {
             VStack(alignment: .leading, spacing: 10) {
                 Text("Interview prep that feels\nnative on iPhone")
-                    .font(IPTypography.displayMedium)
-                    .foregroundStyle(IPTheme.textPrimary)
+                    .font(IATypography.displayMedium)
+                    .foregroundStyle(IATheme.textPrimary)
                     .lineSpacing(-4)
 
-                Text("A quick walkthrough of how Job Hopper organizes prep, live guidance, and review.")
-                    .font(IPTypography.bodyLarge)
-                    .foregroundStyle(IPTheme.textSecondary)
+                Text("A quick walkthrough of how Interview Ace AI organizes prep, live guidance, and review.")
+                    .font(IATypography.bodyLarge)
+                    .foregroundStyle(IATheme.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
 
             Spacer(minLength: 0)
 
-            IPStarburst(size: 34)
+            IAStarburst(size: 34)
                 .padding(.top, 8)
         }
-        .padding(.horizontal, IPTheme.spacing20)
+        .padding(.horizontal, IATheme.spacing20)
         .padding(.top, 18)
     }
 
     private var cards: some View {
         TabView(selection: $currentPage) {
             ForEach(Array(pages.enumerated()), id: \.offset) { index, page in
-                IPPanel(tone: .secondary, padding: 24, cornerRadius: 36) {
+                IAPanel(tone: .secondary, padding: 24, cornerRadius: 36) {
                     VStack(alignment: .leading, spacing: 22) {
                         HStack(alignment: .top) {
-                            IPBrandLogo(size: 96, variant: .surface)
+                            IABrandLogo(size: 96, variant: .surface)
 
                             Spacer()
 
                             VStack(spacing: 10) {
-                                IPStarburst(size: 34)
+                                IAStarburst(size: 34)
 
                                 RoundedRectangle(cornerRadius: 18, style: .continuous)
-                                    .fill(IPTheme.accent.opacity(0.10))
+                                    .fill(IATheme.accent.opacity(0.10))
                                     .frame(width: 54, height: 54)
                                     .overlay {
                                         Image(systemName: page.icon)
                                             .font(.system(size: 22, weight: .semibold))
-                                            .foregroundStyle(IPTheme.accent)
+                                            .foregroundStyle(IATheme.accent)
                                     }
                             }
                         }
 
                         VStack(alignment: .leading, spacing: 10) {
                             Text(page.title)
-                                .font(IPTypography.headlineLarge)
-                                .foregroundStyle(IPTheme.textPrimary)
+                                .font(IATypography.headlineLarge)
+                                .foregroundStyle(IATheme.textPrimary)
 
                             Text(page.description)
-                                .font(IPTypography.bodyLarge)
-                                .foregroundStyle(IPTheme.textSecondary)
+                                .font(IATypography.bodyLarge)
+                                .foregroundStyle(IATheme.textSecondary)
                                 .fixedSize(horizontal: false, vertical: true)
                         }
 
                         HStack(spacing: 10) {
                             ForEach(0..<pages.count, id: \.self) { dotIndex in
                                 Capsule()
-                                    .fill(dotIndex == currentPage ? IPTheme.accent : IPTheme.divider)
+                                    .fill(dotIndex == currentPage ? IATheme.accent : IATheme.divider)
                                     .frame(width: dotIndex == currentPage ? 34 : 10, height: 10)
                             }
                         }
@@ -125,7 +125,7 @@ struct OnboardingView: View {
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 }
-                .padding(.horizontal, IPTheme.spacing20)
+                .padding(.horizontal, IATheme.spacing20)
                 .padding(.vertical, 18)
                 .tag(index)
             }
@@ -141,20 +141,20 @@ struct OnboardingView: View {
                     Image(systemName: currentPage == pages.count - 1 ? "checkmark.circle.fill" : "arrow.right.circle.fill")
                 }
             }
-            .buttonStyle(IPPrimaryButtonStyle())
+            .buttonStyle(IAPrimaryButtonStyle())
 
             Text(currentPage == pages.count - 1 ? "You can change theme and prep defaults later in settings." : "Swipe through the overview or continue step by step.")
-                .font(IPTypography.bodySmall)
-                .foregroundStyle(IPTheme.textSecondary)
+                .font(IATypography.bodySmall)
+                .foregroundStyle(IATheme.textSecondary)
                 .multilineTextAlignment(.center)
         }
-        .padding(.horizontal, IPTheme.spacing20)
-        .padding(.bottom, IPTheme.spacing24)
+        .padding(.horizontal, IATheme.spacing20)
+        .padding(.bottom, IATheme.spacing24)
     }
 
     private func advance() {
         if currentPage < pages.count - 1 {
-            withAnimation(IPAnimations.hero) {
+            withAnimation(IAAnimations.hero) {
                 currentPage += 1
             }
         } else {

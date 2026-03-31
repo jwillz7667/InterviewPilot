@@ -4,7 +4,6 @@ import UniformTypeIdentifiers
 struct SessionSetupView: View {
     @State private var viewModel: SessionSetupViewModel
     @State private var showLiveSession = false
-    @State private var showPrepSession = false
     @State private var showFilePicker = false
     @State private var showPaywall = false
     @State private var showResumeEditor = false
@@ -16,14 +15,6 @@ struct SessionSetupView: View {
 
     private let loadDefaultsOnTask: Bool
     private let twoColumnGrid = [
-        GridItem(.flexible(), spacing: 12, alignment: .top),
-        GridItem(.flexible(), spacing: 12, alignment: .top),
-    ]
-    private let singleColumnGrid = [
-        GridItem(.flexible(), spacing: 12, alignment: .top)
-    ]
-    private let threeColumnGrid = [
-        GridItem(.flexible(), spacing: 12, alignment: .top),
         GridItem(.flexible(), spacing: 12, alignment: .top),
         GridItem(.flexible(), spacing: 12, alignment: .top),
     ]
@@ -39,7 +30,7 @@ struct SessionSetupView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                IPAppBackground()
+                IAAppBackground()
 
                 ScrollView {
                     VStack(spacing: 18) {
@@ -52,21 +43,21 @@ struct SessionSetupView: View {
 
                         setupCanvas
                     }
-                    .padding(.horizontal, IPTheme.spacing20)
-                    .padding(.top, IPTheme.spacing20)
-                    .padding(.bottom, 44)
+                    .padding(.horizontal, IATheme.spacing20)
+                    .padding(.top, IATheme.spacing20)
+                    .padding(.bottom, 140)
                 }
-                .ipScrollablePage()
+                .iaScrollablePage()
             }
             .toolbar(.hidden, for: .navigationBar)
+            .safeAreaInset(edge: .bottom) {
+                launchSection
+                    .padding(.horizontal, IATheme.spacing16)
+                    .padding(.bottom, IATheme.spacing8)
+            }
             .fullScreenCover(isPresented: $showLiveSession) {
                 if let preparedSessionId {
                     LiveSessionView(viewModel: viewModel.createLiveViewModel(sessionId: preparedSessionId))
-                }
-            }
-            .fullScreenCover(isPresented: $showPrepSession) {
-                if let preparedSessionId {
-                    PrepSessionView(viewModel: viewModel.createPrepViewModel(sessionId: preparedSessionId))
                 }
             }
             .sheet(isPresented: $showPaywall) {
@@ -128,22 +119,25 @@ struct SessionSetupView: View {
             .onChange(of: viewModel.responseQualityMode) {
                 viewModel.invalidatePreparedAnswerBankIfNeeded()
             }
+            .onChange(of: viewModel.additionalNotes) {
+                viewModel.saveAdditionalNotes()
+            }
         }
     }
 
     private var topUtilityBar: some View {
         HStack(spacing: 12) {
             HStack(spacing: 12) {
-                IPBrandLogo(size: 38, showShadow: false, variant: .surface)
+                IABrandLogo(size: 38, showShadow: false, variant: .surface)
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Job Hopper")
-                        .font(IPTypography.labelLarge)
-                        .foregroundStyle(IPTheme.textPrimary)
+                    Text("Interview Ace AI")
+                        .font(IATypography.labelLarge)
+                        .foregroundStyle(IATheme.textPrimary)
 
                     Text("Prepare")
-                        .font(IPTypography.bodySmall)
-                        .foregroundStyle(IPTheme.textSecondary)
+                        .font(IATypography.bodySmall)
+                        .foregroundStyle(IATheme.textSecondary)
                 }
             }
 
@@ -151,13 +145,13 @@ struct SessionSetupView: View {
 
             HStack(spacing: 10) {
                 if viewModel.hasResume {
-                    IPUtilityCircleButton(symbol: "doc.text.magnifyingglass") {
+                    IAUtilityCircleButton(symbol: "doc.text.magnifyingglass") {
                         showResumePreview = true
                     }
                 }
 
                 if viewModel.hasJobListing {
-                    IPUtilityCircleButton(symbol: "link") {
+                    IAUtilityCircleButton(symbol: "link") {
                         showJobListingPreview = true
                     }
                 }
@@ -166,17 +160,17 @@ struct SessionSetupView: View {
     }
 
     private var dashboardHeader: some View {
-        IPPanel(tone: .secondary, padding: 22, cornerRadius: 30) {
+        IAPanel(tone: .secondary, padding: 22, cornerRadius: 30) {
             VStack(alignment: .leading, spacing: 16) {
                 HStack(alignment: .top, spacing: 12) {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Prepare")
-                            .font(IPTypography.labelSmall)
-                            .foregroundStyle(IPTheme.textSecondary)
+                            .font(IATypography.labelSmall)
+                            .foregroundStyle(IATheme.textSecondary)
 
                         Text("Interview Prep")
-                            .font(IPTypography.displayMedium)
-                            .foregroundStyle(IPTheme.textPrimary)
+                            .font(IATypography.displayMedium)
+                            .foregroundStyle(IATheme.textPrimary)
                             .lineLimit(2)
                             .minimumScaleFactor(0.88)
                     }
@@ -184,132 +178,50 @@ struct SessionSetupView: View {
                     Spacer(minLength: 12)
 
                     if let entitlement = subscriptionService.currentEntitlement {
-                        IPStatusPill(
+                        IAStatusPill(
                             title: entitlement.planTitle,
                             symbol: entitlement.sandboxFullAccess ? "checkmark.seal.fill" : "creditcard.fill",
-                            tint: entitlement.sandboxFullAccess ? IPTheme.success : IPTheme.accent
+                            tint: entitlement.sandboxFullAccess ? IATheme.success : IATheme.accent
                         )
                     }
                 }
 
                 Text("Upload your resume, analyze the role, confirm the setup, and launch from one grounded flow.")
-                    .font(IPTypography.bodyLarge)
-                    .foregroundStyle(IPTheme.textSecondary)
+                    .font(IATypography.bodyLarge)
+                    .foregroundStyle(IATheme.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
 
                 HStack(spacing: 10) {
-                    IPStatusPill(title: viewModel.sessionMode.displayName, symbol: viewModel.sessionMode.icon)
-                    IPStatusPill(
+                    IAStatusPill(
                         title: launchReadinessTitle,
                         symbol: viewModel.isReady ? "checkmark.circle.fill" : "circle.dotted",
-                        tint: viewModel.isReady ? IPTheme.success : IPTheme.textSecondary
+                        tint: viewModel.isReady ? IATheme.success : IATheme.textSecondary
                     )
                 }
             }
         }
     }
 
-    private var inferenceSummary: some View {
-        LazyVGrid(columns: threeColumnGrid, spacing: 12) {
-            summaryTile(
-                title: "Role",
-                value: viewModel.jobCategory?.displayName ?? "Pending",
-                symbol: viewModel.jobCategory.map(jobCategoryIcon(for:)) ?? "briefcase.fill"
-            )
-            summaryTile(
-                title: "Level",
-                value: viewModel.positionLevel?.displayName ?? "Pending",
-                symbol: viewModel.positionLevel.map(positionLevelIcon(for:)) ?? "arrow.up.right.circle"
-            )
-            summaryTile(
-                title: "Format",
-                value: viewModel.responseFormat.displayName,
-                symbol: "text.justify.left"
-            )
-        }
-    }
-
     private var setupCanvas: some View {
         VStack(spacing: 16) {
-            IPPanel(tone: .secondary, padding: 22, cornerRadius: 30) {
+            IAPanel(tone: .secondary, padding: 22, cornerRadius: 30) {
+                uploadCard
+            }
+
+            IAPanel(tone: .secondary, padding: 22, cornerRadius: 30) {
+                linkedInCard
+            }
+
+            IAPanel(tone: .secondary, padding: 22, cornerRadius: 30) {
+                additionalNotesCard
+            }
+
+            IAPanel(tone: .secondary, padding: 22, cornerRadius: 30) {
                 VStack(alignment: .leading, spacing: 22) {
-                    uploadCard
-                    Divider()
-                        .overlay(IPTheme.borderColor(for: colorScheme))
-                    githubCard
-                    Divider()
-                        .overlay(IPTheme.borderColor(for: colorScheme))
-                    linkedInCard
-                    Divider()
-                        .overlay(IPTheme.borderColor(for: colorScheme))
                     listingCard
                     readinessSummaryStrip
                 }
             }
-
-            IPPanel(tone: .secondary, padding: 22, cornerRadius: 30) {
-                VStack(alignment: .leading, spacing: 18) {
-                    compactSectionTitle("Session configuration", detail: "Use clear grouped controls so the interview mode and answer style are easy to verify at a glance.")
-
-                    VStack(alignment: .leading, spacing: 16) {
-                        compactSectionTitle("Interview mode", detail: "Choose how Job Hopper should run this session.")
-                        VStack(spacing: 12) {
-                            ForEach(SessionMode.allCases) { mode in
-                                let isLocked = mode == .voicePrep && !(subscriptionService.currentEntitlement?.hasVoicePrep ?? false)
-                                modeCard(mode, isLocked: isLocked)
-                            }
-                        }
-                    }
-
-                    responseLayoutSection
-                }
-            }
-
-            IPPanel(tone: .secondary, padding: 22, cornerRadius: 30) {
-                VStack(alignment: .leading, spacing: 18) {
-                    compactSectionTitle("Role targeting", detail: "Longer option sets follow Apple’s grouped-list pattern instead of free-floating pills.")
-
-                    optionGroup(
-                        title: "Role focus",
-                        detail: "Auto-detected from the listing, but still editable when the posting is noisy.",
-                        columns: singleColumnGrid
-                    ) {
-                        ForEach(JobCategory.allCases) { category in
-                            selectionChip(
-                                title: category.displayName,
-                                symbol: jobCategoryIcon(for: category),
-                                isSelected: viewModel.jobCategory == category
-                            ) {
-                                withAnimation(IPAnimations.snappy) {
-                                    viewModel.jobCategory = category
-                                    viewModel.interviewType = viewModel.derivedProfile.interviewType
-                                }
-                            }
-                        }
-                    }
-
-                    optionGroup(
-                        title: "Seniority",
-                        detail: viewModel.derivedProfile.rolePromptInstruction,
-                        columns: singleColumnGrid
-                    ) {
-                        ForEach(PositionLevel.allCases) { level in
-                            selectionChip(
-                                title: level.displayName,
-                                symbol: positionLevelIcon(for: level),
-                                isSelected: viewModel.positionLevel == level
-                            ) {
-                                withAnimation(IPAnimations.snappy) {
-                                    viewModel.positionLevel = level
-                                    viewModel.interviewType = viewModel.derivedProfile.interviewType
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            launchSection
         }
     }
 
@@ -317,21 +229,21 @@ struct SessionSetupView: View {
         VStack(alignment: .leading, spacing: 14) {
             VStack(spacing: 12) {
                 RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .fill(IPTheme.accent.opacity(0.10))
+                    .fill(IATheme.accent.opacity(0.10))
                     .frame(width: 60, height: 60)
                     .overlay {
                         Image(systemName: viewModel.hasResume ? "doc.text.fill" : "square.and.arrow.up.fill")
                             .font(.system(size: 24, weight: .regular))
-                            .foregroundStyle(IPTheme.accent)
+                            .foregroundStyle(IATheme.accent)
                     }
 
                 Text(viewModel.hasResume ? "Resume Ready" : "Upload Your Resume")
-                    .font(IPTypography.headlineSmall)
-                    .foregroundStyle(IPTheme.textPrimary)
+                    .font(IATypography.headlineSmall)
+                    .foregroundStyle(IATheme.textPrimary)
 
                 Text(viewModel.hasResume ? viewModel.resumeStatusLabel : "Select a PDF or paste the full text so the interview can be grounded in your background.")
-                    .font(IPTypography.bodySmall)
-                    .foregroundStyle(IPTheme.textSecondary)
+                    .font(IATypography.bodySmall)
+                    .foregroundStyle(IATheme.textSecondary)
                     .multilineTextAlignment(.center)
             }
             .frame(maxWidth: .infinity)
@@ -339,12 +251,12 @@ struct SessionSetupView: View {
             .padding(.horizontal, 18)
             .background(
                 RoundedRectangle(cornerRadius: 28, style: .continuous)
-                    .fill(IPTheme.surfacePrimary)
+                    .fill(IATheme.surfacePrimary)
             )
             .overlay {
                 RoundedRectangle(cornerRadius: 28, style: .continuous)
                     .stroke(style: StrokeStyle(lineWidth: 1.5, dash: [6, 6]))
-                    .foregroundStyle(IPTheme.borderColor(for: colorScheme))
+                    .foregroundStyle(IATheme.borderColor(for: colorScheme))
             }
 
             if viewModel.hasResume {
@@ -377,134 +289,6 @@ struct SessionSetupView: View {
         }
     }
 
-    private var githubCard: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            compactSectionTitle("GitHub Profile", detail: "Link your GitHub so responses can reference your real projects.")
-
-            VStack(spacing: 12) {
-                HStack(spacing: 10) {
-                    Image(systemName: "chevron.left.forwardslash.chevron.right")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(IPTheme.textSecondary)
-
-                    TextField("username or github.com/username", text: $viewModel.githubUsername)
-                        .font(IPTypography.bodyMedium)
-                        .foregroundStyle(IPTheme.textPrimary)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                        .submitLabel(.go)
-                        .onSubmit {
-                            Task { await viewModel.fetchGitHubProfile() }
-                        }
-
-                    if viewModel.isLoadingGitHub {
-                        ProgressView()
-                            .tint(IPTheme.accent)
-                    }
-                }
-                .padding(.horizontal, 14)
-                .frame(minHeight: 52)
-                .background(IPTheme.surfacePrimary, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 20, style: .continuous)
-                        .stroke(IPTheme.borderColor(for: colorScheme), lineWidth: 1)
-                }
-
-                HStack(spacing: 10) {
-                    Button(action: {
-                        Task { await viewModel.fetchGitHubProfile() }
-                    }) {
-                        Text(viewModel.hasGitHubProfile ? "Refresh" : "Link GitHub")
-                    }
-                    .buttonStyle(IPSecondaryButtonStyle())
-                    .disabled(viewModel.isLoadingGitHub || viewModel.githubUsername.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-
-                    if viewModel.hasGitHubProfile {
-                        Button(action: { viewModel.clearGitHubProfile() }) {
-                            Text("Remove")
-                        }
-                        .buttonStyle(IPSecondaryButtonStyle())
-                    }
-                }
-            }
-
-            if let profile = viewModel.githubProfile {
-                VStack(alignment: .leading, spacing: 10) {
-                    infoBadge(title: "github.com/\(profile.username)", symbol: "link")
-
-                    if !profile.primaryLanguages.isEmpty {
-                        Text(profile.primaryLanguages.prefix(4).joined(separator: " · "))
-                            .font(IPTypography.bodySmall)
-                            .foregroundStyle(IPTheme.textSecondary)
-                    }
-
-                    Text("Select up to 3 repos to feature in responses (\(viewModel.selectedRepoNames.count)/3)")
-                        .font(IPTypography.labelSmall)
-                        .foregroundStyle(IPTheme.accent)
-
-                    VStack(spacing: 6) {
-                        ForEach(profile.topRepos.prefix(10)) { repo in
-                            Button(action: { viewModel.toggleRepoSelection(repo.name) }) {
-                                HStack(spacing: 10) {
-                                    Image(systemName: viewModel.isRepoSelected(repo.name)
-                                          ? "checkmark.circle.fill" : "circle")
-                                        .foregroundStyle(viewModel.isRepoSelected(repo.name)
-                                                         ? IPTheme.accent : IPTheme.textSecondary)
-                                        .font(.system(size: 18))
-
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        HStack(spacing: 6) {
-                                            Text(repo.name)
-                                                .font(IPTypography.labelSmall)
-                                                .foregroundStyle(IPTheme.textPrimary)
-                                                .lineLimit(1)
-
-                                            if let lang = repo.language {
-                                                Text(lang)
-                                                    .font(IPTypography.bodySmall)
-                                                    .foregroundStyle(IPTheme.accent)
-                                            }
-
-                                            if repo.stars > 0 {
-                                                Label("\(repo.stars)", systemImage: "star.fill")
-                                                    .font(IPTypography.bodySmall)
-                                                    .foregroundStyle(IPTheme.textSecondary)
-                                            }
-                                        }
-
-                                        if let desc = repo.description, !desc.isEmpty {
-                                            Text(desc)
-                                                .font(IPTypography.bodySmall)
-                                                .foregroundStyle(IPTheme.textSecondary)
-                                                .lineLimit(1)
-                                        }
-                                    }
-
-                                    Spacer()
-                                }
-                                .padding(.vertical, 8)
-                                .padding(.horizontal, 12)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                        .fill(viewModel.isRepoSelected(repo.name)
-                                              ? IPTheme.accent.opacity(0.08)
-                                              : Color.clear)
-                                )
-                            }
-                            .buttonStyle(.plain)
-                            .disabled(!viewModel.isRepoSelected(repo.name) && viewModel.selectedRepoNames.count >= 3)
-                            .opacity(!viewModel.isRepoSelected(repo.name) && viewModel.selectedRepoNames.count >= 3 ? 0.4 : 1.0)
-                        }
-                    }
-                }
-            } else {
-                Text("Optional — adds real project context from your repos to make interview responses more specific.")
-                    .font(IPTypography.bodySmall)
-                    .foregroundStyle(IPTheme.textSecondary)
-            }
-        }
-    }
-
     private var linkedInCard: some View {
         VStack(alignment: .leading, spacing: 14) {
             compactSectionTitle("LinkedIn Profile", detail: "Add your LinkedIn so the model knows what interviewers see about you.")
@@ -514,11 +298,11 @@ struct SessionSetupView: View {
                 HStack(spacing: 10) {
                     Image(systemName: "link")
                         .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(IPTheme.textSecondary)
+                        .foregroundStyle(IATheme.textSecondary)
 
                     TextField("linkedin.com/in/yourname", text: $viewModel.linkedInURL)
-                        .font(IPTypography.bodyMedium)
-                        .foregroundStyle(IPTheme.textPrimary)
+                        .font(IATypography.bodyMedium)
+                        .foregroundStyle(IATheme.textPrimary)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                         .keyboardType(.URL)
@@ -529,37 +313,37 @@ struct SessionSetupView: View {
 
                     if viewModel.isLoadingLinkedIn {
                         ProgressView()
-                            .tint(IPTheme.accent)
+                            .tint(IATheme.accent)
                     }
                 }
                 .padding(.horizontal, 14)
                 .frame(minHeight: 52)
-                .background(IPTheme.surfacePrimary, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+                .background(IATheme.surfacePrimary, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
                 .overlay {
                     RoundedRectangle(cornerRadius: 20, style: .continuous)
-                        .stroke(IPTheme.borderColor(for: colorScheme), lineWidth: 1)
+                        .stroke(IATheme.borderColor(for: colorScheme), lineWidth: 1)
                 }
 
                 // Profile content text area
                 VStack(alignment: .leading, spacing: 6) {
                     Text("Profile Content")
-                        .font(IPTypography.labelSmall)
-                        .foregroundStyle(IPTheme.textSecondary)
+                        .font(IATypography.labelSmall)
+                        .foregroundStyle(IATheme.textSecondary)
 
                     Text("Copy your LinkedIn page text and paste it here (About, Experience, Education, Skills).")
-                        .font(IPTypography.bodySmall)
-                        .foregroundStyle(IPTheme.textSecondary)
+                        .font(IATypography.bodySmall)
+                        .foregroundStyle(IATheme.textSecondary)
 
                     TextEditor(text: $viewModel.linkedInProfileText)
-                        .font(IPTypography.bodyMedium)
-                        .foregroundStyle(IPTheme.textPrimary)
+                        .font(IATypography.bodyMedium)
+                        .foregroundStyle(IATheme.textPrimary)
                         .scrollContentBackground(.hidden)
                         .frame(minHeight: 120, maxHeight: 200)
                         .padding(10)
-                        .background(IPTheme.surfacePrimary, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        .background(IATheme.surfacePrimary, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
                         .overlay {
                             RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                .stroke(IPTheme.borderColor(for: colorScheme), lineWidth: 1)
+                                .stroke(IATheme.borderColor(for: colorScheme), lineWidth: 1)
                         }
                 }
 
@@ -574,7 +358,7 @@ struct SessionSetupView: View {
                     }) {
                         Text(viewModel.hasLinkedInProfile ? "Re-analyze" : "Analyze Profile")
                     }
-                    .buttonStyle(IPSecondaryButtonStyle())
+                    .buttonStyle(IASecondaryButtonStyle())
                     .disabled(
                         viewModel.isLoadingLinkedIn ||
                         (viewModel.linkedInURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
@@ -585,7 +369,7 @@ struct SessionSetupView: View {
                         Button(action: { viewModel.clearLinkedInProfile() }) {
                             Text("Remove")
                         }
-                        .buttonStyle(IPSecondaryButtonStyle())
+                        .buttonStyle(IASecondaryButtonStyle())
                     }
                 }
             }
@@ -596,39 +380,57 @@ struct SessionSetupView: View {
 
                     if let name = profile.name, !name.isEmpty {
                         Text(name)
-                            .font(IPTypography.labelSmall)
-                            .foregroundStyle(IPTheme.textPrimary)
+                            .font(IATypography.labelSmall)
+                            .foregroundStyle(IATheme.textPrimary)
                     }
 
                     if let headline = profile.headline, !headline.isEmpty {
                         Text(headline)
-                            .font(IPTypography.bodySmall)
-                            .foregroundStyle(IPTheme.textSecondary)
+                            .font(IATypography.bodySmall)
+                            .foregroundStyle(IATheme.textSecondary)
                     }
 
                     HStack(spacing: 8) {
                         if !profile.experience.isEmpty {
                             Text("\(profile.experience.count) roles")
-                                .font(IPTypography.bodySmall)
-                                .foregroundStyle(IPTheme.accent)
+                                .font(IATypography.bodySmall)
+                                .foregroundStyle(IATheme.accent)
                         }
                         if !profile.skills.isEmpty {
                             Text("\(profile.skills.count) skills")
-                                .font(IPTypography.bodySmall)
-                                .foregroundStyle(IPTheme.accent)
+                                .font(IATypography.bodySmall)
+                                .foregroundStyle(IATheme.accent)
                         }
                         if !profile.education.isEmpty {
                             Text("\(profile.education.count) education")
-                                .font(IPTypography.bodySmall)
-                                .foregroundStyle(IPTheme.accent)
+                                .font(IATypography.bodySmall)
+                                .foregroundStyle(IATheme.accent)
                         }
                     }
                 }
             } else {
                 Text("Optional — ensures the model knows your full professional history in case interviewers reference your LinkedIn.")
-                    .font(IPTypography.bodySmall)
-                    .foregroundStyle(IPTheme.textSecondary)
+                    .font(IATypography.bodySmall)
+                    .foregroundStyle(IATheme.textSecondary)
             }
+        }
+    }
+
+    private var additionalNotesCard: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            compactSectionTitle("Additional Notes", detail: "Anything else the model should know when generating your interview responses (e.g., specific projects to emphasize, topics to avoid, preferred answer style).")
+
+            TextEditor(text: $viewModel.additionalNotes)
+                .font(IATypography.bodyMedium)
+                .foregroundStyle(IATheme.textPrimary)
+                .scrollContentBackground(.hidden)
+                .frame(minHeight: 100, maxHeight: 180)
+                .padding(10)
+                .background(IATheme.surfacePrimary, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .stroke(IATheme.borderColor(for: colorScheme), lineWidth: 1)
+                }
         }
     }
 
@@ -640,11 +442,11 @@ struct SessionSetupView: View {
                 HStack(spacing: 10) {
                     Image(systemName: "link")
                         .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(IPTheme.textSecondary)
+                        .foregroundStyle(IATheme.textSecondary)
 
                     TextField("https://company.com/jobs/role", text: $viewModel.jobListingURL)
-                        .font(IPTypography.bodyMedium)
-                        .foregroundStyle(IPTheme.textPrimary)
+                        .font(IATypography.bodyMedium)
+                        .foregroundStyle(IATheme.textPrimary)
                         .keyboardType(.URL)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
@@ -655,15 +457,15 @@ struct SessionSetupView: View {
 
                     if viewModel.isAnalyzingJobListing {
                         ProgressView()
-                            .tint(IPTheme.accent)
+                            .tint(IATheme.accent)
                     }
                 }
                 .padding(.horizontal, 14)
                 .frame(minHeight: 52)
-                .background(IPTheme.surfacePrimary, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+                .background(IATheme.surfacePrimary, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
                 .overlay {
                     RoundedRectangle(cornerRadius: 20, style: .continuous)
-                        .stroke(IPTheme.borderColor(for: colorScheme), lineWidth: 1)
+                        .stroke(IATheme.borderColor(for: colorScheme), lineWidth: 1)
                 }
 
                 Button(action: {
@@ -671,7 +473,7 @@ struct SessionSetupView: View {
                 }) {
                     Text(viewModel.hasJobListing ? "Refresh Analysis" : "Paste & Analyze")
                 }
-                .buttonStyle(IPPrimaryButtonStyle(isEnabled: !viewModel.isAnalyzingJobListing))
+                .buttonStyle(IAPrimaryButtonStyle(isEnabled: !viewModel.isAnalyzingJobListing))
                 .disabled(viewModel.isAnalyzingJobListing)
             }
 
@@ -682,20 +484,20 @@ struct SessionSetupView: View {
 
                 if let title = viewModel.jobListingTitle, !title.isEmpty {
                     Text(title)
-                        .font(IPTypography.bodyMedium)
-                        .foregroundStyle(IPTheme.textPrimary)
+                        .font(IATypography.bodyMedium)
+                        .foregroundStyle(IATheme.textPrimary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             } else {
-                Text("Paste the public posting URL so Job Hopper can infer category, level, and role-specific language.")
-                    .font(IPTypography.bodySmall)
-                    .foregroundStyle(IPTheme.textSecondary)
+                Text("Paste the public posting URL so Interview Ace AI can infer category, level, and role-specific language.")
+                    .font(IATypography.bodySmall)
+                    .foregroundStyle(IATheme.textSecondary)
             }
         }
     }
 
     private var readinessSummaryStrip: some View {
-        LazyVGrid(columns: threeColumnGrid, spacing: 12) {
+        LazyVGrid(columns: twoColumnGrid, spacing: 12) {
             summaryTile(
                 title: "Role",
                 value: viewModel.jobCategory?.displayName ?? "Pending",
@@ -706,62 +508,6 @@ struct SessionSetupView: View {
                 value: viewModel.positionLevel?.displayName ?? "Pending",
                 symbol: viewModel.positionLevel.map(positionLevelIcon(for:)) ?? "arrow.up.right.circle"
             )
-            summaryTile(
-                title: "Format",
-                value: viewModel.responseFormat.displayName,
-                symbol: "text.justify.left"
-            )
-        }
-    }
-
-    private var responseLayoutSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            compactSectionTitle("Answer Layout", detail: "Choose the structure you want pinned during the interview.")
-
-            VStack(spacing: 12) {
-                ForEach(ResponseFormat.allCases, id: \.self) { format in
-                    Button(action: {
-                        withAnimation(IPAnimations.snappy) {
-                            viewModel.responseFormat = format
-                        }
-                    }) {
-                        VStack(alignment: .leading, spacing: 6) {
-                            HStack(spacing: 10) {
-                                Image(systemName: "text.justify.left")
-                                    .font(.system(size: 15, weight: .semibold))
-                                    .frame(width: 18, height: 18)
-                                    .foregroundStyle(viewModel.responseFormat == format ? Color.white : IPTheme.insetSurfacePrimaryText(for: colorScheme))
-
-                                Text(format.displayName)
-                                    .font(IPTypography.bodyLarge)
-                                    .foregroundStyle(viewModel.responseFormat == format ? Color.white : IPTheme.insetSurfacePrimaryText(for: colorScheme))
-                                    .lineLimit(1)
-                                    .minimumScaleFactor(0.88)
-
-                                Spacer()
-
-                                Image(systemName: viewModel.responseFormat == format ? "checkmark.circle.fill" : "circle")
-                                    .font(.system(size: 17, weight: .semibold))
-                                    .foregroundStyle(
-                                        viewModel.responseFormat == format
-                                            ? Color.white
-                                            : IPTheme.insetSurfaceTertiaryText(for: colorScheme)
-                                    )
-                            }
-
-                            Text(format.description)
-                                .font(IPTypography.bodySmall)
-                                .foregroundStyle(viewModel.responseFormat == format ? Color.white : IPTheme.insetSurfaceSecondaryText(for: colorScheme))
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 14)
-                        .ipInsetSurface(selected: viewModel.responseFormat == format, cornerRadius: 20)
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
         }
     }
 
@@ -781,18 +527,18 @@ struct SessionSetupView: View {
             ) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Auto-generate a prep bank")
-                        .font(IPTypography.headlineSmall)
-                        .foregroundStyle(IPTheme.insetSurfacePrimaryText(for: colorScheme))
+                        .font(IATypography.headlineSmall)
+                        .foregroundStyle(IATheme.insetSurfacePrimaryText(for: colorScheme))
 
                     Text("When enabled, the app builds likely questions and ready-to-use answer scaffolds.")
-                        .font(IPTypography.bodySmall)
-                        .foregroundStyle(IPTheme.insetSurfaceSecondaryText(for: colorScheme))
+                        .font(IATypography.bodySmall)
+                        .foregroundStyle(IATheme.insetSurfaceSecondaryText(for: colorScheme))
                 }
             }
-            .tint(IPTheme.accent)
+            .tint(IATheme.accent)
             .padding(.horizontal, 16)
             .padding(.vertical, 14)
-            .ipInsetSurface(cornerRadius: 22)
+            .iaInsetSurface(cornerRadius: 22)
 
             if viewModel.shouldPreGenerate {
                 PreGenerationView(
@@ -808,12 +554,12 @@ struct SessionSetupView: View {
                         Label("Generate Prep Now", systemImage: "sparkles")
                             .frame(maxWidth: .infinity)
                     }
-                    .buttonStyle(IPSecondaryButtonStyle())
+                    .buttonStyle(IASecondaryButtonStyle())
                 }
 
                 Text(viewModel.prepSummary)
-                    .font(IPTypography.bodySmall)
-                    .foregroundStyle(IPTheme.textSecondary)
+                    .font(IATypography.bodySmall)
+                    .foregroundStyle(IATheme.textSecondary)
             }
         }
     }
@@ -821,202 +567,23 @@ struct SessionSetupView: View {
     private func compactSectionTitle(_ title: String, detail: String) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(title)
-                .font(IPTypography.headlineSmall)
-                .foregroundStyle(IPTheme.textPrimary)
+                .font(IATypography.headlineSmall)
+                .foregroundStyle(IATheme.textPrimary)
 
             Text(detail)
-                .font(IPTypography.bodyMedium)
-                .foregroundStyle(IPTheme.textSecondary)
+                .font(IATypography.bodyMedium)
+                .foregroundStyle(IATheme.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
     }
 
-    private var targetingSection: some View {
-        IPPanel(tone: .primary, padding: 22, cornerRadius: 30) {
-            VStack(alignment: .leading, spacing: 18) {
-                IPSectionHeader(
-                    eyebrow: "Tuning",
-                    title: "Confirm the role targeting",
-                    subtitle: "Keep the controls compact, readable, and easy to adjust before you launch into a real or mock interview.",
-                    symbol: "slider.horizontal.3"
-                )
-
-                VStack(alignment: .leading, spacing: 12) {
-                    sectionLabel("Mode")
-                    HStack(spacing: 12) {
-                        ForEach(SessionMode.allCases) { mode in
-                            let isLocked = mode == .voicePrep && !(subscriptionService.currentEntitlement?.hasVoicePrep ?? false)
-                            modeCard(mode, isLocked: isLocked)
-                        }
-                    }
-                }
-
-                optionGroup(
-                    title: "Answer mode",
-                    detail: viewModel.responseQualityMode.description
-                ) {
-                    ForEach(ResponseQualityMode.allCases) { mode in
-                        let isLocked = mode.requiresPriorityModels && !(subscriptionService.currentEntitlement?.hasPriorityModels ?? false)
-                        selectionChip(
-                            title: mode.displayName,
-                            symbol: responseQualityIcon(for: mode, isLocked: isLocked),
-                            isSelected: viewModel.responseQualityMode == mode,
-                            isLocked: isLocked
-                        ) {
-                            selectResponseQualityMode(mode, isLocked: isLocked)
-                        }
-                    }
-                }
-
-                optionGroup(
-                    title: "Job category",
-                    detail: "Auto-detected from the listing, but overridable when the posting is noisy or mislabeled."
-                ) {
-                    ForEach(JobCategory.allCases) { category in
-                        selectionChip(
-                            title: category.displayName,
-                            symbol: jobCategoryIcon(for: category),
-                            isSelected: viewModel.jobCategory == category
-                        ) {
-                            withAnimation(IPAnimations.snappy) {
-                                viewModel.jobCategory = category
-                                viewModel.interviewType = viewModel.derivedProfile.interviewType
-                            }
-                        }
-                    }
-                }
-
-                optionGroup(
-                    title: "Interview level",
-                    detail: viewModel.derivedProfile.rolePromptInstruction
-                ) {
-                    ForEach(PositionLevel.allCases) { level in
-                        selectionChip(
-                            title: level.displayName,
-                            symbol: positionLevelIcon(for: level),
-                            isSelected: viewModel.positionLevel == level
-                        ) {
-                            withAnimation(IPAnimations.snappy) {
-                                viewModel.positionLevel = level
-                                viewModel.interviewType = viewModel.derivedProfile.interviewType
-                            }
-                        }
-                    }
-                }
-
-                VStack(alignment: .leading, spacing: 12) {
-                    sectionLabel("Answer layout")
-
-                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-                        ForEach(ResponseFormat.allCases, id: \.self) { format in
-                            Button(action: {
-                                withAnimation(IPAnimations.snappy) {
-                                    viewModel.responseFormat = format
-                                }
-                            }) {
-                                VStack(alignment: .leading, spacing: 8) {
-                                    HStack {
-                                        Text(format.displayName)
-                                            .font(IPTypography.bodyLarge)
-                                            .foregroundStyle(IPTheme.insetSurfacePrimaryText(for: colorScheme))
-
-                                        Spacer()
-
-                                        Image(systemName: viewModel.responseFormat == format ? "checkmark.circle.fill" : "circle")
-                                            .font(.system(size: 16, weight: .semibold))
-                                            .foregroundStyle(
-                                                viewModel.responseFormat == format
-                                                    ? IPTheme.accent
-                                                    : IPTheme.insetSurfaceTertiaryText(for: colorScheme)
-                                            )
-                                    }
-
-                                    Text(format.description)
-                                        .font(IPTypography.bodySmall)
-                                        .foregroundStyle(IPTheme.insetSurfaceSecondaryText(for: colorScheme))
-                                        .fixedSize(horizontal: false, vertical: true)
-                                }
-                                .frame(maxWidth: .infinity, minHeight: 112, alignment: .topLeading)
-                                .padding(16)
-                                .ipInsetSurface(selected: viewModel.responseFormat == format, cornerRadius: 22)
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    private var prepBankSection: some View {
-        IPPanel(tone: .primary, padding: 22, cornerRadius: 30) {
-            VStack(alignment: .leading, spacing: 16) {
-                IPSectionHeader(
-                    eyebrow: "Optional",
-                    title: "Prep bank",
-                    subtitle: "Generate likely questions and reusable response scaffolds before launch for faster on-call assistance.",
-                    symbol: "sparkles.rectangle.stack"
-                )
-
-                Toggle(
-                    isOn: Binding(
-                        get: { viewModel.shouldPreGenerate },
-                        set: { enabled in
-                            Task {
-                                await viewModel.updateShouldPreGenerate(enabled)
-                            }
-                        }
-                    )
-                ) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Auto-generate a prep bank")
-                            .font(IPTypography.bodyLarge)
-                            .foregroundStyle(IPTheme.insetSurfacePrimaryText(for: colorScheme))
-
-                        Text("When enabled, the app reuses or builds personalized prep assets before launch.")
-                            .font(IPTypography.bodySmall)
-                            .foregroundStyle(IPTheme.insetSurfaceSecondaryText(for: colorScheme))
-                    }
-                }
-                .tint(IPTheme.accent)
-                .padding(16)
-                .ipInsetSurface(cornerRadius: 22)
-
-                if viewModel.shouldPreGenerate {
-                    PreGenerationView(
-                        progress: viewModel.preGenerationProgress,
-                        answers: viewModel.preparedAnswers,
-                        isGenerating: viewModel.isGeneratingAnswerBank
-                    )
-
-                    if viewModel.isReady && !viewModel.isGeneratingAnswerBank && !viewModel.hasPreparedAnswers {
-                        Button(action: {
-                            Task { await viewModel.generatePreparedAnswers(force: true) }
-                        }) {
-                            Label("Generate Prep Now", systemImage: "sparkles")
-                                .frame(maxWidth: .infinity)
-                        }
-                        .buttonStyle(IPSecondaryButtonStyle())
-                    }
-                }
-
-                Text(viewModel.prepSummary)
-                    .font(IPTypography.bodySmall)
-                    .foregroundStyle(IPTheme.textSecondary)
-            }
-        }
-    }
-
     private var launchSection: some View {
-        IPPanel(tone: .secondary, padding: 20, cornerRadius: 30) {
-            VStack(alignment: .leading, spacing: 14) {
-                compactSectionTitle("Launch Session", detail: startSummary)
-
-                if !viewModel.isReady {
-                    Text("Complete the resume upload and job listing analysis before starting.")
-                        .font(IPTypography.bodySmall)
-                        .foregroundStyle(IPTheme.textSecondary)
-                }
+        IABottomDock {
+            VStack(alignment: .leading, spacing: 10) {
+                Text(startSummary)
+                    .font(IATypography.bodySmall)
+                    .foregroundStyle(IATheme.textSecondary)
+                    .lineLimit(2)
 
                 Button(action: startSession) {
                     HStack(spacing: 10) {
@@ -1024,13 +591,13 @@ struct SessionSetupView: View {
                             ProgressView()
                                 .tint(.white)
                         } else {
-                            Image(systemName: viewModel.sessionMode == .liveInterview ? "mic.fill" : "person.wave.2.fill")
+                            Image(systemName: "mic.fill")
                         }
 
-                        Text(viewModel.isPreparingSession ? "Preparing Session" : viewModel.sessionMode.startButtonTitle)
+                        Text(viewModel.isPreparingSession ? "Preparing Session" : "Start Interview Session")
                     }
                 }
-                .buttonStyle(IPPrimaryButtonStyle(isEnabled: viewModel.isReady && !viewModel.isPreparingSession))
+                .buttonStyle(IAPrimaryButtonStyle(isEnabled: viewModel.isReady && !viewModel.isPreparingSession))
                 .disabled(!viewModel.isReady || viewModel.isPreparingSession)
             }
         }
@@ -1038,89 +605,31 @@ struct SessionSetupView: View {
 
     private func errorBanner(_ error: String) -> some View {
         Label(error, systemImage: "exclamationmark.triangle.fill")
-            .font(IPTypography.bodySmall)
-            .foregroundStyle(IPTheme.error)
+            .font(IATypography.bodySmall)
+            .foregroundStyle(IATheme.error)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(14)
-            .background(IPTheme.error.opacity(0.10), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .background(IATheme.error.opacity(0.10), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
 
     private func summaryTile(title: String, value: String, symbol: String) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Image(systemName: symbol)
                 .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(IPTheme.accent)
+                .foregroundStyle(IATheme.accent)
 
             Text(title)
-                .font(IPTypography.labelSmall)
-                .foregroundStyle(IPTheme.textSecondary)
+                .font(IATypography.labelSmall)
+                .foregroundStyle(IATheme.textSecondary)
 
             Text(value)
-                .font(IPTypography.bodyMedium)
-                .foregroundStyle(IPTheme.textPrimary)
+                .font(IATypography.bodyMedium)
+                .foregroundStyle(IATheme.textPrimary)
                 .lineLimit(2)
         }
         .frame(maxWidth: .infinity, minHeight: 108, alignment: .topLeading)
         .padding(14)
-        .ipInsetSurface(cornerRadius: 22)
-    }
-
-    private func optionGroup<Content: View>(
-        title: String,
-        detail: String,
-        columns: [GridItem]? = nil,
-        @ViewBuilder content: () -> Content
-    ) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            compactSectionTitle(title, detail: detail)
-
-            LazyVGrid(columns: columns ?? twoColumnGrid, spacing: 12) {
-                content()
-            }
-        }
-    }
-
-    private func modeCard(_ mode: SessionMode, isLocked: Bool) -> some View {
-        Button(action: { selectSessionMode(mode, isLocked: isLocked) }) {
-            VStack(alignment: .leading, spacing: 6) {
-                HStack(spacing: 10) {
-                    Image(systemName: mode.icon)
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(
-                            viewModel.sessionMode == mode ? Color.white : IPTheme.insetSurfaceSecondaryText(for: colorScheme)
-                        )
-                        .frame(width: 18, height: 18)
-
-                    Text(mode.displayName)
-                        .font(IPTypography.bodyLarge)
-                        .foregroundStyle(viewModel.sessionMode == mode ? Color.white : IPTheme.insetSurfacePrimaryText(for: colorScheme))
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.88)
-
-                    Spacer()
-
-                    if isLocked {
-                        Image(systemName: "lock.fill")
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(IPTheme.insetSurfaceSecondaryText(for: colorScheme))
-                    } else if viewModel.sessionMode == mode {
-                        Image(systemName: "checkmark.circle.fill")
-                            .font(.system(size: 17, weight: .semibold))
-                            .foregroundStyle(Color.white)
-                    }
-                }
-
-                Text(isLocked ? "Pro required" : mode.subtitle)
-                    .font(IPTypography.bodySmall)
-                    .foregroundStyle(viewModel.sessionMode == mode ? Color.white : IPTheme.insetSurfaceSecondaryText(for: colorScheme))
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 16)
-            .padding(.vertical, 14)
-            .ipInsetSurface(selected: viewModel.sessionMode == mode, cornerRadius: 20)
-        }
-        .buttonStyle(.plain)
+        .iaInsetSurface(cornerRadius: 22)
     }
 
     private func infoBadge(title: String, symbol: String) -> some View {
@@ -1128,103 +637,13 @@ struct SessionSetupView: View {
             Image(systemName: symbol)
                 .font(.system(size: 12, weight: .semibold))
             Text(title)
-                .font(IPTypography.labelSmall)
+                .font(IATypography.labelSmall)
                 .lineLimit(1)
         }
-        .foregroundStyle(IPTheme.accent)
+        .foregroundStyle(IATheme.accent)
         .padding(.horizontal, 10)
         .padding(.vertical, 8)
-        .background(IPTheme.accent.opacity(0.10), in: Capsule())
-    }
-
-    private func selectionChip(
-        title: String,
-        symbol: String,
-        isSelected: Bool,
-        isLocked: Bool = false,
-        action: @escaping () -> Void
-    ) -> some View {
-        Button(action: action) {
-            HStack(spacing: 10) {
-                Image(systemName: symbol)
-                    .font(.system(size: 15, weight: .semibold))
-                    .frame(width: 18, height: 18)
-
-                Text(title)
-                    .font(IPTypography.bodyLarge)
-                    .multilineTextAlignment(.leading)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.85)
-
-                Spacer(minLength: 0)
-
-                Image(systemName: selectionTrailingSymbol(isSelected: isSelected, isLocked: isLocked))
-                    .font(.system(size: 15, weight: .semibold))
-            }
-            .foregroundStyle(selectionChipForeground(isSelected: isSelected, isLocked: isLocked))
-            .padding(.horizontal, 14)
-            .padding(.vertical, 14)
-            .frame(maxWidth: .infinity, minHeight: 52, alignment: .leading)
-            .background {
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .fill(selectionChipFill(isSelected: isSelected, isLocked: isLocked))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 20, style: .continuous)
-                            .stroke(selectionChipBorder(isSelected: isSelected, isLocked: isLocked), lineWidth: isSelected ? 1.5 : 1)
-                    }
-            }
-        }
-        .buttonStyle(.plain)
-    }
-
-    private func selectionChipForeground(isSelected: Bool, isLocked: Bool) -> Color {
-        if isSelected {
-            return Color.white
-        }
-
-        if isLocked {
-            return IPTheme.textSecondary.opacity(0.70)
-        }
-
-        return IPTheme.textPrimary
-    }
-
-    private func selectionChipFill(isSelected: Bool, isLocked: Bool) -> Color {
-        if isSelected {
-            return IPTheme.accentSelected
-        }
-
-        if isLocked {
-            return colorScheme == .dark ? Color.white.opacity(0.04) : Color.black.opacity(0.03)
-        }
-
-        return colorScheme == .dark ? Color.white.opacity(0.06) : Color.white.opacity(0.88)
-    }
-
-    private func selectionTrailingSymbol(isSelected: Bool, isLocked: Bool) -> String {
-        if isLocked {
-            return "lock.fill"
-        }
-
-        return isSelected ? "checkmark.circle.fill" : "circle"
-    }
-
-    private func selectionChipBorder(isSelected: Bool, isLocked: Bool) -> Color {
-        if isSelected {
-            return IPTheme.accent.opacity(0.44)
-        }
-
-        if isLocked {
-            return IPTheme.borderColor(for: colorScheme).opacity(0.7)
-        }
-
-        return IPTheme.borderColor(for: colorScheme)
-    }
-
-    private func sectionLabel(_ title: String) -> some View {
-        Text(title)
-            .font(IPTypography.labelMedium)
-            .foregroundStyle(IPTheme.textSecondary)
+        .background(IATheme.accent.opacity(0.10), in: Capsule())
     }
 
     private func resumeActionButton(title: String, symbol: String, action: @escaping () -> Void) -> some View {
@@ -1232,12 +651,12 @@ struct SessionSetupView: View {
             HStack(spacing: 10) {
                 Image(systemName: symbol)
                     .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(IPTheme.textPrimary)
+                    .foregroundStyle(IATheme.textPrimary)
                     .frame(width: 18, height: 18)
 
                 Text(title)
-                    .font(IPTypography.bodyLarge)
-                    .foregroundStyle(IPTheme.textPrimary)
+                    .font(IATypography.bodyLarge)
+                    .foregroundStyle(IATheme.textPrimary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.82)
 
@@ -1245,10 +664,10 @@ struct SessionSetupView: View {
             }
             .padding(.horizontal, 16)
             .frame(maxWidth: .infinity, minHeight: 50)
-            .background(IPTheme.surfacePrimary, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+            .background(IATheme.surfacePrimary, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
             .overlay {
                 RoundedRectangle(cornerRadius: 22, style: .continuous)
-                    .stroke(IPTheme.borderColor(for: colorScheme), lineWidth: 1)
+                    .stroke(IATheme.borderColor(for: colorScheme), lineWidth: 1)
             }
         }
         .buttonStyle(.plain)
@@ -1256,18 +675,12 @@ struct SessionSetupView: View {
 
     private func startSession() {
         Task {
-            let destination = await viewModel.prepareSession()
+            let sessionId = await viewModel.prepareSession()
             showPaywall = viewModel.shouldPresentPaywall
 
-            switch destination {
-            case .live(let sessionId):
+            if let sessionId {
                 preparedSessionId = sessionId
                 showLiveSession = true
-            case .voicePrep(let sessionId):
-                preparedSessionId = sessionId
-                showPrepSession = true
-            case nil:
-                break
             }
         }
     }
@@ -1279,10 +692,6 @@ struct SessionSetupView: View {
 
         if !viewModel.hasJobListing {
             return "Paste and analyze a public job listing URL to continue."
-        }
-
-        if viewModel.jobCategory == nil || viewModel.positionLevel == nil {
-            return "Confirm the inferred job category and level before launch."
         }
 
         if viewModel.isPreparingSession {
@@ -1308,18 +717,6 @@ struct SessionSetupView: View {
         viewModel.isReady ? "Ready to launch" : "Setup incomplete"
     }
 
-    private func selectSessionMode(_ mode: SessionMode, isLocked: Bool) {
-        if isLocked {
-            viewModel.errorMessage = "Voice Prep requires an active Pro subscription."
-            showPaywall = true
-            return
-        }
-
-        withAnimation(IPAnimations.snappy) {
-            viewModel.sessionMode = mode
-        }
-    }
-
     private func selectResponseQualityMode(_ mode: ResponseQualityMode, isLocked: Bool) {
         if isLocked {
             viewModel.errorMessage = "Top Tier mode requires an active Pro subscription."
@@ -1327,25 +724,8 @@ struct SessionSetupView: View {
             return
         }
 
-        withAnimation(IPAnimations.snappy) {
+        withAnimation(IAAnimations.snappy) {
             viewModel.responseQualityMode = mode
-        }
-    }
-
-    private func interviewTypeIcon(for type: InterviewType) -> String {
-        switch type {
-        case .behavioral:
-            return "person.2.fill"
-        case .technical:
-            return "terminal.fill"
-        case .systemDesign:
-            return "server.rack"
-        case .caseStudy:
-            return "doc.text.magnifyingglass"
-        case .hrScreen:
-            return "person.text.rectangle.fill"
-        case .general:
-            return "square.grid.2x2.fill"
         }
     }
 
@@ -1424,7 +804,6 @@ private func previewSetupViewModel(ready: Bool) -> SessionSetupViewModel {
     viewModel.positionLevel = ready ? .seniorIndividualContributor : nil
     viewModel.responseFormat = .hybrid
     viewModel.responseQualityMode = .premium
-    viewModel.sessionMode = .liveInterview
     viewModel.preparedAnswers = ready
         ? [
             PreComputedAnswer(question: "Tell me about a difficult team situation.", response: "Sample", type: .behavioral),

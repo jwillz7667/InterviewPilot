@@ -10,7 +10,7 @@ struct WaveformView: View {
                 RoundedRectangle(cornerRadius: 3, style: .continuous)
                     .fill(
                         LinearGradient(
-                            colors: [IPTheme.accentSecondary.opacity(0.45), IPTheme.accent],
+                            colors: [IATheme.accentSecondary.opacity(0.45), IATheme.accent],
                             startPoint: .bottom,
                             endPoint: .top
                         )

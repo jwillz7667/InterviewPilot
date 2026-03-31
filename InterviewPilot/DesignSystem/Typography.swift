@@ -1,7 +1,6 @@
 import SwiftUI
 
-enum IPTypography {
-    // Apple-style semantic text hierarchy so the interface scales correctly with Dynamic Type.
+enum IATypography {
     static let displayLarge = Font.system(.largeTitle, design: .default, weight: .bold)
     static let displayMedium = Font.system(.title, design: .default, weight: .bold)
 

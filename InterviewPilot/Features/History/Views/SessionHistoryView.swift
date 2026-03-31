@@ -16,57 +16,57 @@ struct SessionHistoryView: View {
 
     var body: some View {
         ZStack {
-            IPAppBackground()
+            IAAppBackground()
 
             if viewModel.isLoading && viewModel.sessions.isEmpty {
                 ScrollView {
-                    VStack(spacing: IPTheme.spacing20) {
+                    VStack(spacing: IATheme.spacing20) {
                         topUtilityBar
                         historyHeader
-                        IPPanel(tone: .secondary, padding: 22, cornerRadius: 30) {
+                        IAPanel(tone: .secondary, padding: 22, cornerRadius: 30) {
                             HStack(spacing: 12) {
                                 ProgressView()
-                                    .tint(IPTheme.accent)
+                                    .tint(IATheme.accent)
 
                                 Text("Loading session history...")
-                                    .font(IPTypography.bodyMedium)
-                                    .foregroundStyle(IPTheme.textSecondary)
+                                    .font(IATypography.bodyMedium)
+                                    .foregroundStyle(IATheme.textSecondary)
                             }
                         }
                     }
-                    .padding(.horizontal, IPTheme.spacing20)
-                    .padding(.vertical, IPTheme.spacing20)
+                    .padding(.horizontal, IATheme.spacing20)
+                    .padding(.vertical, IATheme.spacing20)
                 }
-                .ipScrollablePage()
+                .iaScrollablePage()
             } else if viewModel.sessions.isEmpty {
                 ScrollView {
-                    VStack(spacing: IPTheme.spacing20) {
+                    VStack(spacing: IATheme.spacing20) {
                         topUtilityBar
                         historyHeader
-                        IPEmptyState(
+                        IAEmptyState(
                             title: "No sessions yet",
                             subtitle: "Run a live interview or voice prep session and your report will appear here with duration, latency, and exchange details.",
                             symbol: "clock.arrow.trianglehead.counterclockwise.rotate.90"
                         )
                     }
-                    .padding(.horizontal, IPTheme.spacing20)
-                    .padding(.vertical, IPTheme.spacing20)
+                    .padding(.horizontal, IATheme.spacing20)
+                    .padding(.vertical, IATheme.spacing20)
                 }
-                .ipScrollablePage()
+                .iaScrollablePage()
             } else {
                 ScrollView {
-                    VStack(alignment: .leading, spacing: IPTheme.spacing20) {
+                    VStack(alignment: .leading, spacing: IATheme.spacing20) {
                         topUtilityBar
                         historyHeader
                         historySummaryPanel
 
                         if let error = viewModel.errorMessage {
                             Label(error, systemImage: "exclamationmark.triangle.fill")
-                                .font(IPTypography.bodySmall)
-                                .foregroundStyle(IPTheme.error)
+                                .font(IATypography.bodySmall)
+                                .foregroundStyle(IATheme.error)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .padding(14)
-                                .background(IPTheme.error.opacity(0.10), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                                .background(IATheme.error.opacity(0.10), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
                         }
 
                         LazyVStack(spacing: 14) {
@@ -91,10 +91,10 @@ struct SessionHistoryView: View {
                             }
                         }
                     }
-                    .padding(.horizontal, IPTheme.spacing20)
-                    .padding(.vertical, IPTheme.spacing20)
+                    .padding(.horizontal, IATheme.spacing20)
+                    .padding(.vertical, IATheme.spacing20)
                 }
-                .ipScrollablePage()
+                .iaScrollablePage()
                 .refreshable {
                     await viewModel.loadSessions()
                 }
@@ -111,16 +111,16 @@ struct SessionHistoryView: View {
     private var topUtilityBar: some View {
         HStack(spacing: 12) {
             HStack(spacing: 12) {
-                IPBrandLogo(size: 38, showShadow: false, variant: .surface)
+                IABrandLogo(size: 38, showShadow: false, variant: .surface)
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Job Hopper")
-                        .font(IPTypography.labelLarge)
-                        .foregroundStyle(IPTheme.textPrimary)
+                    Text("Interview Ace AI")
+                        .font(IATypography.labelLarge)
+                        .foregroundStyle(IATheme.textPrimary)
 
                     Text("History")
-                        .font(IPTypography.bodySmall)
-                        .foregroundStyle(IPTheme.textSecondary)
+                        .font(IATypography.bodySmall)
+                        .foregroundStyle(IATheme.textSecondary)
                 }
             }
 
@@ -133,24 +133,24 @@ struct SessionHistoryView: View {
     }
 
     private var historyHeader: some View {
-        IPPanel(tone: .secondary, padding: 20, cornerRadius: 30) {
+        IAPanel(tone: .secondary, padding: 20, cornerRadius: 30) {
             VStack(alignment: .leading, spacing: 10) {
                 Text("Interview History")
-                    .font(IPTypography.displayMedium)
-                    .foregroundStyle(IPTheme.textPrimary)
+                    .font(IATypography.displayMedium)
+                    .foregroundStyle(IATheme.textPrimary)
                     .lineLimit(2)
                     .minimumScaleFactor(0.88)
 
                 Text("Review previous interviews, reopen reports, and compare speed and question coverage from one timeline.")
-                    .font(IPTypography.bodyLarge)
-                    .foregroundStyle(IPTheme.textSecondary)
+                    .font(IATypography.bodyLarge)
+                    .foregroundStyle(IATheme.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
     }
 
     private var historySummaryPanel: some View {
-        IPPanel(tone: .secondary, padding: 20, cornerRadius: 30) {
+        IAPanel(tone: .secondary, padding: 20, cornerRadius: 30) {
             HStack(spacing: 12) {
                 historySummaryTile(
                     title: "Latest",
@@ -172,33 +172,33 @@ struct SessionHistoryView: View {
     }
 
     private func sessionCard(_ session: SessionHistoryItem) -> some View {
-        IPPanel(tone: .secondary, padding: 18, cornerRadius: 30) {
+        IAPanel(tone: .secondary, padding: 18, cornerRadius: 30) {
             VStack(alignment: .leading, spacing: 16) {
                 HStack(alignment: .top, spacing: 14) {
                     RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .fill(IPTheme.accent.opacity(0.10))
+                        .fill(IATheme.accent.opacity(0.10))
                         .frame(width: 52, height: 52)
                         .overlay {
                             Image(systemName: sessionIcon(for: session))
                                 .font(.system(size: 20, weight: .semibold))
-                                .foregroundStyle(IPTheme.accent)
+                                .foregroundStyle(IATheme.accent)
                         }
 
                     VStack(alignment: .leading, spacing: 4) {
                         Text(session.reviewInterviewType.displayName)
-                            .font(IPTypography.headlineSmall)
-                            .foregroundStyle(IPTheme.textPrimary)
+                            .font(IATypography.headlineSmall)
+                            .foregroundStyle(IATheme.textPrimary)
 
                         Text(viewModel.formatDate(session.startedAt))
-                            .font(IPTypography.bodySmall)
-                            .foregroundStyle(IPTheme.textSecondary)
+                            .font(IATypography.bodySmall)
+                            .foregroundStyle(IATheme.textSecondary)
                     }
 
                     Spacer()
 
                     Image(systemName: "chevron.right")
                         .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(IPTheme.textTertiary)
+                        .foregroundStyle(IATheme.textTertiary)
                 }
 
                 LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
@@ -210,19 +210,19 @@ struct SessionHistoryView: View {
                 if let summary = session.effectiveTelemetrySummary {
                     VStack(alignment: .leading, spacing: 6) {
                         Text("First token \(viewModel.formatLatency(summary.averageLiveTimeToFirstTokenMs ?? summary.averageTimeToFirstTokenMs ?? summary.averageTotalLatencyMs)) avg")
-                            .font(IPTypography.bodySmall)
-                            .foregroundStyle(IPTheme.textSecondary)
+                            .font(IATypography.bodySmall)
+                            .foregroundStyle(IATheme.textSecondary)
 
                         Text("\(Int(summary.cacheHitRate.rounded()))% cache hit rate")
-                            .font(IPTypography.bodySmall)
-                            .foregroundStyle(IPTheme.textSecondary)
+                            .font(IATypography.bodySmall)
+                            .foregroundStyle(IATheme.textSecondary)
                     }
                 }
 
                 if session.estimatedCost > 0 {
                     Text(String(format: "Estimated cost $%.2f", session.estimatedCost))
-                        .font(IPTypography.bodySmall)
-                        .foregroundStyle(IPTheme.textSecondary)
+                        .font(IATypography.bodySmall)
+                        .foregroundStyle(IATheme.textSecondary)
                 }
             }
         }
@@ -232,52 +232,52 @@ struct SessionHistoryView: View {
         VStack(alignment: .leading, spacing: 6) {
             Image(systemName: symbol)
                 .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(IPTheme.accent)
+                .foregroundStyle(IATheme.accent)
 
             Text(title)
-                .font(IPTypography.labelSmall)
-                .foregroundStyle(IPTheme.textSecondary)
+                .font(IATypography.labelSmall)
+                .foregroundStyle(IATheme.textSecondary)
 
             Text(value)
-                .font(IPTypography.bodyMedium)
-                .foregroundStyle(IPTheme.textPrimary)
+                .font(IATypography.bodyMedium)
+                .foregroundStyle(IATheme.textPrimary)
                 .lineLimit(2)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(14)
-        .ipInsetSurface(cornerRadius: 22)
+        .iaInsetSurface(cornerRadius: 22)
     }
 
     private func historyMetricTile(_ text: String, symbol: String) -> some View {
         Label(text, systemImage: symbol)
-            .font(IPTypography.labelSmall)
-            .foregroundStyle(IPTheme.textSecondary)
+            .font(IATypography.labelSmall)
+            .foregroundStyle(IATheme.textSecondary)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 12)
             .padding(.vertical, 10)
-            .background(IPTheme.surfacePrimary, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .background(IATheme.surfacePrimary, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
             .overlay {
                 RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .stroke(IPTheme.borderColor(for: colorScheme), lineWidth: 1)
+                    .stroke(IATheme.borderColor(for: colorScheme), lineWidth: 1)
             }
     }
 
     private func summaryPill(_ text: String, symbol: String) -> some View {
         Label(text, systemImage: symbol)
-            .font(IPTypography.labelSmall)
-            .foregroundStyle(IPTheme.accent)
+            .font(IATypography.labelSmall)
+            .foregroundStyle(IATheme.accent)
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
-            .background(IPTheme.accent.opacity(0.10), in: Capsule())
+            .background(IATheme.accent.opacity(0.10), in: Capsule())
     }
 
     private func metricPill(_ text: String, symbol: String) -> some View {
         Label(text, systemImage: symbol)
-            .font(IPTypography.labelSmall)
-            .foregroundStyle(IPTheme.textSecondary)
+            .font(IATypography.labelSmall)
+            .foregroundStyle(IATheme.textSecondary)
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
-            .background(IPTheme.surfaceSecondary, in: Capsule())
+            .background(IATheme.surfaceSecondary, in: Capsule())
     }
 
     private func sessionIcon(for session: SessionHistoryItem) -> String {

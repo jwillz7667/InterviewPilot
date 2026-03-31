@@ -8,7 +8,7 @@ struct TranscriptView: View {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 12) {
                     ForEach(segments) { segment in
-                        IPConversationBubble(
+                        IAConversationBubble(
                             role: segment.speaker == .interviewer ? .interviewer : .assistant,
                             title: segment.speaker == .interviewer ? "Interviewer" : "AI Response",
                             text: segment.text,
@@ -18,13 +18,13 @@ struct TranscriptView: View {
                         .id(segment.id)
                     }
                 }
-                .padding(.horizontal, IPTheme.spacing16)
-                .padding(.vertical, IPTheme.spacing8)
+                .padding(.horizontal, IATheme.spacing16)
+                .padding(.vertical, IATheme.spacing8)
             }
-            .ipScrollablePage()
+            .iaScrollablePage()
             .onChange(of: segments.count) {
                 if let last = segments.last {
-                    withAnimation(IPAnimations.gentle) {
+                    withAnimation(IAAnimations.gentle) {
                         proxy.scrollTo(last.id, anchor: .bottom)
                     }
                 }

@@ -19,30 +19,30 @@ struct SubscriptionPaywallView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                IPAppBackground()
+                IAAppBackground()
 
                 ScrollView {
-                    VStack(spacing: IPTheme.spacing20) {
+                    VStack(spacing: IATheme.spacing20) {
                         topUtilityBar
                         heroPanel
 
                         if let message = errorMessage {
                             Label(message, systemImage: "exclamationmark.triangle.fill")
-                                .font(IPTypography.bodySmall)
-                                .foregroundStyle(IPTheme.error)
+                                .font(IATypography.bodySmall)
+                                .foregroundStyle(IATheme.error)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .padding(14)
-                                .background(IPTheme.error.opacity(0.10), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                                .background(IATheme.error.opacity(0.10), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
                         }
 
                         plansPanel
                         restorePanel
                     }
-                    .padding(.horizontal, IPTheme.spacing20)
-                    .padding(.vertical, IPTheme.spacing20)
+                    .padding(.horizontal, IATheme.spacing20)
+                    .padding(.vertical, IATheme.spacing20)
                     .padding(.bottom, 30)
                 }
-                .ipScrollablePage()
+                .iaScrollablePage()
             }
             .toolbar(.hidden, for: .navigationBar)
             .task {
@@ -55,51 +55,51 @@ struct SubscriptionPaywallView: View {
     private var topUtilityBar: some View {
         HStack {
             HStack(spacing: 12) {
-                IPBrandLogo(size: 42, showShadow: false, variant: .filled)
+                IABrandLogo(size: 42, showShadow: false, variant: .filled)
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Job Hopper")
-                        .font(IPTypography.labelLarge)
-                        .foregroundStyle(IPTheme.textPrimary)
+                    Text("Interview Ace AI")
+                        .font(IATypography.labelLarge)
+                        .foregroundStyle(IATheme.textPrimary)
 
                     Text("Upgrade")
-                        .font(IPTypography.bodySmall)
-                        .foregroundStyle(IPTheme.textSecondary)
+                        .font(IATypography.bodySmall)
+                        .foregroundStyle(IATheme.textSecondary)
                 }
             }
 
             Spacer()
 
             Button("Done") { dismiss() }
-                .buttonStyle(IPSecondaryButtonStyle())
+                .buttonStyle(IASecondaryButtonStyle())
         }
     }
 
     private var heroPanel: some View {
-        IPPanel(tone: .secondary, padding: 24, cornerRadius: 34) {
+        IAPanel(tone: .secondary, padding: 24, cornerRadius: 34) {
             VStack(alignment: .leading, spacing: 18) {
                 HStack(alignment: .top) {
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Unlock unlimited\ninterview practice")
-                            .font(IPTypography.displayMedium)
-                            .foregroundStyle(IPTheme.textPrimary)
+                            .font(IATypography.displayMedium)
+                            .foregroundStyle(IATheme.textPrimary)
                             .lineSpacing(-2)
 
                         Text(heroSubtitle)
-                            .font(IPTypography.bodyLarge)
-                            .foregroundStyle(IPTheme.textSecondary)
+                            .font(IATypography.bodyLarge)
+                            .foregroundStyle(IATheme.textSecondary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
 
                     Spacer(minLength: 12)
-                    IPStarburst(size: 36)
+                    IAStarburst(size: 36)
                         .padding(.top, 10)
                 }
 
                 HStack(spacing: 10) {
                     planPill(currentPlanTitle, symbol: "creditcard.fill")
                     if currentEntitlement?.sandboxFullAccess == true {
-                        planPill("All Features", symbol: "checkmark.seal.fill", tint: IPTheme.success)
+                        planPill("All Features", symbol: "checkmark.seal.fill", tint: IATheme.success)
                     }
                 }
             }
@@ -107,9 +107,9 @@ struct SubscriptionPaywallView: View {
     }
 
     private var plansPanel: some View {
-        IPPanel(tone: .secondary, padding: 22, cornerRadius: 30) {
+        IAPanel(tone: .secondary, padding: 22, cornerRadius: 30) {
             VStack(alignment: .leading, spacing: 14) {
-                IPSectionHeader(
+                IASectionHeader(
                     eyebrow: "Plans",
                     title: "Choose your tier",
                     subtitle: "Plus unlocks unlimited live interviews. Pro adds voice prep and Top Tier answer mode.",
@@ -117,13 +117,13 @@ struct SubscriptionPaywallView: View {
                 )
 
                 if isLoading && currentProducts.isEmpty {
-                    IPPanel(tone: .secondary, padding: 18, cornerRadius: 24) {
+                    IAPanel(tone: .secondary, padding: 18, cornerRadius: 24) {
                         HStack(spacing: 12) {
                             ProgressView()
-                                .tint(IPTheme.accent)
+                                .tint(IATheme.accent)
                             Text("Loading subscription options...")
-                                .font(IPTypography.bodyMedium)
-                                .foregroundStyle(IPTheme.textSecondary)
+                                .font(IATypography.bodyMedium)
+                                .foregroundStyle(IATheme.textSecondary)
                         }
                     }
                 } else {
@@ -138,21 +138,21 @@ struct SubscriptionPaywallView: View {
     }
 
     private var restorePanel: some View {
-        IPPanel(tone: .primary, padding: 22, cornerRadius: 30) {
+        IAPanel(tone: .primary, padding: 22, cornerRadius: 30) {
             VStack(alignment: .leading, spacing: 14) {
                 Text("Already subscribed?")
-                    .font(IPTypography.headlineSmall)
-                    .foregroundStyle(IPTheme.textPrimary)
+                    .font(IATypography.headlineSmall)
+                    .foregroundStyle(IATheme.textPrimary)
 
                 Text("Restore purchases to refresh your App Store entitlements on this device.")
-                    .font(IPTypography.bodySmall)
-                    .foregroundStyle(IPTheme.textSecondary)
+                    .font(IATypography.bodySmall)
+                    .foregroundStyle(IATheme.textSecondary)
 
                 Button(action: restorePurchases) {
                     Label("Restore Purchases", systemImage: "arrow.clockwise.circle.fill")
                         .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(IPSecondaryButtonStyle())
+                .buttonStyle(IASecondaryButtonStyle())
                 .disabled(subscriptionService.isPurchasing)
             }
         }
@@ -165,31 +165,31 @@ struct SubscriptionPaywallView: View {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(product.displayName)
-                        .font(IPTypography.headlineSmall)
-                        .foregroundStyle(IPTheme.insetSurfacePrimaryText(for: .light))
+                        .font(IATypography.headlineSmall)
+                        .foregroundStyle(IATheme.insetSurfacePrimaryText(for: .light))
 
                     Text(product.displayPrice)
-                        .font(IPTypography.bodyLarge)
-                        .foregroundStyle(IPTheme.insetSurfacePrimaryText(for: .light))
+                        .font(IATypography.bodyLarge)
+                        .foregroundStyle(IATheme.insetSurfacePrimaryText(for: .light))
                 }
 
                 Spacer()
 
-                planPill(product.tier == "pro" ? "Pro" : "Plus", symbol: product.tier == "pro" ? "person.wave.2.fill" : "waveform.and.mic", tint: isFeatured ? IPTheme.accent : IPTheme.textSecondary)
+                planPill(product.tier == "pro" ? "Pro" : "Plus", symbol: product.tier == "pro" ? "person.wave.2.fill" : "waveform.and.mic", tint: isFeatured ? IATheme.accent : IATheme.textSecondary)
             }
 
             Text(product.description)
-                .font(IPTypography.bodySmall)
-                .foregroundStyle(IPTheme.insetSurfaceSecondaryText(for: .light))
+                .font(IATypography.bodySmall)
+                .foregroundStyle(IATheme.insetSurfaceSecondaryText(for: .light))
 
             FlowLayout(spacing: 8) {
                 ForEach(product.features, id: \.self) { feature in
                     Text(featureLabel(feature))
-                        .font(IPTypography.labelSmall)
-                        .foregroundStyle(isFeatured ? IPTheme.accent : IPTheme.textPrimary)
+                        .font(IATypography.labelSmall)
+                        .foregroundStyle(isFeatured ? IATheme.accent : IATheme.textPrimary)
                         .padding(.horizontal, 12)
                         .padding(.vertical, 8)
-                        .background((isFeatured ? IPTheme.accent.opacity(0.10) : IPTheme.surfaceSecondary), in: Capsule())
+                        .background((isFeatured ? IATheme.accent.opacity(0.10) : IATheme.surfaceSecondary), in: Capsule())
                 }
             }
 
@@ -201,11 +201,11 @@ struct SubscriptionPaywallView: View {
             .disabled(subscriptionService.isPurchasing)
         }
         .padding(18)
-        .ipInsetSurface(selected: isFeatured, cornerRadius: 24)
+        .iaInsetSurface(selected: isFeatured, cornerRadius: 24)
     }
 
     private var currentPlanTitle: String {
-        currentEntitlement?.planTitle ?? "Job Hopper"
+        currentEntitlement?.planTitle ?? "Interview Ace AI"
     }
 
     private var heroSubtitle: String {
@@ -232,9 +232,9 @@ struct SubscriptionPaywallView: View {
         previewState?.errorMessage ?? subscriptionService.errorMessage
     }
 
-    private func planPill(_ title: String, symbol: String, tint: Color = IPTheme.accent) -> some View {
+    private func planPill(_ title: String, symbol: String, tint: Color = IATheme.accent) -> some View {
         Label(title, systemImage: symbol)
-            .font(IPTypography.labelSmall)
+            .font(IATypography.labelSmall)
             .foregroundStyle(tint)
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
@@ -304,7 +304,7 @@ struct SubscriptionPaywallView: View {
                     id: "plus",
                     productId: "plus",
                     tier: "plus",
-                    displayName: "Job Hopper Plus",
+                    displayName: "Interview Ace AI Plus",
                     displayPrice: "$19.99/mo",
                     billingLabel: "$19.99/mo",
                     features: ["live_interview", "session_history", "resume_personalization", "response_formats"],
@@ -314,7 +314,7 @@ struct SubscriptionPaywallView: View {
                     id: "pro",
                     productId: "pro",
                     tier: "pro",
-                    displayName: "Job Hopper Pro",
+                    displayName: "Interview Ace AI Pro",
                     displayPrice: "$39.99/mo",
                     billingLabel: "$39.99/mo",
                     features: ["live_interview", "session_history", "resume_personalization", "response_formats", "voice_prep", "priority_models"],
@@ -359,9 +359,9 @@ private struct PaywallButtonModifier: ViewModifier {
 
     func body(content: Content) -> some View {
         if isFeatured {
-            content.buttonStyle(IPPrimaryButtonStyle(isEnabled: isEnabled))
+            content.buttonStyle(IAPrimaryButtonStyle(isEnabled: isEnabled))
         } else {
-            content.buttonStyle(IPSecondaryButtonStyle())
+            content.buttonStyle(IASecondaryButtonStyle())
         }
     }
 }

@@ -32,25 +32,25 @@ struct SessionReviewLoaderView: View {
                 unavailableView(message: errorMessage)
             } else {
                 ZStack {
-                    IPAppBackground()
+                    IAAppBackground()
 
-                    IPPanel(tone: .secondary, padding: 22, cornerRadius: 30) {
+                    IAPanel(tone: .secondary, padding: 22, cornerRadius: 30) {
                         HStack(spacing: 14) {
                             ProgressView()
-                                .tint(IPTheme.accent)
+                                .tint(IATheme.accent)
 
                             VStack(alignment: .leading, spacing: 4) {
                                 Text("Loading session review")
-                                    .font(IPTypography.headlineSmall)
-                                    .foregroundStyle(IPTheme.textPrimary)
+                                    .font(IATypography.headlineSmall)
+                                    .foregroundStyle(IATheme.textPrimary)
 
                                 Text("Preparing the post-interview report and exchange timeline.")
-                                    .font(IPTypography.bodySmall)
-                                    .foregroundStyle(IPTheme.textSecondary)
+                                    .font(IATypography.bodySmall)
+                                    .foregroundStyle(IATheme.textSecondary)
                             }
                         }
                     }
-                    .padding(.horizontal, IPTheme.spacing20)
+                    .padding(.horizontal, IATheme.spacing20)
                 }
             }
         }
@@ -62,10 +62,10 @@ struct SessionReviewLoaderView: View {
 
     private func unavailableView(message: String) -> some View {
         ZStack {
-            IPAppBackground()
+            IAAppBackground()
 
             VStack(spacing: 16) {
-                IPEmptyState(
+                IAEmptyState(
                     title: "Review unavailable",
                     subtitle: message,
                     symbol: "exclamationmark.triangle"
@@ -74,10 +74,10 @@ struct SessionReviewLoaderView: View {
                 Button("Retry") {
                     Task { await load() }
                 }
-                .buttonStyle(IPSecondaryButtonStyle())
+                .buttonStyle(IASecondaryButtonStyle())
                 .disabled(previewErrorMessage != nil)
             }
-            .padding(.horizontal, IPTheme.spacing20)
+            .padding(.horizontal, IATheme.spacing20)
         }
     }
 

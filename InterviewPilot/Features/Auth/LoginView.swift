@@ -21,7 +21,7 @@ struct LoginView: View {
     var body: some View {
         if !(hasSeenOnboardingOverride ?? hasSeenOnboarding) {
             OnboardingView {
-                withAnimation(IPAnimations.hero) {
+                withAnimation(IAAnimations.hero) {
                     hasSeenOnboarding = true
                 }
             }
@@ -33,19 +33,19 @@ struct LoginView: View {
     private var loginForm: some View {
         NavigationStack {
             ZStack {
-                IPAppBackground()
+                IAAppBackground()
 
                 ScrollView {
-                    VStack(alignment: .leading, spacing: IPTheme.spacing24) {
+                    VStack(alignment: .leading, spacing: IATheme.spacing24) {
                         topUtilityBar
                         heroSection
                         credentialsPanel
                     }
-                    .padding(.horizontal, IPTheme.spacing20)
-                    .padding(.top, IPTheme.spacing20)
+                    .padding(.horizontal, IATheme.spacing20)
+                    .padding(.top, IATheme.spacing20)
                     .padding(.bottom, 40)
                 }
-                .ipScrollablePage()
+                .iaScrollablePage()
             }
             .toolbar(.hidden, for: .navigationBar)
         }
@@ -54,22 +54,22 @@ struct LoginView: View {
     private var topUtilityBar: some View {
         HStack {
             HStack(spacing: 12) {
-                IPBrandLogo(size: 42, showShadow: false, variant: .filled)
+                IABrandLogo(size: 42, showShadow: false, variant: .filled)
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Job Hopper")
-                        .font(IPTypography.labelLarge)
-                        .foregroundStyle(IPTheme.textPrimary)
+                    Text("Interview Ace AI")
+                        .font(IATypography.labelLarge)
+                        .foregroundStyle(IATheme.textPrimary)
 
                     Text(isRegistering ? "Create account" : "Secure sign in")
-                        .font(IPTypography.bodySmall)
-                        .foregroundStyle(IPTheme.textSecondary)
+                        .font(IATypography.bodySmall)
+                        .foregroundStyle(IATheme.textSecondary)
                 }
             }
 
             Spacer()
 
-            IPStatusPill(
+            IAStatusPill(
                 title: isRegistering ? "Create account" : "Secure sign in",
                 symbol: isRegistering ? "person.crop.circle.badge.plus" : "lock.fill"
             )
@@ -79,13 +79,13 @@ struct LoginView: View {
     private var heroSection: some View {
         HStack(alignment: .top, spacing: 16) {
             VStack(alignment: .leading, spacing: 12) {
-                Text("Job Hopper")
-                    .font(IPTypography.displayMedium)
-                    .foregroundStyle(IPTheme.textPrimary)
+                Text("Interview Ace AI")
+                    .font(IATypography.displayMedium)
+                    .foregroundStyle(IATheme.textPrimary)
 
                 Text("Real-time interview support with role-aware prompts, low-latency response guidance, and post-call review.")
-                    .font(IPTypography.bodyLarge)
-                    .foregroundStyle(IPTheme.textSecondary)
+                    .font(IATypography.bodyLarge)
+                    .foregroundStyle(IATheme.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
 
                 HStack(spacing: 10) {
@@ -98,22 +98,22 @@ struct LoginView: View {
             Spacer()
 
             VStack(alignment: .trailing, spacing: 12) {
-                IPStarburst(size: 42)
-                IPBrandLogo(size: 72, variant: .surface)
+                IAStarburst(size: 42)
+                IABrandLogo(size: 72, variant: .surface)
             }
         }
     }
 
     private var credentialsPanel: some View {
-        IPPanel(tone: .primary, padding: 22, cornerRadius: 30) {
+        IAPanel(tone: .primary, padding: 22, cornerRadius: 30) {
             VStack(alignment: .leading, spacing: 16) {
                 Text(isRegistering ? "Create your workspace" : "Welcome back")
-                    .font(IPTypography.headlineSmall)
-                    .foregroundStyle(IPTheme.textPrimary)
+                    .font(IATypography.headlineSmall)
+                    .foregroundStyle(IATheme.textPrimary)
 
                 Text(isRegistering ? "Set up your account to start live interview practice." : "Sign in to continue into your interview dashboard.")
-                    .font(IPTypography.bodyMedium)
-                    .foregroundStyle(IPTheme.textSecondary)
+                    .font(IATypography.bodyMedium)
+                    .foregroundStyle(IATheme.textSecondary)
 
                 if isRegistering {
                     authField(
@@ -142,11 +142,11 @@ struct LoginView: View {
 
                 if let error = authService.errorMessage {
                     Label(error, systemImage: "exclamationmark.triangle.fill")
-                        .font(IPTypography.bodySmall)
-                        .foregroundStyle(IPTheme.error)
+                        .font(IATypography.bodySmall)
+                        .foregroundStyle(IATheme.error)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(12)
-                        .background(IPTheme.error.opacity(0.10), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                        .background(IATheme.error.opacity(0.10), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
                 }
 
                 Button(action: submit) {
@@ -160,13 +160,13 @@ struct LoginView: View {
                         }
                     }
                 }
-                .buttonStyle(IPPrimaryButtonStyle(isEnabled: canSubmit && !authService.isLoading))
+                .buttonStyle(IAPrimaryButtonStyle(isEnabled: canSubmit && !authService.isLoading))
                 .disabled(!canSubmit || authService.isLoading)
 
                 appleSignInButton
 
                 Button(action: {
-                    withAnimation(IPAnimations.standard) {
+                    withAnimation(IAAnimations.standard) {
                         isRegistering.toggle()
                         authService.errorMessage = nil
                     }
@@ -174,21 +174,21 @@ struct LoginView: View {
                     Text(isRegistering ? "Already have an account? Sign In" : "Need an account? Sign Up")
                         .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(IPSecondaryButtonStyle())
+                .buttonStyle(IASecondaryButtonStyle())
             }
         }
     }
 
     private func featurePill(_ title: String, symbol: String) -> some View {
         Label(title, systemImage: symbol)
-            .font(IPTypography.labelSmall)
-            .foregroundStyle(IPTheme.textPrimary)
+            .font(IATypography.labelSmall)
+            .foregroundStyle(IATheme.textPrimary)
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
             .background(Color.white.opacity(colorScheme == .dark ? 0.10 : 0.85), in: Capsule())
             .overlay {
                 Capsule()
-                    .stroke(IPTheme.borderColor(for: colorScheme), lineWidth: 1)
+                    .stroke(IATheme.borderColor(for: colorScheme), lineWidth: 1)
             }
     }
 
@@ -290,14 +290,14 @@ struct LoginView: View {
         text: Binding<String>,
         icon: String
     ) -> some View {
-        IPInputShell(icon: icon, title: title, subtitle: nil) {
+        IAInputShell(icon: icon, title: title, subtitle: nil) {
             TextField(placeholder, text: text)
-                .font(IPTypography.bodyMedium)
-                .foregroundStyle(IPTheme.insetSurfacePrimaryText(for: colorScheme))
+                .font(IATypography.bodyMedium)
+                .foregroundStyle(IATheme.insetSurfacePrimaryText(for: colorScheme))
                 .autocorrectionDisabled()
                 .padding(.horizontal, 14)
                 .padding(.vertical, 14)
-                .ipInsetSurface(cornerRadius: 20)
+                .iaInsetSurface(cornerRadius: 20)
         }
     }
 
@@ -307,14 +307,14 @@ struct LoginView: View {
         text: Binding<String>,
         icon: String
     ) -> some View {
-        IPInputShell(icon: icon, title: title, subtitle: nil) {
+        IAInputShell(icon: icon, title: title, subtitle: nil) {
             SecureField(placeholder, text: text)
-                .font(IPTypography.bodyMedium)
-                .foregroundStyle(IPTheme.insetSurfacePrimaryText(for: colorScheme))
+                .font(IATypography.bodyMedium)
+                .foregroundStyle(IATheme.insetSurfacePrimaryText(for: colorScheme))
                 .autocorrectionDisabled()
                 .padding(.horizontal, 14)
                 .padding(.vertical, 14)
-                .ipInsetSurface(cornerRadius: 20)
+                .iaInsetSurface(cornerRadius: 20)
         }
     }
 }

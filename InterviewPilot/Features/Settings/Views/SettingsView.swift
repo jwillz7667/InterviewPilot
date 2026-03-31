@@ -5,7 +5,9 @@ struct SettingsView: View {
     @State private var subscriptionService = SubscriptionService.shared
     @State private var viewModel: SettingsViewModel
     @State private var showSignOutConfirm = false
+    @State private var showDeleteAccountConfirm = false
     @State private var showPaywall = false
+    @State private var showProfile = false
     @AppStorage("appAppearance") private var appearanceRawValue = AppAppearance.system.rawValue
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var colorScheme
@@ -29,38 +31,39 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                IPAppBackground()
+                IAAppBackground()
 
                 ScrollView {
-                    VStack(spacing: IPTheme.spacing20) {
+                    VStack(spacing: IATheme.spacing20) {
                         topUtilityBar
                         headerSection
                         accountSummaryPanel
 
                         if let error = viewModel.errorMessage {
                             Label(error, systemImage: "exclamationmark.triangle.fill")
-                                .font(IPTypography.bodySmall)
-                                .foregroundStyle(IPTheme.error)
+                                .font(IATypography.bodySmall)
+                                .foregroundStyle(IATheme.error)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .padding(14)
-                                .background(IPTheme.error.opacity(0.10), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                                .background(IATheme.error.opacity(0.10), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
                         }
 
                         subscriptionSection
                         appearanceSection
                         aboutSection
+                        accountDangerSection
                     }
-                    .padding(.horizontal, IPTheme.spacing20)
-                    .padding(.vertical, IPTheme.spacing20)
+                    .padding(.horizontal, IATheme.spacing20)
+                    .padding(.vertical, IATheme.spacing20)
                     .padding(.bottom, 120)
                 }
-                .ipScrollablePage()
+                .iaScrollablePage()
             }
             .toolbar(.hidden, for: .navigationBar)
             .safeAreaInset(edge: .bottom) {
                 signOutDock
-                    .padding(.horizontal, IPTheme.spacing16)
-                    .padding(.bottom, IPTheme.spacing8)
+                    .padding(.horizontal, IATheme.spacing16)
+                    .padding(.bottom, IATheme.spacing8)
             }
             .confirmationDialog("Sign Out", isPresented: $showSignOutConfirm) {
                 Button("Sign Out", role: .destructive) {
@@ -71,6 +74,12 @@ struct SettingsView: View {
             }
             .sheet(isPresented: $showPaywall) {
                 SubscriptionPaywallView()
+            }
+            .sheet(isPresented: $showProfile) {
+                ProfileEditorView()
+            }
+            .sheet(isPresented: $showDeleteAccountConfirm) {
+                DeleteAccountView()
             }
             .task {
                 guard loadOnTask else { return }
@@ -83,60 +92,60 @@ struct SettingsView: View {
     private var topUtilityBar: some View {
         HStack {
             HStack(spacing: 12) {
-                IPBrandLogo(size: 38, showShadow: false, variant: .surface)
+                IABrandLogo(size: 38, showShadow: false, variant: .surface)
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Job Hopper")
-                        .font(IPTypography.labelLarge)
-                        .foregroundStyle(IPTheme.textPrimary)
+                    Text("Interview Ace AI")
+                        .font(IATypography.labelLarge)
+                        .foregroundStyle(IATheme.textPrimary)
 
                     Text("Settings")
-                        .font(IPTypography.bodySmall)
-                        .foregroundStyle(IPTheme.textSecondary)
+                        .font(IATypography.bodySmall)
+                        .foregroundStyle(IATheme.textSecondary)
                 }
             }
 
             Spacer()
 
-            IPUtilityCircleButton(symbol: "xmark") { dismiss() }
+            IAUtilityCircleButton(symbol: "xmark") { dismiss() }
         }
     }
 
     private var headerSection: some View {
-        IPPanel(tone: .secondary, padding: 20, cornerRadius: 30) {
+        IAPanel(tone: .secondary, padding: 20, cornerRadius: 30) {
             VStack(alignment: .leading, spacing: 10) {
                 Text("Settings")
-                    .font(IPTypography.displayMedium)
-                    .foregroundStyle(IPTheme.textPrimary)
+                    .font(IATypography.displayMedium)
+                    .foregroundStyle(IATheme.textPrimary)
 
                 Text("Control appearance, prep defaults, and subscription details from a cleaner account surface.")
-                    .font(IPTypography.bodyLarge)
-                    .foregroundStyle(IPTheme.textSecondary)
+                    .font(IATypography.bodyLarge)
+                    .foregroundStyle(IATheme.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
     }
 
     private var accountSummaryPanel: some View {
-        IPPanel(tone: .secondary, padding: 20, cornerRadius: 30) {
+        IAPanel(tone: .secondary, padding: 20, cornerRadius: 30) {
             HStack(spacing: 16) {
-                IPBrandLogo(size: 54, showShadow: false, variant: .filled)
+                IABrandLogo(size: 54, showShadow: false, variant: .filled)
 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(currentUser?.displayName ?? "Job Hopper User")
-                        .font(IPTypography.headlineSmall)
-                        .foregroundStyle(IPTheme.textPrimary)
+                    Text(currentUser?.displayName ?? "Interview Ace AI User")
+                        .font(IATypography.headlineSmall)
+                        .foregroundStyle(IATheme.textPrimary)
 
                     if let email = currentUser?.email {
                         Text(email)
-                            .font(IPTypography.bodyMedium)
-                            .foregroundStyle(IPTheme.textSecondary)
+                            .font(IATypography.bodyMedium)
+                            .foregroundStyle(IATheme.textSecondary)
                     }
 
                     if let entitlement = currentEntitlement {
                         Text(entitlement.statusDetail)
-                            .font(IPTypography.bodySmall)
-                            .foregroundStyle(IPTheme.textSecondary)
+                            .font(IATypography.bodySmall)
+                            .foregroundStyle(IATheme.textSecondary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }
@@ -147,11 +156,11 @@ struct SettingsView: View {
     }
 
     private var subscriptionSection: some View {
-        IPPanel(tone: .secondary, padding: 22, cornerRadius: 30) {
+        IAPanel(tone: .secondary, padding: 22, cornerRadius: 30) {
             VStack(alignment: .leading, spacing: 14) {
                 Text("Subscription")
-                    .font(IPTypography.headlineSmall)
-                    .foregroundStyle(IPTheme.textPrimary)
+                    .font(IATypography.headlineSmall)
+                    .foregroundStyle(IATheme.textPrimary)
 
                 infoRow(
                     icon: "creditcard.fill",
@@ -166,23 +175,23 @@ struct SettingsView: View {
                     )
                     .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(IPSecondaryButtonStyle())
+                .buttonStyle(IASecondaryButtonStyle())
             }
         }
     }
 
     private var appearanceSection: some View {
-        IPPanel(tone: .primary, padding: 22, cornerRadius: 30) {
+        IAPanel(tone: .primary, padding: 22, cornerRadius: 30) {
             VStack(alignment: .leading, spacing: 14) {
                 Text("Appearance")
-                    .font(IPTypography.headlineSmall)
-                    .foregroundStyle(IPTheme.textPrimary)
+                    .font(IATypography.headlineSmall)
+                    .foregroundStyle(IATheme.textPrimary)
 
                 ForEach(AppAppearance.allCases) { appearance in
                     Button(action: { appearanceRawValue = appearance.rawValue }) {
                         HStack(spacing: 14) {
                             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                .fill(currentAppearance == appearance ? IPTheme.accentSelected : IPTheme.surfaceTertiary)
+                                .fill(currentAppearance == appearance ? IATheme.accentSelected : IATheme.surfaceTertiary)
                                 .frame(width: 42, height: 42)
                                 .overlay {
                                     Image(systemName: appearance.symbol)
@@ -190,17 +199,17 @@ struct SettingsView: View {
                                         .foregroundStyle(
                                             currentAppearance == appearance
                                                 ? Color.white
-                                                : IPTheme.insetSurfaceSecondaryText(for: colorScheme)
+                                                : IATheme.insetSurfaceSecondaryText(for: colorScheme)
                                         )
                                 }
 
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(appearance.title)
-                                    .font(IPTypography.bodyLarge)
-                                    .foregroundStyle(currentAppearance == appearance ? Color.white : IPTheme.insetSurfacePrimaryText(for: colorScheme))
+                                    .font(IATypography.bodyLarge)
+                                    .foregroundStyle(currentAppearance == appearance ? Color.white : IATheme.insetSurfacePrimaryText(for: colorScheme))
                                 Text(appearance.subtitle)
-                                    .font(IPTypography.bodySmall)
-                                    .foregroundStyle(currentAppearance == appearance ? Color.white : IPTheme.insetSurfaceSecondaryText(for: colorScheme))
+                                    .font(IATypography.bodySmall)
+                                    .foregroundStyle(currentAppearance == appearance ? Color.white : IATheme.insetSurfaceSecondaryText(for: colorScheme))
                             }
 
                             Spacer()
@@ -210,11 +219,11 @@ struct SettingsView: View {
                                 .foregroundStyle(
                                     currentAppearance == appearance
                                         ? Color.white
-                                        : IPTheme.insetSurfaceTertiaryText(for: colorScheme)
+                                        : IATheme.insetSurfaceTertiaryText(for: colorScheme)
                                 )
                         }
                         .padding(16)
-                        .ipInsetSurface(selected: currentAppearance == appearance, cornerRadius: 22)
+                        .iaInsetSurface(selected: currentAppearance == appearance, cornerRadius: 22)
                     }
                     .buttonStyle(.plain)
                 }
@@ -227,26 +236,85 @@ struct SettingsView: View {
     }
 
     private var aboutSection: some View {
-        IPPanel(tone: .primary, padding: 22, cornerRadius: 30) {
+        IAPanel(tone: .primary, padding: 22, cornerRadius: 30) {
             VStack(alignment: .leading, spacing: 14) {
-                Text("About")
-                    .font(IPTypography.headlineSmall)
-                    .foregroundStyle(IPTheme.textPrimary)
+                Text("About & Support")
+                    .font(IATypography.headlineSmall)
+                    .foregroundStyle(IATheme.textPrimary)
+
+                Button(action: { showProfile = true }) {
+                    infoRow(icon: "person.crop.circle.fill", title: "Profile", detail: "Display name, resume, and LinkedIn settings.")
+                }
+                .buttonStyle(.plain)
+
+                NavigationLink {
+                    HelpView()
+                } label: {
+                    infoRow(icon: "questionmark.circle.fill", title: "Help & FAQ", detail: "Common questions about live sessions and prep.")
+                }
+                .buttonStyle(.plain)
+
+                NavigationLink {
+                    LegalWebView(url: URL(string: "https://interviewpilot-production.up.railway.app/privacy")!, title: "Privacy Policy")
+                } label: {
+                    infoRow(icon: "hand.raised.fill", title: "Privacy Policy", detail: "How your data is handled.")
+                }
+                .buttonStyle(.plain)
+
+                NavigationLink {
+                    LegalWebView(url: URL(string: "https://interviewpilot-production.up.railway.app/terms")!, title: "Terms of Service")
+                } label: {
+                    infoRow(icon: "doc.text.fill", title: "Terms of Service", detail: "Usage agreement and conditions.")
+                }
+                .buttonStyle(.plain)
 
                 infoRow(icon: "lock.shield.fill", title: "Security", detail: "Authentication tokens are stored in the iOS Keychain.")
-                infoRow(icon: "antenna.radiowaves.left.and.right", title: "Connectivity", detail: "Live interview mode needs network access for transcription and response generation.")
-                infoRow(icon: "waveform.badge.magnifyingglass", title: "Speech stack", detail: "Live mode keeps the current interview audio pipeline and on-screen answer workflow.")
+            }
+        }
+    }
+
+    private var accountDangerSection: some View {
+        IAPanel(tone: .primary, padding: 22, cornerRadius: 30) {
+            VStack(alignment: .leading, spacing: 14) {
+                Text("Account")
+                    .font(IATypography.headlineSmall)
+                    .foregroundStyle(IATheme.textPrimary)
+
+                Button(action: { showDeleteAccountConfirm = true }) {
+                    HStack(spacing: 12) {
+                        Circle()
+                            .fill(IATheme.error.opacity(0.10))
+                            .frame(width: 34, height: 34)
+                            .overlay {
+                                Image(systemName: "trash.fill")
+                                    .font(.system(size: 14, weight: .semibold))
+                                    .foregroundStyle(IATheme.error)
+                            }
+
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Delete Account")
+                                .font(IATypography.bodyLarge)
+                                .foregroundStyle(IATheme.error)
+                            Text("Permanently remove your account and all data.")
+                                .font(IATypography.bodySmall)
+                                .foregroundStyle(IATheme.textSecondary)
+                        }
+
+                        Spacer()
+                    }
+                }
+                .buttonStyle(.plain)
             }
         }
     }
 
     private var signOutDock: some View {
-        IPBottomDock {
+        IABottomDock {
             Button(action: { showSignOutConfirm = true }) {
                 Label("Sign Out", systemImage: "rectangle.portrait.and.arrow.right")
                     .frame(maxWidth: .infinity)
             }
-            .buttonStyle(IPPrimaryButtonStyle(isEnabled: true))
+            .buttonStyle(IAPrimaryButtonStyle(isEnabled: true))
         }
     }
 
@@ -261,21 +329,21 @@ struct SettingsView: View {
     private func infoRow(icon: String, title: String, detail: String) -> some View {
         HStack(alignment: .top, spacing: 12) {
             Circle()
-                .fill(IPTheme.accent.opacity(0.10))
+                .fill(IATheme.accent.opacity(0.10))
                 .frame(width: 34, height: 34)
                 .overlay {
                     Image(systemName: icon)
                         .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(IPTheme.accent)
+                        .foregroundStyle(IATheme.accent)
                 }
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
-                    .font(IPTypography.bodyLarge)
-                    .foregroundStyle(IPTheme.textPrimary)
+                    .font(IATypography.bodyLarge)
+                    .foregroundStyle(IATheme.textPrimary)
                 Text(detail)
-                    .font(IPTypography.bodySmall)
-                    .foregroundStyle(IPTheme.textSecondary)
+                    .font(IATypography.bodySmall)
+                    .foregroundStyle(IATheme.textSecondary)
             }
 
             Spacer()

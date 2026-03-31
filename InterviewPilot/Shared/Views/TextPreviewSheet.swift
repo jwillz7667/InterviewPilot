@@ -11,19 +11,19 @@ struct TextPreviewSheet: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                IPAppBackground()
+                IAAppBackground()
 
                 ScrollView {
-                    VStack(spacing: IPTheme.spacing20) {
-                        IPPanel(tone: .secondary, padding: 22, cornerRadius: 30) {
+                    VStack(spacing: IATheme.spacing20) {
+                        IAPanel(tone: .secondary, padding: 22, cornerRadius: 30) {
                             VStack(alignment: .leading, spacing: 16) {
                                 HStack {
-                                    IPBrandLogo(size: 40, showShadow: false, variant: .surface)
+                                    IABrandLogo(size: 40, showShadow: false, variant: .surface)
                                     Spacer()
-                                    IPStarburst(size: 28)
+                                    IAStarburst(size: 28)
                                 }
 
-                                IPSectionHeader(
+                                IASectionHeader(
                                     eyebrow: "Preview",
                                     title: title,
                                     subtitle: subtitle,
@@ -31,25 +31,25 @@ struct TextPreviewSheet: View {
                                 )
 
                                 Text(text)
-                                    .font(IPTypography.bodyMedium)
-                                    .foregroundStyle(IPTheme.insetSurfacePrimaryText(for: colorScheme))
+                                    .font(IATypography.bodyMedium)
+                                    .foregroundStyle(IATheme.insetSurfacePrimaryText(for: colorScheme))
                                     .frame(maxWidth: .infinity, alignment: .leading)
                                     .padding(18)
-                                    .ipInsetSurface(cornerRadius: 24)
+                                    .iaInsetSurface(cornerRadius: 24)
                             }
                         }
                     }
-                    .padding(.horizontal, IPTheme.spacing20)
-                    .padding(.vertical, IPTheme.spacing20)
+                    .padding(.horizontal, IATheme.spacing20)
+                    .padding(.vertical, IATheme.spacing20)
                 }
-                .ipScrollablePage()
+                .iaScrollablePage()
             }
             .navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Done") { dismiss() }
-                        .foregroundStyle(IPTheme.accent)
+                        .foregroundStyle(IATheme.accent)
                 }
             }
         }
