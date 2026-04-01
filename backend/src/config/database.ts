@@ -1,8 +1,15 @@
 import { Prisma, PrismaClient } from '@prisma/client';
+import { getEnv } from './env.js';
+import { softDeleteExtension } from '../middleware/soft-delete.js';
 
 function createPrismaClient() {
+  const env = getEnv();
+  const url = new URL(env.DATABASE_URL);
+  url.searchParams.set('connection_limit', String(env.DATABASE_POOL_SIZE));
+
   return new PrismaClient({
     log: process.env.NODE_ENV === 'development' ? ['warn', 'error'] : ['error'],
+    datasourceUrl: url.toString(),
   });
 }
 
@@ -23,7 +30,7 @@ const TRANSIENT_PRISMA_MESSAGE_PATTERNS = [
 
 export function getPrisma(): DatabaseClient {
   if (!prisma) {
-    prisma = createPrismaClient();
+    prisma = createPrismaClient().$extends(softDeleteExtension) as unknown as DatabaseClient;
   }
   return prisma;
 }
@@ -45,7 +52,7 @@ export async function reconnectPrisma(): Promise<DatabaseClient> {
 
   reconnectInFlight = (async () => {
     const previousClient = prisma;
-    const nextClient = createPrismaClient();
+    const nextClient = createPrismaClient().$extends(softDeleteExtension) as unknown as DatabaseClient;
     prisma = nextClient;
 
     if (previousClient) {

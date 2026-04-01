@@ -131,8 +131,10 @@ final class SubscriptionService {
     private var storeProductsById: [String: Product] = [:]
     private var transactionUpdatesTask: Task<Void, Never>?
     private let baseURL = AppEnvironment.backendBaseURL
+    private let entitlementCacheKey = "com.res.jobhopperAI.cached-entitlement"
 
     private init() {
+        entitlement = loadCachedEntitlement()
         startTransactionObserver()
     }
 
@@ -143,6 +145,7 @@ final class SubscriptionService {
         errorMessage = nil
         isLoading = false
         isPurchasing = false
+        UserDefaults.standard.removeObject(forKey: entitlementCacheKey)
     }
 
     var currentEntitlement: BillingEntitlement? {
@@ -171,6 +174,7 @@ final class SubscriptionService {
             )
 
             entitlement = response.entitlement
+            cacheEntitlement(response.entitlement)
             try await loadStoreProducts(from: response.entitlement.catalog)
         } catch let error as BillingClientError {
             if case .unauthenticated = error {
@@ -217,6 +221,7 @@ final class SubscriptionService {
         )
 
         entitlement = response.claim.entitlement
+        cacheEntitlement(response.claim.entitlement)
         return response.claim
     }
 
@@ -339,6 +344,7 @@ final class SubscriptionService {
         )
 
         entitlement = response.entitlement
+        cacheEntitlement(response.entitlement)
         try await loadStoreProducts(from: response.entitlement.catalog)
     }
 
@@ -453,6 +459,17 @@ final class SubscriptionService {
             gracePeriodEndsAt: base?.gracePeriodEndsAt,
             catalog: base?.catalog ?? []
         )
+    }
+
+    private func cacheEntitlement(_ entitlement: BillingEntitlement) {
+        if let data = try? JSONEncoder().encode(entitlement) {
+            UserDefaults.standard.set(data, forKey: entitlementCacheKey)
+        }
+    }
+
+    private func loadCachedEntitlement() -> BillingEntitlement? {
+        guard let data = UserDefaults.standard.data(forKey: entitlementCacheKey) else { return nil }
+        return try? JSONDecoder().decode(BillingEntitlement.self, from: data)
     }
 }
 

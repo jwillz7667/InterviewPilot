@@ -7,6 +7,9 @@ const updateSettingsSchema = z.object({
   defaultInterviewType: z.string().optional(),
   defaultResponseFormat: z.string().optional(),
   shouldPreGenerate: z.boolean().optional(),
+  responseTone: z.enum(['natural', 'confident', 'warm', 'executive']).optional(),
+  responseEmphasis: z.enum(['balanced', 'technicalDepth', 'businessImpact', 'leadership', 'productThinking']).optional(),
+  responseBehavior: z.enum(['direct', 'analytical', 'storyLed', 'collaborative']).optional(),
 });
 
 export async function settingsRoutes(app: FastifyInstance) {

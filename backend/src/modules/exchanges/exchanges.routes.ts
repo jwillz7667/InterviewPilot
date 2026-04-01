@@ -70,28 +70,28 @@ export async function exchangesRoutes(app: FastifyInstance) {
       );
       if (!session) return reply.status(404).send({ error: 'Session not found' });
 
-      const results = [];
-      for (const exchange of exchanges) {
-        const result = await withDatabaseRetry((prisma) =>
-          prisma.exchange.upsert({
-            where: { clientId: exchange.clientId },
-            create: {
-              ...exchange,
-              timestamp: new Date(exchange.timestamp),
-              sessionId: request.params.sessionId,
-              telemetry: exchange.telemetry,
-            },
-            update: {
-              questionTranscript: exchange.questionTranscript,
-              generatedResponse: exchange.generatedResponse,
-              responseLatencyMs: exchange.responseLatencyMs,
-              wasPreComputed: exchange.wasPreComputed,
-              telemetry: exchange.telemetry,
-            },
-          })
-        );
-        results.push(result);
-      }
+      const results = await withDatabaseRetry((prisma) =>
+        prisma.$transaction(
+          exchanges.map((exchange) =>
+            prisma.exchange.upsert({
+              where: { clientId: exchange.clientId },
+              create: {
+                ...exchange,
+                timestamp: new Date(exchange.timestamp),
+                sessionId: request.params.sessionId,
+                telemetry: exchange.telemetry,
+              },
+              update: {
+                questionTranscript: exchange.questionTranscript,
+                generatedResponse: exchange.generatedResponse,
+                responseLatencyMs: exchange.responseLatencyMs,
+                wasPreComputed: exchange.wasPreComputed,
+                telemetry: exchange.telemetry,
+              },
+            })
+          )
+        )
+      );
 
       reply.send({ exchanges: results, synced: results.length });
     }

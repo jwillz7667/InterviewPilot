@@ -1,6 +1,107 @@
 import Foundation
 
 enum PromptBuilder {
+
+    // MARK: - Cached Base Prompt (built once per session)
+
+    /// Builds the session-constant portion of the system prompt. Call once at session start
+    /// and reuse for every question. Use `buildFullPrompt` to inject per-question parts.
+    static func buildBasePrompt(
+        resume: String,
+        jobDescription: String,
+        interviewType: String,
+        jobCategory: JobCategory,
+        positionLevel: PositionLevel,
+        format: ResponseFormat,
+        behavior: ResponseBehavior,
+        tone: ResponseTone,
+        emphasis: ResponseEmphasis,
+        qualityMode: ResponseQualityMode
+    ) -> String {
+        let roleProfile = RoleResponseProfile.derive(
+            jobCategory: jobCategory,
+            positionLevel: positionLevel
+        )
+
+        let qualityDirective: String
+        switch qualityMode {
+        case .premium:
+            qualityDirective = """
+            ## Premium Quality Mode
+            - Go deeper on technical mechanisms — explain the "how" behind every choice.
+            - Include one additional layer of detail: the config value, the exact library version, the monitoring alert threshold, or the failure recovery path.
+            - When the question is technical or system design, include a brief capacity estimate or back-of-envelope calculation.
+            """
+        case .standard:
+            qualityDirective = ""
+        }
+
+        return buildBasePromptBody(
+            resume: resume,
+            jobDescription: jobDescription,
+            interviewType: interviewType,
+            jobCategory: jobCategory,
+            positionLevel: positionLevel,
+            format: format,
+            behavior: behavior,
+            tone: tone,
+            emphasis: emphasis,
+            roleProfile: roleProfile,
+            qualityDirective: qualityDirective
+        )
+    }
+
+    /// Builds the complete system prompt by combining the cached base with per-question parts.
+    static func buildFullPrompt(
+        basePrompt: String,
+        questionType: QuestionType?,
+        format: ResponseFormat,
+        emphasis: ResponseEmphasis,
+        exchangeHistory: [ExchangeSummary] = []
+    ) -> String {
+        let categoryLabel = questionType?.displayName ?? "General"
+        let categoryInstruction = responseCategoryInstruction(for: questionType)
+        let deliveryConstraints = liveDeliveryInstruction(
+            format: format,
+            emphasis: emphasis,
+            questionType: questionType
+        )
+
+        var historyBlock = ""
+        if !exchangeHistory.isEmpty {
+            let formatted = exchangeHistory.enumerated().map { index, exchange in
+                "Q\(index + 1): \(exchange.question)\nA\(index + 1) [project: \(exchange.projectReferenced ?? "none")]: \(exchange.responseSummary)"
+            }.joined(separator: "\n\n")
+            historyBlock = """
+
+            ## Previous Exchanges in This Interview
+            The candidate has already answered these questions in this session. Do NOT reuse the same project or example. Pick a different project from the resume for this answer. If the new question is a follow-up to a previous answer, expand on that specific answer with new detail instead.
+
+            \(formatted)
+
+            """
+        }
+
+        return basePrompt + """
+
+        ## Question Category: \(categoryLabel)
+        \(categoryInstruction)
+
+        ## Delivery Constraints
+        \(deliveryConstraints)
+        \(historyBlock)
+        """
+    }
+
+    /// Lightweight summary of a completed exchange for conversation threading.
+    struct ExchangeSummary {
+        let question: String
+        let responseSummary: String
+        let projectReferenced: String?
+    }
+
+    // MARK: - Legacy Full Build (for pre-generation and backward compat)
+
     static func buildResponsePrompt(
         resume: String,
         jobDescription: String,
@@ -14,18 +115,41 @@ enum PromptBuilder {
         emphasis: ResponseEmphasis,
         qualityMode: ResponseQualityMode
     ) -> String {
-        let categoryLabel = questionType?.displayName ?? "General"
-        let categoryInstruction = responseCategoryInstruction(for: questionType)
-        let deliveryConstraints = liveDeliveryInstruction(
-            format: format,
-            emphasis: emphasis,
-            questionType: questionType
-        )
-        let roleProfile = RoleResponseProfile.derive(
+        let base = buildBasePrompt(
+            resume: resume,
+            jobDescription: jobDescription,
+            interviewType: interviewType,
             jobCategory: jobCategory,
-            positionLevel: positionLevel
+            positionLevel: positionLevel,
+            format: format,
+            behavior: behavior,
+            tone: tone,
+            emphasis: emphasis,
+            qualityMode: qualityMode
         )
+        return buildFullPrompt(
+            basePrompt: base,
+            questionType: questionType,
+            format: format,
+            emphasis: emphasis
+        )
+    }
 
+    // MARK: - Base Prompt Body
+
+    private static func buildBasePromptBody(
+        resume: String,
+        jobDescription: String,
+        interviewType: String,
+        jobCategory: JobCategory,
+        positionLevel: PositionLevel,
+        format: ResponseFormat,
+        behavior: ResponseBehavior,
+        tone: ResponseTone,
+        emphasis: ResponseEmphasis,
+        roleProfile: RoleResponseProfile,
+        qualityDirective: String
+    ) -> String {
         return """
         # Role and Objective
 
@@ -154,8 +278,7 @@ enum PromptBuilder {
         ## Primary Signal
         \(emphasis.promptInstruction)
 
-        ## Delivery Constraints
-        \(deliveryConstraints)
+        \(qualityDirective)
 
         # Examples
 
@@ -183,9 +306,6 @@ enum PromptBuilder {
         - Interview type: \(interviewType)
         - Job category: \(jobCategory.displayName)
         - Position level: \(positionLevel.displayName)
-
-        ## Question Category: \(categoryLabel)
-        \(categoryInstruction)
 
         ## Role Calibration
         \(roleProfile.rolePromptInstruction)

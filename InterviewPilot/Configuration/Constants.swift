@@ -16,19 +16,19 @@ enum APIConfig {
     static let deepgramEncoding = "linear16"
 
     // Thresholds
-    static let predictiveFireMinWords = 10
-    static let predictiveFireConfidence: Float = 0.75
-    static let cacheMatchThreshold: Float = 0.82
-    static let utteranceEndMs = 2200
-    static let endpointingMs = 700
+    static let predictiveFireMinWords = 8
+    static let predictiveFireConfidence: Float = 0.65
+    static let cacheMatchThreshold: Float = 0.75
+    static let utteranceEndMs = 1500
+    static let endpointingMs = 600
     static let postResponseEchoSimilarityThreshold: Float = 0.18
     static let postResponseMinimumQuestionScore = 4
     static let postResponseGracePeriodSeconds: TimeInterval = 8
-    static let predictiveQuestionSimilarityThreshold: Float = 0.55
+    static let predictiveQuestionSimilarityThreshold: Float = 0.45
 
     // Limits
-    static let maxResponseTokens = 320
-    static let maxPremiumResponseTokens = 380
+    static let maxResponseTokens = 400
+    static let maxPremiumResponseTokens = 480
     static let maxPreComputedQuestions = 25
     static let responseFrequencyPenalty = 0.15
     static let responsePresencePenalty = 0.05

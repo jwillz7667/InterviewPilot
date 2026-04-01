@@ -32,6 +32,7 @@ final class AuthService {
     private(set) var isLoading: Bool = false
     var errorMessage: String?
     private let baseURL = AppEnvironment.backendBaseURL
+    private var activeRefreshTask: Task<String?, Never>?
 
     private init() {
         restoreSession()
@@ -152,26 +153,54 @@ final class AuthService {
         currentUser = nil
     }
 
+    func requestPasswordReset(email: String) async throws {
+        let body = ["email": email]
+        let _: [String: String] = try await post(
+            path: "/api/v1/auth/forgot-password",
+            body: body
+        )
+    }
+
+    func resetPassword(token: String, newPassword: String) async throws {
+        let body = ["token": token, "password": newPassword]
+        let _: [String: String] = try await post(
+            path: "/api/v1/auth/reset-password",
+            body: body
+        )
+    }
+
     func refreshTokenIfNeeded() async -> String? {
-        guard let refreshToken = KeychainService.load(key: .refreshToken) else { return nil }
-
-        do {
-            let response: TokenRefreshResponse = try await post(
-                path: "/api/v1/auth/refresh",
-                body: ["refreshToken": refreshToken]
-            )
-
-            _ = KeychainService.save(key: .accessToken, value: response.accessToken)
-            _ = KeychainService.save(key: .refreshToken, value: response.refreshToken)
-
-            return response.accessToken
-        } catch {
-            clearAuthData()
-            SubscriptionService.shared.reset()
-            isAuthenticated = false
-            currentUser = nil
-            return nil
+        // Coalesce concurrent refresh calls onto a single task
+        if let existing = activeRefreshTask {
+            return await existing.value
         }
+
+        let task = Task<String?, Never> { [weak self] in
+            guard let self else { return nil }
+            defer { self.activeRefreshTask = nil }
+
+            guard let refreshToken = KeychainService.load(key: .refreshToken) else { return nil }
+
+            do {
+                let response: TokenRefreshResponse = try await self.post(
+                    path: "/api/v1/auth/refresh",
+                    body: ["refreshToken": refreshToken]
+                )
+
+                _ = KeychainService.save(key: .accessToken, value: response.accessToken)
+                _ = KeychainService.save(key: .refreshToken, value: response.refreshToken)
+
+                return response.accessToken
+            } catch {
+                self.clearAuthData()
+                SubscriptionService.shared.reset()
+                self.isAuthenticated = false
+                self.currentUser = nil
+                return nil
+            }
+        }
+        activeRefreshTask = task
+        return await task.value
     }
 
     func fetchAndStoreAPIKeys(token: String? = nil) async {
@@ -315,12 +344,19 @@ final class AuthService {
     }
 
     private func deviceId() -> String {
-        if let existing = UserDefaults.standard.string(forKey: "deviceId") {
+        // Migrate from UserDefaults if present
+        if let legacyId = UserDefaults.standard.string(forKey: "deviceId") {
+            _ = KeychainService.save(key: .deviceId, value: legacyId)
+            UserDefaults.standard.removeObject(forKey: "deviceId")
+            return legacyId
+        }
+
+        if let existing = KeychainService.load(key: .deviceId) {
             return existing
         }
 
         let id = UUID().uuidString
-        UserDefaults.standard.set(id, forKey: "deviceId")
+        _ = KeychainService.save(key: .deviceId, value: id)
         return id
     }
 

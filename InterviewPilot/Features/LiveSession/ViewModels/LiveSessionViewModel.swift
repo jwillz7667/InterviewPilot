@@ -60,6 +60,9 @@ final class LiveSessionViewModel {
     private var syncTask: Task<Void, Never>?
     private var pendingExchangeMetrics = PendingExchangeMetrics()
 
+    // Cached base prompt — built once at session start, reused for every question
+    private var cachedBasePrompt: String = ""
+
     // Predictive buffering — generate in background while interviewer is still talking
     private var isPredictiveBuffering: Bool = false
     private var predictiveBuffer: String = ""
@@ -396,6 +399,22 @@ final class LiveSessionViewModel {
         }
 
         errorMessage = nil
+
+        // Pre-build the session-constant system prompt and pre-warm the HTTP connection
+        cachedBasePrompt = PromptBuilder.buildBasePrompt(
+            resume: resume,
+            jobDescription: jobDescription,
+            interviewType: interviewType.rawValue,
+            jobCategory: jobCategory,
+            positionLevel: positionLevel,
+            format: responseFormat,
+            behavior: responseBehavior,
+            tone: responseTone,
+            emphasis: responseEmphasis,
+            qualityMode: responseQualityMode
+        )
+        responseGenerator.preWarmConnection()
+
         let keywords = JobDescriptionService.extractKeywords(from: jobDescription)
 
         do {
@@ -519,19 +538,53 @@ final class LiveSessionViewModel {
 
         responseGenerator.generateResponse(
             question: question,
-            resume: resume,
-            jobDescription: jobDescription,
-            interviewType: interviewType.rawValue,
-            jobCategory: jobCategory,
-            positionLevel: positionLevel,
+            cachedBasePrompt: cachedBasePrompt,
             questionType: classification?.type,
             format: responseFormat,
-            behavior: responseBehavior,
-            tone: responseTone,
             emphasis: responseEmphasis,
+            exchangeHistory: recentExchangeHistory(),
             qualityMode: responseQualityMode,
+            tone: responseTone,
             model: model
         )
+    }
+
+    /// Build a summary of recent exchanges for conversation threading.
+    /// Keeps the last 5 to avoid bloating the prompt while preventing project repetition.
+    private func recentExchangeHistory() -> [PromptBuilder.ExchangeSummary] {
+        exchanges.suffix(5).map { exchange in
+            let firstSentence: String
+            if let dotIndex = exchange.generatedResponse.firstIndex(of: ".") {
+                firstSentence = String(exchange.generatedResponse[...dotIndex])
+            } else {
+                firstSentence = String(exchange.generatedResponse.prefix(120))
+            }
+            // Extract project name heuristic: look for capitalized multi-word sequences
+            let projectRef = extractProjectReference(from: exchange.generatedResponse)
+            return PromptBuilder.ExchangeSummary(
+                question: String(exchange.questionTranscript.prefix(150)),
+                responseSummary: firstSentence,
+                projectReferenced: projectRef
+            )
+        }
+    }
+
+    /// Simple heuristic to extract project names from responses for diversity tracking.
+    private func extractProjectReference(from response: String) -> String? {
+        // Look for "on [ProjectName]" or "at [ProjectName]" patterns
+        let patterns = ["on ", "at ", "for ", "in ", "called "]
+        let words = response.split(separator: " ")
+        for (i, word) in words.enumerated() {
+            let lower = word.lowercased()
+            if patterns.contains(lower + " ") || patterns.contains(String(lower)),
+               i + 1 < words.count {
+                let next = String(words[i + 1])
+                if next.first?.isUppercase == true && next.count > 2 {
+                    return next.trimmingCharacters(in: .punctuationCharacters)
+                }
+            }
+        }
+        return nil
     }
 
     private func selectModel(for classification: QuestionClassification?) -> String {
@@ -636,17 +689,13 @@ final class LiveSessionViewModel {
         // Start generation in background — tokens go to predictiveBuffer, not display
         responseGenerator.generateResponse(
             question: question,
-            resume: resume,
-            jobDescription: jobDescription,
-            interviewType: interviewType.rawValue,
-            jobCategory: jobCategory,
-            positionLevel: positionLevel,
+            cachedBasePrompt: cachedBasePrompt,
             questionType: classification?.type,
             format: responseFormat,
-            behavior: responseBehavior,
-            tone: responseTone,
             emphasis: responseEmphasis,
+            exchangeHistory: recentExchangeHistory(),
             qualityMode: responseQualityMode,
+            tone: responseTone,
             model: model
         )
     }
@@ -1115,6 +1164,7 @@ final class LiveSessionViewModel {
             } catch {
                 if !Task.isCancelled {
                     self.syncState = .failed
+                    SyncRetryQueue.shared.enqueue(snapshot)
                 }
             }
         }

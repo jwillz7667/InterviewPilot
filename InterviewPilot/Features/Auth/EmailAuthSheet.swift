@@ -5,6 +5,7 @@ struct EmailAuthSheet: View {
     @State private var password = ""
     @State private var displayName = ""
     @State private var isRegistering = false
+    @State private var showForgotPassword = false
     @State private var authService = AuthService.shared
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var colorScheme
@@ -53,6 +54,17 @@ struct EmailAuthSheet: View {
                                 text: $password,
                                 icon: "lock.shield"
                             )
+
+                            if !isRegistering {
+                                HStack {
+                                    Spacer()
+                                    Button("Forgot password?") {
+                                        showForgotPassword = true
+                                    }
+                                    .font(IATypography.labelMedium)
+                                    .foregroundStyle(IATheme.accent)
+                                }
+                            }
                         }
 
                         if let error = authService.errorMessage {
@@ -99,6 +111,9 @@ struct EmailAuthSheet: View {
                     Button("Cancel") { dismiss() }
                         .foregroundStyle(IATheme.textSecondary)
                 }
+            }
+            .sheet(isPresented: $showForgotPassword) {
+                ForgotPasswordView()
             }
         }
     }

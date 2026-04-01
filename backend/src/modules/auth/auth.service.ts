@@ -148,7 +148,7 @@ export async function registerUser(input: RegisterInput) {
   );
 
   if (existing) {
-    throw new ConflictError('An account with this email already exists');
+    throw new ConflictError('Unable to create account. Please try again or sign in.');
   }
 
   const passwordHash = await hashPassword(input.password);
@@ -192,6 +192,8 @@ export async function loginUser(input: LoginInput) {
         displayName: true,
         appAccountToken: true,
         passwordHash: true,
+        failedLoginAttempts: true,
+        lockedUntil: true,
       },
     })
   );
@@ -200,9 +202,27 @@ export async function loginUser(input: LoginInput) {
     throw new UnauthorizedError('Invalid email or password');
   }
 
+  if (user.lockedUntil && user.lockedUntil > new Date()) {
+    throw new UnauthorizedError('Account temporarily locked. Try again later.');
+  }
+
   const validPassword = await argon2.verify(user.passwordHash, input.password);
   if (!validPassword) {
+    const attempts = (user.failedLoginAttempts ?? 0) + 1;
+    const lockData: { failedLoginAttempts: number; lockedUntil?: Date } = { failedLoginAttempts: attempts };
+    if (attempts >= 5) {
+      lockData.lockedUntil = new Date(Date.now() + 15 * 60 * 1000); // 15 min
+    }
+    await withDatabaseRetry((prisma) =>
+      prisma.user.update({ where: { id: user.id }, data: lockData })
+    );
     throw new UnauthorizedError('Invalid email or password');
+  }
+
+  if (user.failedLoginAttempts > 0) {
+    await withDatabaseRetry((prisma) =>
+      prisma.user.update({ where: { id: user.id }, data: { failedLoginAttempts: 0, lockedUntil: null } })
+    );
   }
 
   const appAccountToken = user.appAccountToken ?? randomUUID();
@@ -327,6 +347,13 @@ export async function authenticateWithApple(input: AppleLoginInput) {
       throw new ConflictError('This email is already linked to another Apple account');
     }
 
+    if (existingByEmail && !existingByEmail.appleId) {
+      // Linking existing email account to Apple ID — require verified email
+      if (!isEmailVerified(claims.email_verified)) {
+        throw new ValidationError('Cannot link account: email not verified by Apple');
+      }
+    }
+
     if (existingByEmail) {
       const appAccountToken = existingByEmail.appAccountToken ?? randomUUID();
       const user = await tx.user.update({
@@ -400,9 +427,8 @@ export async function rotateRefreshToken(
   oldToken: string
 ): Promise<{ userId: string; newToken: string }> {
   const oldTokenHash = hashRefreshToken(oldToken);
-  const existing = await withDatabaseRetry(async (prisma) =>
-    (await prisma.refreshToken.findUnique({ where: { tokenHash: oldTokenHash } })) ??
-    prisma.refreshToken.findUnique({ where: { token: oldToken } })
+  const existing = await withDatabaseRetry((prisma) =>
+    prisma.refreshToken.findUnique({ where: { tokenHash: oldTokenHash } })
   );
 
   if (!existing || existing.revokedAt || existing.expiresAt < new Date()) {
@@ -428,7 +454,7 @@ export async function revokeRefreshToken(token: string): Promise<void> {
     prisma.refreshToken.updateMany({
       where: {
         revokedAt: null,
-        OR: [{ tokenHash }, { token }],
+        tokenHash,
       },
       data: { revokedAt: new Date() },
     })

@@ -1,69 +1,86 @@
-# CLAUDE.md
+# InterviewPilot
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Real-time AI interview assistant: Audio → Deepgram Nova-3 transcription → OpenAI response generation.
 
-## Build & Run Commands
+## Build
 
-### iOS App
 ```bash
-# Build for simulator (CI configuration)
+# iOS (Xcode 17+, iOS 26 SDK, deployment target 26.1+)
 xcodebuild -project InterviewPilot.xcodeproj -scheme InterviewPilot -configuration Debug -destination 'generic/platform=iOS Simulator' build
 
-# Build for device (requires signing)
-xcodebuild -project InterviewPilot.xcodeproj -scheme InterviewPilot -configuration Release -destination 'generic/platform=iOS'
+# Backend (Node 22, Fastify 5, Prisma 6 + PostgreSQL)
+cd backend && npm ci && npm run build    # Install + compile
+npm run dev                               # Dev server (tsx watch)
+npm run db:migrate                        # Create/run migrations
+npm run db:generate                       # Regenerate Prisma client
 ```
-- Xcode 17+ / iOS 26 SDK required, deployment target iOS 26.1+
-- Bundle ID: `com.res.jobhopperAI`, Team: `487LC4H9U4`
-- Uses `PBXFileSystemSynchronizedRootGroup` — new Swift files auto-discover, **no pbxproj edits needed**
 
-### Backend (Fastify + Prisma)
-```bash
-cd backend
-npm ci                    # Install dependencies
-npm run dev               # Dev server with hot reload (tsx watch)
-npm run build             # TypeScript compile to dist/
-npm start                 # Production (node dist/index.js)
-npm run db:generate       # Regenerate Prisma client
-npm run db:migrate        # Create/run migrations (dev)
-npm run db:deploy         # Apply migrations (prod)
-npm run db:seed           # Seed database
-npm run db:studio         # Prisma Studio GUI
-```
-- Node 22, TypeScript 5.7, Fastify 5, Prisma 6 + PostgreSQL
-- Deployed to Railway via Dockerfile (healthcheck at `/health`)
+Bundle ID: `com.res.jobhopperAI` | Team: `487LC4H9U4` | Deploy: Railway (Dockerfile, `/health`)
 
-### CI
-GitHub Actions runs on PR + push to main: backend `npm ci && npm run build`, iOS `xcodebuild` simulator build.
+## Swift Patterns (MUST follow)
+
+- **`PBXFileSystemSynchronizedRootGroup`** — new .swift files auto-discover. **Never edit pbxproj.**
+- **`SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor`** — all types are `@MainActor` by default. Do NOT add `@MainActor` annotations manually.
+- **`@Observable` classes** — use `@ObservationIgnored` on all stored closure properties.
+- **No third-party dependencies** — all networking (WebSocket, SSE, REST) uses native `URLSession`.
+- **SwiftData persistence** — `InterviewSession` stores exchanges as JSON-encoded `Data`. Follow the existing `encode()`/`decode()` pattern.
+- **API keys** — stored in iOS Keychain via `KeychainService`, fetched from backend post-auth. Never hardcode.
+- **SourceKit false positives** — cross-file errors in the editor are lies. Trust `xcodebuild`, not IDE diagnostics.
 
 ## Architecture
 
-### iOS App (SwiftUI, zero external dependencies)
+### iOS (105 Swift files, MVVM + @Observable)
 
-**Pattern:** MVVM with `@Observable` (Swift 6 concurrency). All types are `@MainActor` by default (`SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor` build setting). Use `@ObservationIgnored` on callback closures in `@Observable` classes.
+```
+InterviewPilotApp.swift          Entry point, SwiftData ModelContainer
+ContentView.swift                Tab router
+Configuration/
+  AppEnvironment.swift           Backend URL, feature flags, dev access
+  Constants.swift                APIConfig: models, thresholds, limits
+  DependencyContainer.swift      LiveSessionViewModel factory
+Features/                        9 modules: Auth, Dashboard, History, Insights,
+                                 LiveSession, Onboarding, SessionReview, SessionSetup, Settings
+Services/
+  Audio/                         AVAudioEngine capture + playback
+  Transcription/                 Deepgram WebSocket (nova-3, 16kHz, linear16)
+  AI/                            PromptBuilder, ResponseGenerator (SSE), QuestionClassifier,
+                                 AnswerBank, JobDescriptionAnalyzer, SimilarityMatch
+  Auth/                          AuthService, SubscriptionService (StoreKit 2)
+  Storage/                       KeychainService, SessionStorage, RemoteSync
+  Document/                      Resume parser, job listing analyzer
+  Network/                       AuthenticatedAPIClient
+Models/                          InterviewSession (SwiftData), Exchange, InterviewType,
+                                 ResponseFormat/Behavior/Tone/Emphasis/QualityMode, etc.
+DesignSystem/
+  Theme.swift                    IATheme — Material 3 blue palette, spacing, radii
+  Typography.swift               IATypography — Public Sans / Source Sans 3 / Plus Jakarta Sans
+  Components                     GlassCard, TypewriterText, ShimmerModifier, StepIndicator, etc.
+```
 
-**Core pipeline:** Audio (AVAudioEngine) → Deepgram Nova-3 WebSocket transcription → OpenAI SSE response generation. Orchestrated by `LiveSessionViewModel`.
+**Core pipeline:** `LiveSessionViewModel` orchestrates: AudioCaptureService → DeepgramService (WebSocket) → QuestionClassifier → PromptBuilder → ResponseGeneratorService (SSE streaming).
 
-**Key layers:**
-- `InterviewPilotApp.swift` — Entry point, SwiftData ModelContainer setup
-- `ContentView.swift` — Tab router (Prepare, History, Settings)
-- `Configuration/` — `AppEnvironment` (backend URL, feature flags), `Constants` (APIConfig: models, thresholds, limits), `DependencyContainer` (LiveSessionViewModel factory, loads API keys from Keychain)
-- `Features/` — 10 feature modules: Auth, Onboarding, SessionSetup, LiveSession, SessionReview, History, Settings, PrepSession, Shared
-- `Services/` — Audio capture/playback, Deepgram WebSocket, ResponseGenerator (SSE), PromptBuilder, QuestionClassifier, AnswerBank, Auth, Subscription (StoreKit 2), Keychain, SessionStorage, RemoteSync
-- `Models/` — InterviewSession (SwiftData), Exchange, InterviewType, ResponseFormat/Behavior/Tone/Emphasis/QualityMode, PreComputedAnswer, LatencyTelemetry
-- `DesignSystem/` — `IPTheme` (colors, spacing, radii, gradients), `IPTypography` (semantic type scale), `IPAnimations`, component library (GlassCard, TypewriterText, ShimmerModifier, etc.)
+**OpenAI models (from APIConfig):**
+| Context | Model |
+|---------|-------|
+| Default | `gpt-4.1-mini` |
+| Technical / Premium | `gpt-4.1` |
+| Coding | `o4-mini` |
+| Prep | `gpt-4.1` |
 
-**API keys** are stored in iOS Keychain via `KeychainService` and fetched from the backend post-authentication. Never hardcode keys.
+### Backend (Fastify + Prisma)
 
-**OpenAI models by context:** `gpt-4.1-nano` (default), `gpt-4.1-mini` (technical/premium), `o4-mini` (coding), `gpt-4.1` (prep), `gpt-realtime-1.5` (voice prep).
+`backend/src/modules/`: auth, users, settings, api-keys, sessions, exchanges, answer-banks, billing, config. JWT auth, rate limiting (100 req/min), CORS, Argon2 passwords. Schema: `backend/prisma/schema.prisma`.
 
-### Backend (Fastify)
+Subscription tiers: TRIAL, PLUS, PRO, SANDBOX — gated via `SubscriptionService` / `BillingEntitlement`.
 
-Modular structure under `backend/src/modules/`: auth, users, settings, api-keys, sessions, exchanges, answer-banks, billing, config. JWT auth, rate limiting (100 req/min), CORS, Argon2 password hashing. Schema at `backend/prisma/schema.prisma`.
+## Workflow
 
-## Critical Implementation Notes
+For any task beyond trivial one-line fixes, spawn multiple sub-agents in parallel to explore, analyze, and resolve the problem. Use agents to read related files, trace call chains, check both iOS and backend sides simultaneously, and review changes — don't do everything sequentially in the main context.
 
-- SourceKit frequently shows false cross-file errors in the editor; the actual `xcodebuild` succeeds. Trust the build, not the IDE diagnostics.
-- WebSocket (Deepgram) and SSE (OpenAI) are implemented with native `URLSession` — no third-party networking libraries.
-- The `PromptBuilder` contains expert-level prompt engineering with 13+ critical rules. Changes to prompts directly impact response quality; review `FINAL-SPEC.md` for the full specification before modifying.
-- SwiftData model (`InterviewSession`) stores exchanges as JSON-encoded `Data`. Use the existing encode/decode pattern when modifying exchange persistence.
-- Subscription tiers (sandbox, pro, plus, trial) gate features via `SubscriptionService`. Check `BillingEntitlement` feature flags before adding premium-gated features.
+## Critical Rules
+
+1. **PromptBuilder is high-stakes** — contains 13+ expert prompt engineering rules. Changes directly impact interview response quality. Read it fully before modifying.
+2. **Design system** — use `IATheme` for colors/spacing/radii, `IATypography` for text styles. Not IPTheme/IPTypography.
+3. **Subscription checks** — verify `BillingEntitlement` feature flags before adding premium-gated features.
+4. **Token limits** — standard: 320 tokens, premium: 380 tokens. Respect these in prompt/response logic.
+5. **Predictive buffering** — utteranceEndMs=2200, endpointingMs=700, minWords=10, confidence=0.75. These are tuned values; don't change without testing.

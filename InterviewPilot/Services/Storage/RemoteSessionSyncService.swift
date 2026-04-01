@@ -1,6 +1,6 @@
 import Foundation
 
-struct SessionSyncSnapshot: Sendable {
+struct SessionSyncSnapshot: Codable, Sendable {
     let clientId: UUID
     let startedAt: Date
     let endedAt: Date?
@@ -15,7 +15,7 @@ struct SessionSyncSnapshot: Sendable {
     let exchanges: [ExchangeSyncSnapshot]
 }
 
-struct ExchangeSyncSnapshot: Sendable {
+struct ExchangeSyncSnapshot: Codable, Sendable {
     let clientId: UUID
     let timestamp: Date
     let questionTranscript: String

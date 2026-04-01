@@ -91,6 +91,34 @@ final class SessionSetupViewModel {
 
     var enrichedResume: String {
         var parts = [resumeText]
+
+        // Inject structured profile fields that aren't already in the resume text
+        let profile = ProfileService.shared.profile
+        var profileContext: [String] = []
+        if let role = profile?.currentRole, !role.isEmpty {
+            var line = "Current role: \(role)"
+            if let company = profile?.currentCompany, !company.isEmpty {
+                line += " at \(company)"
+            }
+            if let years = profile?.yearsInRole, years > 0 {
+                line += " (\(years) years)"
+            }
+            profileContext.append(line)
+        }
+        if let experiences = profile?.workExperiences, !experiences.isEmpty {
+            let formatted = experiences.prefix(5).map { entry in
+                let period = entry.endYear.map { "\(entry.startYear)–\($0)" } ?? "\(entry.startYear)–present"
+                return "- \(entry.title) at \(entry.company) (\(period))"
+            }.joined(separator: "\n")
+            profileContext.append("Work history:\n\(formatted)")
+        }
+        if let skills = profile?.skills, !skills.isEmpty {
+            profileContext.append("Key skills: \(skills.map(\.name).joined(separator: ", "))")
+        }
+        if !profileContext.isEmpty {
+            parts.append("\nCANDIDATE PROFILE:\n\(profileContext.joined(separator: "\n"))")
+        }
+
         if let linkedin = linkedInProfile, !linkedin.isEmpty {
             parts.append("\nCANDIDATE'S LINKEDIN PROFILE:\n\(linkedin.formattedContext)")
         }
@@ -463,7 +491,7 @@ final class SessionSetupViewModel {
 
     private var currentPreparationFingerprint: String {
         [
-            resumeText.trimmingCharacters(in: .whitespacesAndNewlines),
+            enrichedResume.trimmingCharacters(in: .whitespacesAndNewlines),
             jobDescription.trimmingCharacters(in: .whitespacesAndNewlines),
             jobListingURL.trimmingCharacters(in: .whitespacesAndNewlines),
             jobCategory?.rawValue ?? "",
@@ -484,7 +512,7 @@ final class SessionSetupViewModel {
         defer { isGeneratingAnswerBank = false }
 
         let bank = try await answerBankService.generateOrReuseAnswerBank(
-            resume: resumeText,
+            resume: enrichedResume,
             jobDescription: jobDescription,
             interviewType: interviewType,
             qualityMode: responseQualityMode

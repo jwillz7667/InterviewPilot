@@ -17,14 +17,20 @@
   },
   "dependencies": {
     "@apple/app-store-server-library": "^2.0.0",
+    "@aws-sdk/client-s3": "^3.1021.0",
+    "@aws-sdk/s3-request-presigner": "^3.1021.0",
     "@fastify/cors": "^11.0.0",
+    "@fastify/helmet": "^13.0.2",
     "@fastify/jwt": "^9.0.0",
     "@fastify/rate-limit": "^10.0.0",
     "@prisma/client": "^6.0.0",
+    "@sendgrid/mail": "^8.1.6",
+    "@sentry/node": "^10.47.0",
     "argon2": "^0.41.0",
     "dotenv": "^16.6.1",
     "fastify": "^5.0.0",
     "jose": "^6.2.1",
+    "redis": "^5.11.0",
     "zod": "^3.24.0"
   },
   "devDependencies": {

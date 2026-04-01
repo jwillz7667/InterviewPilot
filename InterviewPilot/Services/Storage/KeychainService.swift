@@ -11,6 +11,7 @@ enum KeychainKey: String {
     case displayName = "com.res.jobhopperAI.display-name"
     case appAccountToken = "com.res.jobhopperAI.app-account-token"
     case linkedInURL = "com.res.jobhopperAI.linkedin-url"
+    case deviceId = "com.res.jobhopperAI.device-id"
 }
 
 struct KeychainService {

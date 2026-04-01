@@ -32,6 +32,51 @@ final class ResponseGeneratorService {
         self.apiKey = apiKey
     }
 
+    /// Pre-warm the HTTP connection to OpenAI. Call at session start to eliminate
+    /// TCP + TLS handshake latency from the first generation request.
+    func preWarmConnection() {
+        _ = streamingSession // Force lazy init
+        Task {
+            var request = URLRequest(url: URL(string: "https://api.openai.com/v1/models")!)
+            request.httpMethod = "HEAD"
+            request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+            request.timeoutInterval = 5
+            _ = try? await streamingSession.data(for: request)
+        }
+    }
+
+    /// Fast path: uses a pre-built base prompt and appends per-question context.
+    func generateResponse(
+        question: String,
+        cachedBasePrompt: String,
+        questionType: QuestionType?,
+        format: ResponseFormat,
+        emphasis: ResponseEmphasis,
+        exchangeHistory: [PromptBuilder.ExchangeSummary] = [],
+        qualityMode: ResponseQualityMode,
+        tone: ResponseTone,
+        model: String = APIConfig.defaultResponseModel
+    ) {
+        let systemPrompt = PromptBuilder.buildFullPrompt(
+            basePrompt: cachedBasePrompt,
+            questionType: questionType,
+            format: format,
+            emphasis: emphasis,
+            exchangeHistory: exchangeHistory
+        )
+        let tokenLimit = qualityMode.liveTokenLimit(
+            baseTokens: format.maxTokens(for: emphasis, questionType: questionType)
+        )
+        dispatchGeneration(
+            question: question,
+            systemPrompt: systemPrompt,
+            tokenLimit: tokenLimit,
+            tone: tone,
+            model: model
+        )
+    }
+
+    /// Legacy path: builds the full prompt from scratch each time.
     func generateResponse(
         question: String,
         resume: String,
@@ -47,12 +92,6 @@ final class ResponseGeneratorService {
         qualityMode: ResponseQualityMode,
         model: String = APIConfig.defaultResponseModel
     ) {
-        currentTask?.cancel()
-        guard !apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            onError?("OpenAI API key not configured")
-            return
-        }
-
         let systemPrompt = PromptBuilder.buildResponsePrompt(
             resume: resume,
             jobDescription: jobDescription,
@@ -69,6 +108,27 @@ final class ResponseGeneratorService {
         let tokenLimit = qualityMode.liveTokenLimit(
             baseTokens: format.maxTokens(for: emphasis, questionType: questionType)
         )
+        dispatchGeneration(
+            question: question,
+            systemPrompt: systemPrompt,
+            tokenLimit: tokenLimit,
+            tone: tone,
+            model: model
+        )
+    }
+
+    private func dispatchGeneration(
+        question: String,
+        systemPrompt: String,
+        tokenLimit: Int,
+        tone: ResponseTone,
+        model: String
+    ) {
+        currentTask?.cancel()
+        guard !apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            onError?("OpenAI API key not configured")
+            return
+        }
 
         currentTask = Task { [weak self] in
             guard let self else { return }

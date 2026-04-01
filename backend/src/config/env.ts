@@ -18,6 +18,7 @@ const envSchema = z.object({
   PORT: z.coerce.number().default(3000),
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   CORS_ORIGIN: z.string().default('*'),
+  REDIS_URL: z.string().optional(),
   DEEPGRAM_API_KEY: z.string().default(''),
   OPENAI_API_KEY: z.string().default(''),
   APPLE_SIGN_IN_TEAM_ID: z.string().default('487LC4H9U4'),
@@ -33,6 +34,16 @@ const envSchema = z.object({
   APP_STORE_PRO_YEARLY_PRODUCT_ID: z.string().default('com.res.jobhopperAI.pro.yearly'),
   TRIAL_INTERVIEW_LIMIT: z.coerce.number().int().min(1).max(100).default(5),
   SANDBOX_TESTER_EMAILS: z.string().default(''),
+  DATABASE_POOL_SIZE: z.coerce.number().int().min(1).max(50).default(15),
+  SENDGRID_API_KEY: z.string().optional(),
+  SENDGRID_FROM_EMAIL: z.string().email().default('noreply@interviewpilot.app'),
+  APP_URL: z.string().url().default('https://interviewpilot.app'),
+  R2_ACCOUNT_ID: z.string().optional(),
+  R2_ACCESS_KEY_ID: z.string().optional(),
+  R2_SECRET_ACCESS_KEY: z.string().optional(),
+  R2_BUCKET_NAME: z.string().default('interviewpilot-uploads'),
+  R2_PUBLIC_URL: z.string().optional(),
+  SENTRY_DSN: z.string().optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;

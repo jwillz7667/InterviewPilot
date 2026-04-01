@@ -43,6 +43,11 @@ enum AppStoreEnvironment {
   PRODUCTION
 }
 
+enum UserRole {
+  USER
+  ADMIN
+}
+
 enum AccessSource {
   TRIAL
   SUBSCRIPTION
@@ -75,16 +80,22 @@ model User {
   yearsInRole          Int?
   onboardingCompleted  Boolean  @default(false)
 
+  failedLoginAttempts Int       @default(0)
+  lockedUntil         DateTime?
+
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
   lastLoginAt   DateTime?
   emailVerified Boolean   @default(false)
+  deletedAt     DateTime?
+  role          UserRole  @default(USER)
 
   sessions      InterviewSession[]
   settings      UserSettings?
   apiKeys       UserApiKey[]
   answerBanks   AnswerBank[]
-  refreshTokens RefreshToken[]
+  refreshTokens      RefreshToken[]
+  passwordResetTokens PasswordResetToken[]
   entitlement   UserEntitlement?
   billingEvents BillingEvent[]
   sessionAccessGrants SessionAccessGrant[]
@@ -96,8 +107,7 @@ model User {
 
 model RefreshToken {
   id        String    @id @default(cuid())
-  token     String?   @unique
-  tokenHash String?   @unique
+  tokenHash String    @unique
   userId    String
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   deviceId  String?
@@ -106,9 +116,23 @@ model RefreshToken {
   revokedAt DateTime?
 
   @@index([userId])
-  @@index([token])
   @@index([tokenHash])
+  @@index([expiresAt])
   @@map("refresh_tokens")
+}
+
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("password_reset_tokens")
 }
 
 model UserEntitlement {
@@ -138,6 +162,7 @@ model UserEntitlement {
   billingEvents                BillingEvent[]
 
   @@index([status, tier])
+  @@index([currentPeriodEndsAt])
   @@map("user_entitlements")
 }
 
@@ -201,6 +226,10 @@ model UserSettings {
   endpointingMs          Int     @default(500)
   predictiveFireMinWords Int     @default(8)
 
+  responseTone        String  @default("natural")
+  responseEmphasis    String  @default("balanced")
+  responseBehavior    String  @default("direct")
+
   createdAt              DateTime @default(now())
   updatedAt              DateTime @updatedAt
 
@@ -256,6 +285,8 @@ model InterviewSession {
 
   exchanges       Exchange[]
 
+  deletedAt       DateTime?
+
   createdAt       DateTime   @default(now())
   updatedAt       DateTime   @updatedAt
 
@@ -295,6 +326,8 @@ model AnswerBank {
   interviewType  String
 
   answers        PreComputedAnswer[]
+
+  deletedAt      DateTime?
 
   createdAt      DateTime            @default(now())
   updatedAt      DateTime            @updatedAt

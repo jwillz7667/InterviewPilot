@@ -38,6 +38,11 @@ import {
   SESSION_MODE_FEATURE,
   type FeatureKey,
 } from './billing.constants.js';
+import {
+  getCachedBillingSummary,
+  setCachedBillingSummary,
+  invalidateBillingCache,
+} from './billing.cache.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const APPLE_ROOT_CERT_PATHS = [
@@ -505,6 +510,8 @@ async function writeEntitlementFromTransaction(
     },
   });
 
+  await invalidateBillingCache(context.user.id);
+
   return buildSummary({
     user: context.user,
     entitlement,
@@ -591,6 +598,8 @@ async function withSessionAccessGrant(
           });
         }
 
+        await invalidateBillingCache(userId);
+
         const refreshed = await ensureBillingContext(prisma, userId);
         nextContext = refreshed;
         accessSource = AccessSource.TRIAL;
@@ -655,7 +664,18 @@ async function withSessionAccessGrant(
 }
 
 export async function getBillingSummary(userId: string): Promise<BillingSummary> {
-  return withDatabaseRetry(async (prisma) => buildSummary(await ensureBillingContext(prisma, userId)));
+  const cached = await getCachedBillingSummary(userId);
+  if (cached) {
+    return cached as unknown as BillingSummary;
+  }
+
+  const summary = await withDatabaseRetry(async (prisma) =>
+    buildSummary(await ensureBillingContext(prisma, userId))
+  );
+
+  await setCachedBillingSummary(userId, summary as unknown as import('./billing.cache.js').CachedBillingSummary).catch(() => {});
+
+  return summary;
 }
 
 export async function claimInterviewAccess(

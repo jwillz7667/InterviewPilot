@@ -2,7 +2,11 @@ import { z } from 'zod';
 
 export const registerSchema = z.object({
   email: z.string().email('Invalid email address'),
-  password: z.string().min(8, 'Password must be at least 8 characters'),
+  password: z.string()
+    .min(10, 'Password must be at least 10 characters')
+    .regex(/[A-Z]/, 'Must contain an uppercase letter')
+    .regex(/[a-z]/, 'Must contain a lowercase letter')
+    .regex(/[0-9]/, 'Must contain a number'),
   displayName: z.string().min(1).max(100).optional(),
 }).strict();
 
@@ -25,6 +29,15 @@ export const refreshSchema = z.object({
 
 export const logoutSchema = z.object({
   refreshToken: z.string().min(1, 'Refresh token is required'),
+}).strict();
+
+export const forgotPasswordSchema = z.object({
+  email: z.string().email(),
+}).strict();
+
+export const resetPasswordSchema = z.object({
+  token: z.string().min(1),
+  password: z.string().min(10),
 }).strict();
 
 export type RegisterInput = z.infer<typeof registerSchema>;
