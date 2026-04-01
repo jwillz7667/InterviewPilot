@@ -80,61 +80,17 @@ struct IABrandLogo: View {
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
-        ZStack {
-            Circle()
-                .fill(backgroundFill)
-
-            Text("A")
-                .font(.system(size: size * 0.48, weight: .black, design: .rounded))
-                .foregroundStyle(glyphFill)
-        }
-        .frame(width: size, height: size)
-        .overlay {
-            if variant == .outlined {
-                Circle()
-                    .stroke(IATheme.accent, lineWidth: 2)
-            }
-        }
-        .shadow(
-            color: showShadow ? IATheme.shadowColor(for: colorScheme).opacity(variant == .filled ? 0.34 : 0.18) : .clear,
-            radius: showShadow ? size * 0.14 : 0,
-            y: showShadow ? size * 0.08 : 0
-        )
-        .accessibilityLabel("Interview Ace AI logo")
-    }
-
-    private var backgroundFill: LinearGradient {
-        switch variant {
-        case .surface:
-            return LinearGradient(
-                colors: [Color.white, Color.white.opacity(0.96)],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
+        Image("BrandLogo")
+            .resizable()
+            .aspectRatio(contentMode: .fit)
+            .frame(width: size, height: size)
+            .clipShape(RoundedRectangle(cornerRadius: cornerRadius ?? size / 2, style: .continuous))
+            .shadow(
+                color: showShadow ? IATheme.shadowColor(for: colorScheme).opacity(variant == .filled ? 0.34 : 0.18) : .clear,
+                radius: showShadow ? size * 0.14 : 0,
+                y: showShadow ? size * 0.08 : 0
             )
-        case .filled:
-            return LinearGradient(
-                colors: [IATheme.accentSecondary, IATheme.accent],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-        case .outlined:
-            return LinearGradient(
-                colors: [Color.clear, Color.clear],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-        }
-    }
-
-    private var glyphFill: Color {
-        switch variant {
-        case .surface:
-            return IATheme.accent
-        case .filled:
-            return .white
-        case .outlined:
-            return IATheme.accent
-        }
+            .accessibilityLabel("Interview Ace AI logo")
     }
 }
 

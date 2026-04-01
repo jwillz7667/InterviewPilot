@@ -30,25 +30,15 @@ final class ProfileService {
     }
 
     func updateWorkExperience(_ entries: [WorkExperienceEntry]) async throws {
-        let body = ["experiences": entries]
-        let _: [String: String] = try await put(path: "/api/v1/users/me/work-experience", body: body)
+        let body = BulkItemsBody(items: entries)
+        let _: EmptyResponse = try await put(path: "/api/v1/users/me/work-experience", body: body)
         profile?.workExperiences = entries
     }
 
     func updateSkills(_ skills: [SkillEntry]) async throws {
-        let body = ["skills": skills]
-        let _: [String: String] = try await put(path: "/api/v1/users/me/skills", body: body)
+        let body = BulkItemsBody(items: skills.map(\.name))
+        let _: EmptyResponse = try await put(path: "/api/v1/users/me/skills", body: body)
         profile?.skills = skills
-    }
-
-    func completeOnboarding(goal: UserGoal, linkedinUrl: String?, resumeFileUrl: String?) async throws {
-        let updates = ProfileUpdate(
-            linkedinUrl: linkedinUrl,
-            primaryGoal: goal.rawValue,
-            resumeFileUrl: resumeFileUrl,
-            onboardingCompleted: true
-        )
-        try await updateProfile(updates)
     }
 
     var onboardingCompleted: Bool {
@@ -112,10 +102,19 @@ struct ProfileUpdate: Codable, Sendable {
     var linkedinUrl: String?
     var primaryGoal: String?
     var resumeFileUrl: String?
+    var resumeText: String?
     var currentRole: String?
     var currentCompany: String?
     var yearsInRole: Int?
     var onboardingCompleted: Bool?
+}
+
+private struct BulkItemsBody<T: Encodable>: Encodable {
+    let items: T
+}
+
+private struct EmptyResponse: Decodable {
+    init(from decoder: Decoder) throws {}
 }
 
 enum ProfileError: LocalizedError {

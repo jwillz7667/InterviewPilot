@@ -19,7 +19,7 @@ struct OnboardingView: View {
                     stepContent
                         .padding(.horizontal, IATheme.spacing20)
                         .padding(.top, IATheme.spacing20)
-                        .padding(.bottom, 120)
+                        .padding(.bottom, IATheme.spacing24)
                 }
                 .iaScrollablePage()
             }

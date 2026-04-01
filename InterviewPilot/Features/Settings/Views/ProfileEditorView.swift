@@ -316,7 +316,8 @@ struct ProfileEditorView: View {
 
                 let updates = ProfileUpdate(
                     displayName: displayName,
-                    linkedinUrl: linkedInURL.isEmpty ? nil : linkedInURL
+                    linkedinUrl: linkedInURL.isEmpty ? nil : linkedInURL,
+                    resumeText: resumeText.isEmpty ? nil : resumeText
                 )
                 try await profileService.updateProfile(updates)
 

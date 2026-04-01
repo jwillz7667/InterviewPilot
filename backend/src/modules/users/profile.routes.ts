@@ -4,9 +4,11 @@ import { withDatabaseRetry } from '../../config/database.js';
 import { z } from 'zod';
 
 const updateProfileSchema = z.object({
-  linkedinUrl: z.string().url().nullable().optional(),
+  displayName: z.string().max(200).nullable().optional(),
+  linkedinUrl: z.string().max(500).nullable().optional(),
   primaryGoal: z.string().max(500).nullable().optional(),
   resumeFileUrl: z.string().url().nullable().optional(),
+  resumeText: z.string().max(50000).nullable().optional(),
   currentRole: z.string().max(200).nullable().optional(),
   currentCompany: z.string().max(200).nullable().optional(),
   yearsInRole: z.number().int().min(0).max(50).nullable().optional(),
@@ -44,6 +46,7 @@ export async function profileRoutes(app: FastifyInstance) {
           linkedinUrl: true,
           primaryGoal: true,
           resumeFileUrl: true,
+          resumeText: true,
           currentRole: true,
           currentCompany: true,
           yearsInRole: true,
@@ -70,7 +73,7 @@ export async function profileRoutes(app: FastifyInstance) {
       })
     );
 
-    reply.send({ profile });
+    reply.send(profile);
   });
 
   // PATCH /api/v1/users/me/profile — Update profile fields
@@ -89,15 +92,33 @@ export async function profileRoutes(app: FastifyInstance) {
           linkedinUrl: true,
           primaryGoal: true,
           resumeFileUrl: true,
+          resumeText: true,
           currentRole: true,
           currentCompany: true,
           yearsInRole: true,
           onboardingCompleted: true,
+          workExperiences: {
+            orderBy: { startYear: 'desc' },
+            select: {
+              id: true,
+              title: true,
+              company: true,
+              startYear: true,
+              endYear: true,
+            },
+          },
+          skills: {
+            orderBy: { name: 'asc' },
+            select: {
+              id: true,
+              name: true,
+            },
+          },
         },
       })
     );
 
-    reply.send({ profile });
+    reply.send(profile);
   });
 
   // PUT /api/v1/users/me/work-experience — Bulk update work experience

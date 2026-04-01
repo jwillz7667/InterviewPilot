@@ -8,6 +8,7 @@ struct UserProfile: Codable, Sendable {
     var linkedinUrl: String?
     var primaryGoal: String?
     var resumeFileUrl: String?
+    var resumeText: String?
     var currentRole: String?
     var currentCompany: String?
     var yearsInRole: Int?

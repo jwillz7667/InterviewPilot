@@ -72,11 +72,19 @@ struct ContentView: View {
     }
 
     private func checkOnboardingStatus() {
-        if let profile = profileService.profile {
-            showOnboarding = !profile.onboardingCompleted
-        } else {
-            showOnboarding = !onboardingCompletedLocal
+        // Local flag is authoritative — once completed, never show again
+        if onboardingCompletedLocal {
+            showOnboarding = false
+            return
         }
+        // Sync from server if available
+        if let profile = profileService.profile, profile.onboardingCompleted {
+            onboardingCompletedLocal = true
+            showOnboarding = false
+            return
+        }
+        // First-time user: show onboarding
+        showOnboarding = true
     }
 
     private var appAppearance: AppAppearance {

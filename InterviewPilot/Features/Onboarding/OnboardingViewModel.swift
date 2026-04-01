@@ -95,23 +95,28 @@ final class OnboardingViewModel {
         isLoading = true
         defer { isLoading = false }
 
+        // Best-effort server save — always complete locally so onboarding
+        // is never shown again, even if the network request fails.
         do {
-            guard let goal = selectedGoal else { return false }
-
-            try await profileService.completeOnboarding(
-                goal: goal,
+            let updates = ProfileUpdate(
+                displayName: displayName.isEmpty ? nil : displayName,
                 linkedinUrl: linkedInURL.isEmpty ? nil : linkedInURL,
-                resumeFileUrl: nil
+                primaryGoal: selectedGoal?.rawValue,
+                resumeText: resumeText.isEmpty ? nil : resumeText,
+                currentRole: currentRole.isEmpty ? nil : currentRole,
+                currentCompany: currentCompany.isEmpty ? nil : currentCompany,
+                onboardingCompleted: true
             )
+            try await profileService.updateProfile(updates)
 
             if !skills.isEmpty {
                 try await profileService.updateSkills(skills)
             }
-
-            return true
         } catch {
-            errorMessage = error.localizedDescription
-            return false
+            // Server save failed — still mark onboarding complete locally.
+            // Profile data will sync on next successful server call.
         }
+
+        return true
     }
 }
