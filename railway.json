@@ -11,7 +11,7 @@
     ]
   },
   "deploy": {
-    "preDeployCommand": "sh -lc 'if [ -f backend/package.json ]; then cd backend; fi; npx prisma db push --skip-generate --accept-data-loss'",
+    "preDeployCommand": "npx prisma migrate deploy",
     "healthcheckPath": "/health",
     "healthcheckTimeout": 300,
     "restartPolicyType": "ON_FAILURE",
