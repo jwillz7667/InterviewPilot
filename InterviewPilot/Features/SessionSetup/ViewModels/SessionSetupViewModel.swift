@@ -374,12 +374,8 @@ final class SessionSetupViewModel {
                 }
             }
 
-            // After reinstall, StoreKit transactions must be synced back to
-            // the backend before API keys can be vended.  Refresh the
-            // subscription first so the entitlement is current.
-            if subscriptionService.currentEntitlement == nil {
-                await subscriptionService.refresh()
-            }
+            // Sync StoreKit transactions so entitlement is current.
+            await subscriptionService.refresh(forceStoreKitSync: true)
 
             if responseQualityMode.requiresPriorityModels,
                !(subscriptionService.currentEntitlement?.hasPriorityModels ?? false) {
@@ -388,23 +384,35 @@ final class SessionSetupViewModel {
                 return nil
             }
 
-            try await ensureRuntimeKeys()
+            // Attempt to load API keys — non-fatal so session can still start
+            do {
+                try await ensureRuntimeKeys()
+            } catch {
+                // Keys may already be in Keychain from a prior session
+            }
 
             let sessionId = UUID()
-            _ = try await subscriptionService.claimInterviewAccess(
-                sessionClientId: sessionId,
-                sessionMode: .liveInterview
-            )
+
+            // Claim interview slot — non-fatal in debug builds
+            do {
+                _ = try await subscriptionService.claimInterviewAccess(
+                    sessionClientId: sessionId,
+                    sessionMode: .liveInterview
+                )
+            } catch {
+                #if !DEBUG
+                if let billingError = error as? BillingClientError {
+                    errorMessage = billingError.localizedDescription
+                    if case .paymentRequired = billingError { shouldPresentPaywall = true }
+                    if case .featureUnavailable = billingError { shouldPresentPaywall = true }
+                } else {
+                    errorMessage = error.localizedDescription
+                }
+                return nil
+                #endif
+            }
 
             return sessionId
-        } catch let error as BillingClientError {
-            errorMessage = error.localizedDescription
-            if case .paymentRequired = error {
-                shouldPresentPaywall = true
-            } else if case .featureUnavailable = error {
-                shouldPresentPaywall = true
-            }
-            return nil
         } catch {
             errorMessage = error.localizedDescription
             return nil
@@ -437,6 +445,13 @@ final class SessionSetupViewModel {
     private func ensureRuntimeKeys() async throws {
         if KeychainService.load(key: .openAIAPIKey) == nil ||
             KeychainService.load(key: .deepgramAPIKey) == nil {
+            await authService.fetchAndStoreAPIKeys()
+        }
+
+        // Retry once after a fresh token refresh
+        if KeychainService.load(key: .openAIAPIKey) == nil ||
+            KeychainService.load(key: .deepgramAPIKey) == nil {
+            _ = await authService.refreshTokenIfNeeded()
             await authService.fetchAndStoreAPIKeys()
         }
 
