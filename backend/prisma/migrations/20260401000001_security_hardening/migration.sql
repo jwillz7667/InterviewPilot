@@ -1,21 +1,19 @@
 -- CreateEnum
 CREATE TYPE "UserRole" AS ENUM ('USER', 'ADMIN');
 
--- DropIndex
-DROP INDEX "refresh_tokens_token_key";
-
--- DropIndex
-DROP INDEX "refresh_tokens_token_idx";
+-- DropIndex (IF EXISTS since manual cleanup may have already removed these)
+DROP INDEX IF EXISTS "refresh_tokens_token_key";
+DROP INDEX IF EXISTS "refresh_tokens_token_idx";
 
 -- AlterTable
-ALTER TABLE "users" ADD COLUMN     "deletedAt" TIMESTAMP(3),
-ADD COLUMN     "failedLoginAttempts" INTEGER NOT NULL DEFAULT 0,
-ADD COLUMN     "lockedUntil" TIMESTAMP(3),
-ADD COLUMN     "role" "UserRole" NOT NULL DEFAULT 'USER';
+ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "deletedAt" TIMESTAMP(3),
+ADD COLUMN IF NOT EXISTS "failedLoginAttempts" INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN IF NOT EXISTS "lockedUntil" TIMESTAMP(3),
+ADD COLUMN IF NOT EXISTS "role" "UserRole" NOT NULL DEFAULT 'USER';
 
--- AlterTable
-ALTER TABLE "refresh_tokens" DROP COLUMN "token",
-ALTER COLUMN "tokenHash" SET NOT NULL;
+-- AlterTable (safe: DROP COLUMN IF EXISTS, SET NOT NULL is idempotent)
+ALTER TABLE "refresh_tokens" DROP COLUMN IF EXISTS "token";
+ALTER TABLE "refresh_tokens" ALTER COLUMN "tokenHash" SET NOT NULL;
 
 -- AlterTable
 ALTER TABLE "user_settings" ADD COLUMN     "responseBehavior" TEXT NOT NULL DEFAULT 'direct',
