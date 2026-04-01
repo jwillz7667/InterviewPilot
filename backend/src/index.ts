@@ -11,7 +11,7 @@ import {
   isTransientPrismaError,
   reconnectPrisma,
 } from './config/database.js';
-import { getRedis, disconnectRedis } from './config/redis.js';
+import { disconnectRedis } from './config/redis.js';
 import { authRoutes } from './modules/auth/auth.routes.js';
 import { usersRoutes } from './modules/users/users.routes.js';
 import { profileRoutes } from './modules/users/profile.routes.js';
@@ -43,13 +43,9 @@ if (env.CORS_ORIGIN === '*' && env.NODE_ENV === 'production') {
 }
 await app.register(helmet, { contentSecurityPolicy: false });
 await app.register(jwt, { secret: env.JWT_SECRET });
-// Initialize Redis (optional — falls back to in-memory if not configured)
-const redis = await getRedis();
-
 await app.register(rateLimit, {
   max: 100,
   timeWindow: '1 minute',
-  ...(redis ? { redis } : {}),
 });
 
 await app.register(requestIdPlugin);
