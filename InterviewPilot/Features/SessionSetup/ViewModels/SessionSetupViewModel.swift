@@ -50,7 +50,7 @@ final class SessionSetupViewModel {
     var hasResume: Bool { !resumeText.isEmpty }
     var hasJobListingURL: Bool { !jobListingURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
     var hasJobListing: Bool { !jobListingText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
-    var isReady: Bool { hasResume && hasJobListing }
+    var isReady: Bool { hasJobListing }
     var hasPreparedAnswers: Bool { !preparedAnswers.isEmpty }
     var derivedProfile: RoleResponseProfile {
         RoleResponseProfile.derive(
@@ -141,10 +141,23 @@ final class SessionSetupViewModel {
             hasLoadedDefaults = true
         }
 
+        // Load resume from user profile if not already set
+        let profileService = ProfileService.shared
+        if resumeText.isEmpty, let profile = profileService.profile {
+            if let savedResume = profile.resumeText, !savedResume.isEmpty {
+                resumeText = savedResume
+            }
+            if linkedInURL.isEmpty, let savedLinkedIn = profile.linkedinUrl, !savedLinkedIn.isEmpty {
+                linkedInURL = savedLinkedIn
+            }
+        }
+
         // Restore saved LinkedIn URL and profile text
         if let savedLinkedIn = KeychainService.load(key: .linkedInURL),
-           !savedLinkedIn.isEmpty {
+           !savedLinkedIn.isEmpty, linkedInURL.isEmpty {
             linkedInURL = savedLinkedIn
+        }
+        if !linkedInURL.isEmpty {
             if let savedText = UserDefaults.standard.string(forKey: "linkedInProfileText"),
                !savedText.isEmpty {
                 linkedInProfileText = savedText
@@ -258,6 +271,18 @@ final class SessionSetupViewModel {
         }
 
         clearAnalyzedJobListing(clearURL: false)
+
+        // Auto-analyze when a valid-looking URL is pasted or entered
+        if looksLikeURL(trimmed) {
+            Task { await analyzeJobListing() }
+        }
+    }
+
+    private func looksLikeURL(_ text: String) -> Bool {
+        let lower = text.lowercased()
+        if lower.hasPrefix("http://") || lower.hasPrefix("https://") { return true }
+        if lower.contains(".com/") || lower.contains(".io/") || lower.contains(".org/") || lower.contains(".co/") { return true }
+        return false
     }
 
     func analyzeJobListing() async {

@@ -177,13 +177,7 @@ struct SessionSetupView: View {
             }
 
             if viewModel.hasJobListing {
-                HStack(spacing: 6) {
-                    Image(systemName: "checkmark.circle.fill")
-                        .foregroundStyle(IATheme.success)
-                    Text(viewModel.jobListingTitle ?? "Job listing analyzed")
-                        .font(IATypography.bodySmall)
-                        .foregroundStyle(IATheme.textPrimary)
-                }
+                jobListingSummaryCard
             }
         }
     }
@@ -290,6 +284,63 @@ struct SessionSetupView: View {
         }
         .padding(16)
         .background(.ultraThinMaterial)
+    }
+
+    private var jobListingSummaryCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundStyle(IATheme.success)
+                Text(viewModel.jobListingTitle ?? "Job listing analyzed")
+                    .font(IATypography.headlineSmall)
+                    .foregroundStyle(IATheme.textPrimary)
+                    .lineLimit(2)
+            }
+
+            if let reqs = viewModel.structuredJobRequirements {
+                VStack(alignment: .leading, spacing: 6) {
+                    if let company = reqs.companyName, !company.isEmpty {
+                        summaryRow(label: "Company", value: company)
+                    }
+                    if let category = viewModel.jobCategory {
+                        summaryRow(label: "Category", value: category.displayName)
+                    }
+                    if let level = viewModel.positionLevel {
+                        summaryRow(label: "Level", value: level.displayName)
+                    }
+                    if !reqs.requiredTechStack.isEmpty {
+                        summaryRow(label: "Tech", value: reqs.requiredTechStack.prefix(5).joined(separator: ", "))
+                    }
+                    if let arrangement = reqs.workArrangement, !arrangement.isEmpty {
+                        summaryRow(label: "Work", value: arrangement)
+                    }
+                }
+            }
+
+            Text("Context loaded — ready to start your session.")
+                .font(IATypography.bodySmall)
+                .foregroundStyle(IATheme.textSecondary)
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(IATheme.success.opacity(0.06), in: RoundedRectangle(cornerRadius: IATheme.radiusMedium, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: IATheme.radiusMedium, style: .continuous)
+                .stroke(IATheme.success.opacity(0.25), lineWidth: 1)
+        }
+    }
+
+    private func summaryRow(label: String, value: String) -> some View {
+        HStack(alignment: .top, spacing: 6) {
+            Text(label)
+                .font(IATypography.labelSmall)
+                .foregroundStyle(IATheme.textSecondary)
+                .frame(width: 64, alignment: .leading)
+            Text(value)
+                .font(IATypography.bodySmall)
+                .foregroundStyle(IATheme.textPrimary)
+                .lineLimit(2)
+        }
     }
 
     private func errorBanner(_ error: String) -> some View {

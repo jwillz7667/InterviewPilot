@@ -7,29 +7,28 @@ struct OnboardingView: View {
     var onComplete: () -> Void
 
     var body: some View {
-        ZStack {
-            IATheme.surfaceWhite.ignoresSafeArea()
+        VStack(spacing: 0) {
+            header
+                .padding(.horizontal, IATheme.spacing20)
+                .padding(.top, 8)
+                .padding(.bottom, 4)
 
-            VStack(spacing: 0) {
-                header
+            ScrollView {
+                stepContent
+                    .frame(maxWidth: .infinity, alignment: .topLeading)
                     .padding(.horizontal, IATheme.spacing20)
-                    .padding(.top, IATheme.spacing16)
-
-                ScrollView {
-                    stepContent
-                        .padding(.horizontal, IATheme.spacing20)
-                        .padding(.top, IATheme.spacing20)
-                        .padding(.bottom, IATheme.spacing24)
-                }
-                .iaScrollablePage()
+                    .padding(.top, 12)
+                    .padding(.bottom, 16)
             }
-        }
-        .safeAreaInset(edge: .bottom) {
+            .scrollIndicators(.hidden)
+            .defaultScrollAnchor(.top)
+
             footerButtons
                 .padding(.horizontal, IATheme.spacing20)
-                .padding(.bottom, IATheme.spacing24)
+                .padding(.vertical, 12)
                 .background(.ultraThinMaterial)
         }
+        .background(IATheme.surfaceWhite.ignoresSafeArea())
         .fileImporter(
             isPresented: $showFilePicker,
             allowedContentTypes: [.pdf],
@@ -84,18 +83,6 @@ struct OnboardingView: View {
                 resumeDocumentName: $viewModel.resumeDocumentName,
                 onFilePick: { showFilePicker = true }
             )
-        case .profileReview:
-            ProfileReviewView(
-                displayName: $viewModel.displayName,
-                currentRole: $viewModel.currentRole,
-                currentCompany: $viewModel.currentCompany,
-                skills: $viewModel.skills,
-                newSkillText: $viewModel.newSkillText,
-                onAddSkill: { viewModel.addSkill() },
-                onRemoveSkill: { viewModel.removeSkill($0) },
-                resumeLoaded: !viewModel.resumeText.isEmpty,
-                linkedInConnected: !viewModel.linkedInURL.isEmpty
-            )
         }
     }
 
@@ -132,7 +119,7 @@ struct OnboardingView: View {
                             ProgressView()
                                 .tint(.white)
                         } else {
-                            Text(viewModel.isLastStep ? "Looks Good, Let's Start!" : "Continue")
+                            Text(viewModel.isLastStep ? "Get Started" : "Continue")
                             if !viewModel.isLastStep {
                                 Image(systemName: "arrow.right")
                             }

@@ -54,8 +54,6 @@ struct UploadResumeView: View {
                 detail: "Your resume is used only during live sessions and never shared externally."
             )
 
-            Spacer()
-
             Text("You can skip this and upload it from the session setup screen.")
                 .font(IATypography.bodySmall)
                 .foregroundStyle(IATheme.textTertiary)

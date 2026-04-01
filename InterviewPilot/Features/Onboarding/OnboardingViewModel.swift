@@ -7,7 +7,6 @@ final class OnboardingViewModel {
         case setGoal = 1
         case connectLinkedIn = 2
         case uploadResume = 3
-        case profileReview = 4
     }
 
     var currentStep: Step = .setGoal
@@ -15,11 +14,6 @@ final class OnboardingViewModel {
     var linkedInURL = ""
     var resumeText = ""
     var resumeDocumentName: String?
-    var displayName = ""
-    var currentRole = ""
-    var currentCompany = ""
-    var skills: [SkillEntry] = []
-    var newSkillText = ""
     var isLoading = false
     var errorMessage: String?
 
@@ -29,11 +23,7 @@ final class OnboardingViewModel {
         switch currentStep {
         case .setGoal:
             return selectedGoal != nil
-        case .connectLinkedIn:
-            return true
-        case .uploadResume:
-            return true
-        case .profileReview:
+        case .connectLinkedIn, .uploadResume:
             return true
         }
     }
@@ -43,7 +33,7 @@ final class OnboardingViewModel {
     }
 
     var isLastStep: Bool {
-        currentStep == .profileReview
+        currentStep == .uploadResume
     }
 
     func advance() {
@@ -76,45 +66,20 @@ final class OnboardingViewModel {
         }
     }
 
-    func addSkill() {
-        let trimmed = newSkillText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
-        guard !skills.contains(where: { $0.name.lowercased() == trimmed.lowercased() }) else {
-            newSkillText = ""
-            return
-        }
-        skills.append(SkillEntry(name: trimmed))
-        newSkillText = ""
-    }
-
-    func removeSkill(_ skill: SkillEntry) {
-        skills.removeAll { $0.id == skill.id }
-    }
-
     func completeOnboarding() async -> Bool {
         isLoading = true
         defer { isLoading = false }
 
-        // Best-effort server save — always complete locally so onboarding
-        // is never shown again, even if the network request fails.
         do {
             let updates = ProfileUpdate(
-                displayName: displayName.isEmpty ? nil : displayName,
                 linkedinUrl: linkedInURL.isEmpty ? nil : linkedInURL,
                 primaryGoal: selectedGoal?.rawValue,
                 resumeText: resumeText.isEmpty ? nil : resumeText,
-                currentRole: currentRole.isEmpty ? nil : currentRole,
-                currentCompany: currentCompany.isEmpty ? nil : currentCompany,
                 onboardingCompleted: true
             )
             try await profileService.updateProfile(updates)
-
-            if !skills.isEmpty {
-                try await profileService.updateSkills(skills)
-            }
         } catch {
-            // Server save failed — still mark onboarding complete locally.
-            // Profile data will sync on next successful server call.
+            // Server save failed — still complete locally
         }
 
         return true

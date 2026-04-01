@@ -53,8 +53,6 @@ struct ConnectLinkedInView: View {
                 detail: "Your profile helps generate responses that align with your professional background."
             )
 
-            Spacer()
-
             Text("You can skip this step and add it later in settings.")
                 .font(IATypography.bodySmall)
                 .foregroundStyle(IATheme.textTertiary)
