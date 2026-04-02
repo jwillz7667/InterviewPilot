@@ -211,17 +211,25 @@ struct DashboardView: View {
     // MARK: - Daily Tip
 
     private var dailyTipSection: some View {
-        HStack(spacing: 0) {
+        let tip = dailyTip
+
+        return HStack(spacing: 0) {
             Rectangle()
-                .fill(IATheme.accent)
+                .fill(tip.tint)
                 .frame(width: 4)
 
             VStack(alignment: .leading, spacing: 8) {
-                Text("Daily Tip: STAR Method")
-                    .font(IATypography.headlineSmall)
-                    .foregroundStyle(IATheme.textPrimary)
+                HStack(spacing: 8) {
+                    Image(systemName: tip.icon)
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(tip.tint)
 
-                Text("Structure behavioral answers with Situation, Task, Action, Result. This framework keeps responses focused and demonstrates impact.")
+                    Text(tip.title)
+                        .font(IATypography.headlineSmall)
+                        .foregroundStyle(IATheme.textPrimary)
+                }
+
+                Text(tip.body)
                     .font(IATypography.bodySmall)
                     .foregroundStyle(IATheme.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -237,6 +245,35 @@ struct DashboardView: View {
                 .stroke(IATheme.outlineVariant, lineWidth: 1)
         }
         .clipShape(RoundedRectangle(cornerRadius: IATheme.radiusMedium, style: .continuous))
+    }
+
+    private var dailyTip: (title: String, body: String, icon: String, tint: Color) {
+        let tips: [(String, String, String, Color)] = [
+            ("STAR Method",
+             "Structure behavioral answers: Situation, Task, Action, Result. This keeps responses focused and demonstrates measurable impact.",
+             "star.fill", IATheme.accent),
+            ("Own Your Story",
+             "Use 'I' not 'we'. Interviewers want to hear YOUR contribution. Name the specific system you built, the decision you made, the metric you moved.",
+             "person.fill", IATheme.tertiary),
+            ("Quantify Impact",
+             "Replace vague claims with numbers: 'reduced latency from 800ms to 120ms' beats 'improved performance significantly' every time.",
+             "chart.bar.fill", IATheme.success),
+            ("Name the Tech",
+             "Don't say 'a database' — say 'PostgreSQL with a GIN index on the JSONB column'. Specificity signals depth and builds credibility.",
+             "terminal.fill", IATheme.accent),
+            ("Show the Tradeoff",
+             "Strong answers acknowledge what you gave up: 'We chose eventual consistency over strong consistency because our SLA allowed 5s propagation delay.'",
+             "scale.3d", IATheme.warning),
+            ("Answer First",
+             "Lead with your answer in the first sentence, then explain. 'I redesigned the auth flow to use JWTs — here's why...' beats a 30-second windup.",
+             "bolt.fill", IATheme.primaryContainer),
+            ("Prep Your Projects",
+             "Have 3-4 go-to projects ready. For each, know: what you built, why, what went wrong, what you'd change, and the measurable outcome.",
+             "folder.fill", IATheme.tertiary),
+        ]
+        let dayIndex = Calendar.current.ordinality(of: .day, in: .year, for: Date()) ?? 0
+        let tip = tips[dayIndex % tips.count]
+        return (title: tip.0, body: tip.1, icon: tip.2, tint: tip.3)
     }
 
 }
