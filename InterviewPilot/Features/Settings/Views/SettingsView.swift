@@ -7,7 +7,6 @@ struct SettingsView: View {
     @State private var showSignOutConfirm = false
     @State private var showDeleteAccountConfirm = false
     @State private var showPaywall = false
-    @State private var showSubscriptionManagement = false
     @State private var showProfile = false
     @AppStorage("appAppearance") private var appearanceRawValue = AppAppearance.system.rawValue
     @Environment(\.dismiss) private var dismiss
@@ -58,9 +57,6 @@ struct SettingsView: View {
             }
             .sheet(isPresented: $showPaywall) {
                 SubscriptionPaywallView()
-            }
-            .sheet(isPresented: $showSubscriptionManagement) {
-                SubscriptionManagementView()
             }
             .sheet(isPresented: $showProfile) {
                 ProfileEditorView()
@@ -134,11 +130,7 @@ struct SettingsView: View {
 
             VStack(spacing: 0) {
                 IASettingsRow(icon: "creditcard.fill", iconColor: IATheme.tertiary, title: "Subscription & Billing") {
-                    if currentEntitlement?.hasActiveSubscription == true {
-                        showSubscriptionManagement = true
-                    } else {
-                        showPaywall = true
-                    }
+                    showPaywall = true
                 }
 
                 Divider().padding(.leading, 54)

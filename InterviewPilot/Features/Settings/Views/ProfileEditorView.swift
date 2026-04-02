@@ -727,8 +727,6 @@ struct ProfileEditorView: View {
 
         Task {
             do {
-                try await authService.updateProfile(displayName: displayName)
-
                 let updates = ProfileUpdate(
                     displayName: displayName,
                     linkedinUrl: linkedInURL.isEmpty ? nil : linkedInURL,
@@ -739,6 +737,11 @@ struct ProfileEditorView: View {
                     yearsInRole: yearsInRole > 0 ? yearsInRole : nil
                 )
                 try await profileService.updateProfile(updates)
+
+                // Sync display name to Keychain for local persistence
+                if !displayName.isEmpty {
+                    _ = KeychainService.save(key: .displayName, value: displayName)
+                }
 
                 if !workExperiences.isEmpty {
                     try await profileService.updateWorkExperience(workExperiences)

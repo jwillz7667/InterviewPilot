@@ -114,7 +114,12 @@ struct DashboardView: View {
             } else {
                 VStack(spacing: 8) {
                     ForEach(viewModel.recentSessions, id: \.id) { session in
-                        recentSessionRow(session)
+                        NavigationLink {
+                            SessionReviewLoaderView(item: session)
+                        } label: {
+                            recentSessionRow(session)
+                        }
+                        .buttonStyle(.plain)
                     }
                 }
             }
@@ -122,18 +127,20 @@ struct DashboardView: View {
     }
 
     private func recentSessionRow(_ session: SessionHistoryItem) -> some View {
-        HStack(spacing: 12) {
+        let sessionLabel = effectiveSessionLabel(session)
+
+        return HStack(spacing: 12) {
             Circle()
                 .fill(IATheme.accent.opacity(0.12))
                 .frame(width: 40, height: 40)
                 .overlay {
-                    Image(systemName: "waveform")
+                    Image(systemName: sessionIcon(session))
                         .font(.system(size: 16, weight: .semibold))
                         .foregroundStyle(IATheme.accent)
                 }
 
             VStack(alignment: .leading, spacing: 4) {
-                Text(session.interviewType.capitalized)
+                Text(sessionLabel)
                     .font(IATypography.headlineSmall)
                     .foregroundStyle(IATheme.textPrimary)
 
@@ -144,9 +151,15 @@ struct DashboardView: View {
 
             Spacer()
 
-            Text("\(session.exchangeCount) Qs")
-                .font(IATypography.labelMedium)
-                .foregroundStyle(IATheme.textSecondary)
+            HStack(spacing: 6) {
+                Text("\(session.exchangeCount) Qs")
+                    .font(IATypography.labelMedium)
+                    .foregroundStyle(IATheme.textSecondary)
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(IATheme.textTertiary)
+            }
         }
         .padding(12)
         .background(
@@ -156,6 +169,42 @@ struct DashboardView: View {
         .overlay {
             RoundedRectangle(cornerRadius: IATheme.radiusMedium, style: .continuous)
                 .stroke(IATheme.outlineVariant, lineWidth: 1)
+        }
+    }
+
+    private func effectiveSessionLabel(_ session: SessionHistoryItem) -> String {
+        // If the stored type is meaningful (not "general"), use its display name
+        let storedType = InterviewType(rawValue: session.interviewType)
+        if let storedType, storedType != .general {
+            return storedType.displayName + " Interview"
+        }
+
+        // Derive label from dominant question type in exchanges
+        if let exchanges = session.exchanges, !exchanges.isEmpty {
+            let typeCounts = Dictionary(grouping: exchanges, by: { $0.questionType.lowercased() })
+                .filter { $0.key != "unknown" }
+            if let dominant = typeCounts.max(by: { $0.value.count < $1.value.count }),
+               let questionType = QuestionType(rawValue: dominant.key) {
+                return questionType.displayName + " Interview"
+            }
+        }
+
+        // Fallback based on exchange count
+        let count = session.exchangeCount
+        if count >= 8 { return "Full Interview" }
+        if count >= 4 { return "Practice Session" }
+        return "Quick Practice"
+    }
+
+    private func sessionIcon(_ session: SessionHistoryItem) -> String {
+        let type = InterviewType(rawValue: session.interviewType) ?? .general
+        switch type {
+        case .technical: return "terminal.fill"
+        case .behavioral: return "person.2.fill"
+        case .systemDesign: return "cpu.fill"
+        case .caseStudy: return "doc.text.fill"
+        case .hrScreen: return "bubble.left.and.bubble.right.fill"
+        case .general: return "waveform"
         }
     }
 
