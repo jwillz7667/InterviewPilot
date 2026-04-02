@@ -54,16 +54,12 @@ enum AppEnvironment {
     }
 
     static func hasDeveloperFullAccess(email: String?) -> Bool {
-        #if DEBUG
-        return true
-        #else
         guard let normalizedEmail = email?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(),
               !normalizedEmail.isEmpty else {
             return false
         }
 
         return developerFullAccessEmails.contains(normalizedEmail)
-        #endif
     }
 
     private static func configuredString(forInfoDictionaryKey key: String) -> String? {

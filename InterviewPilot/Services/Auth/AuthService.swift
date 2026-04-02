@@ -151,7 +151,6 @@ final class AuthService {
         SubscriptionService.shared.reset()
         ProfileService.shared.reset()
         SyncRetryQueue.shared.clear()
-        SessionStorageService.shared.deleteAllSessions()
         clearUserDefaults()
         isAuthenticated = false
         currentUser = nil
