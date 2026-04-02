@@ -7,6 +7,7 @@ struct SettingsView: View {
     @State private var showSignOutConfirm = false
     @State private var showDeleteAccountConfirm = false
     @State private var showPaywall = false
+    @State private var showSubscriptionManagement = false
     @State private var showProfile = false
     @AppStorage("appAppearance") private var appearanceRawValue = AppAppearance.system.rawValue
     @Environment(\.dismiss) private var dismiss
@@ -57,6 +58,9 @@ struct SettingsView: View {
             }
             .sheet(isPresented: $showPaywall) {
                 SubscriptionPaywallView()
+            }
+            .sheet(isPresented: $showSubscriptionManagement) {
+                SubscriptionManagementView()
             }
             .sheet(isPresented: $showProfile) {
                 ProfileEditorView()
@@ -129,17 +133,19 @@ struct SettingsView: View {
                 .padding(.leading, 4)
 
             VStack(spacing: 0) {
-                IASettingsRow(icon: "bell.fill", iconColor: IATheme.accent, title: "Notification Preferences")
-
-                Divider().padding(.leading, 54)
-
                 IASettingsRow(icon: "creditcard.fill", iconColor: IATheme.tertiary, title: "Subscription & Billing") {
-                    showPaywall = true
+                    if currentEntitlement?.hasActiveSubscription == true {
+                        showSubscriptionManagement = true
+                    } else {
+                        showPaywall = true
+                    }
                 }
 
                 Divider().padding(.leading, 54)
 
-                IASettingsRow(icon: "lock.shield.fill", iconColor: IATheme.warning, title: "Privacy & Security")
+                IASettingsRow(icon: "person.text.rectangle.fill", iconColor: IATheme.accent, title: "Edit Profile") {
+                    showProfile = true
+                }
             }
             .padding(.vertical, 8)
             .padding(.horizontal, 14)
@@ -164,28 +170,22 @@ struct SettingsView: View {
                 .padding(.leading, 4)
 
             VStack(spacing: 0) {
-                NavigationLink {
-                    HelpView()
-                } label: {
-                    IASettingsRow(icon: "questionmark.circle.fill", iconColor: IATheme.accent, title: "Help & Support")
+                NavigationLink(destination: HelpView()) {
+                    IASettingsRowLabel(icon: "questionmark.circle.fill", iconColor: IATheme.accent, title: "Help & Support")
                 }
                 .buttonStyle(.plain)
 
                 Divider().padding(.leading, 54)
 
-                NavigationLink {
-                    LegalWebView(url: URL(string: "https://interviewpilot-production.up.railway.app/privacy")!, title: "Privacy Policy")
-                } label: {
-                    IASettingsRow(icon: "hand.raised.fill", iconColor: IATheme.secondary, title: "Privacy Policy")
+                NavigationLink(destination: LegalWebView(url: URL(string: "https://interviewpilot-production.up.railway.app/privacy")!, title: "Privacy Policy")) {
+                    IASettingsRowLabel(icon: "hand.raised.fill", iconColor: IATheme.secondary, title: "Privacy Policy")
                 }
                 .buttonStyle(.plain)
 
                 Divider().padding(.leading, 54)
 
-                NavigationLink {
-                    LegalWebView(url: URL(string: "https://interviewpilot-production.up.railway.app/terms")!, title: "Terms of Service")
-                } label: {
-                    IASettingsRow(icon: "doc.text.fill", iconColor: IATheme.secondary, title: "Terms of Service")
+                NavigationLink(destination: LegalWebView(url: URL(string: "https://interviewpilot-production.up.railway.app/terms")!, title: "Terms of Service")) {
+                    IASettingsRowLabel(icon: "doc.text.fill", iconColor: IATheme.secondary, title: "Terms of Service")
                 }
                 .buttonStyle(.plain)
             }
@@ -295,6 +295,11 @@ private func settingsPreviewEntitlement(tier: String) -> BillingEntitlement {
         appAccountToken: UUID().uuidString,
         currentPeriodEndsAt: ISO8601DateFormatter().string(from: .now.addingTimeInterval(60 * 60 * 24 * 30)),
         gracePeriodEndsAt: nil,
+        trialDaysRemaining: nil,
+        responseQuality: tier == "pro" ? "premium" : "enhanced",
+        monthlyInterviewsUsed: 5,
+        monthlyInterviewLimit: tier == "pro" ? 999 : 15,
+        monthlyInterviewsRemaining: tier == "pro" ? 994 : 10,
         catalog: []
     )
 }

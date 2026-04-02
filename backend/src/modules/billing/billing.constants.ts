@@ -26,6 +26,8 @@ export type CatalogItem = {
   features: FeatureKey[];
 };
 
+const FREE_FEATURES: FeatureKey[] = ['live_interview', 'session_history'];
+
 const BASE_FEATURES: FeatureKey[] = [
   'live_interview',
   'session_history',
@@ -36,10 +38,39 @@ const BASE_FEATURES: FeatureKey[] = [
 const PRO_FEATURES: FeatureKey[] = [...BASE_FEATURES, 'voice_prep', 'priority_models'];
 
 export const TIER_FEATURES: Record<SubscriptionTier, FeatureKey[]> = {
-  TRIAL: BASE_FEATURES,
+  FREE: FREE_FEATURES,
+  TRIAL: PRO_FEATURES,
   PLUS: BASE_FEATURES,
   PRO: PRO_FEATURES,
   SANDBOX: PRO_FEATURES,
+};
+
+export const FREE_MONTHLY_INTERVIEW_LIMIT = 3;
+export const FREE_SESSION_HISTORY_LIMIT = 5;
+
+export type ResponseQuality = 'standard' | 'enhanced' | 'premium';
+
+export const TIER_RESPONSE_QUALITY: Record<SubscriptionTier, ResponseQuality> = {
+  FREE: 'standard',
+  TRIAL: 'premium',
+  PLUS: 'enhanced',
+  PRO: 'premium',
+  SANDBOX: 'premium',
+};
+
+export type ModelConfig = {
+  defaultModel: string;
+  technicalModel: string;
+  codingModel: string;
+  maxTokens: number;
+};
+
+export const TIER_MODEL_CONFIG: Record<SubscriptionTier, ModelConfig> = {
+  FREE: { defaultModel: 'gpt-4.1-mini', technicalModel: 'gpt-4.1-mini', codingModel: 'gpt-4.1-mini', maxTokens: 320 },
+  TRIAL: { defaultModel: 'gpt-4.1', technicalModel: 'gpt-4.1', codingModel: 'o4-mini', maxTokens: 480 },
+  PLUS: { defaultModel: 'gpt-4.1', technicalModel: 'gpt-4.1', codingModel: 'gpt-4.1', maxTokens: 400 },
+  PRO: { defaultModel: 'gpt-4.1', technicalModel: 'gpt-4.1', codingModel: 'o4-mini', maxTokens: 480 },
+  SANDBOX: { defaultModel: 'gpt-4.1', technicalModel: 'gpt-4.1', codingModel: 'o4-mini', maxTokens: 480 },
 };
 
 export const SESSION_MODE_FEATURE: Record<SessionMode, FeatureKey> = {

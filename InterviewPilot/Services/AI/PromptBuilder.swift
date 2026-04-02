@@ -16,7 +16,8 @@ enum PromptBuilder {
         behavior: ResponseBehavior,
         tone: ResponseTone,
         emphasis: ResponseEmphasis,
-        qualityMode: ResponseQualityMode
+        qualityMode: ResponseQualityMode,
+        includeResume: Bool = true
     ) -> String {
         let roleProfile = RoleResponseProfile.derive(
             jobCategory: jobCategory,
@@ -32,7 +33,7 @@ enum PromptBuilder {
             - Include one additional layer of detail: the config value, the exact library version, the monitoring alert threshold, or the failure recovery path.
             - When the question is technical or system design, include a brief capacity estimate or back-of-envelope calculation.
             """
-        case .standard:
+        case .standard, .free:
             qualityDirective = ""
         }
 
@@ -47,7 +48,8 @@ enum PromptBuilder {
             tone: tone,
             emphasis: emphasis,
             roleProfile: roleProfile,
-            qualityDirective: qualityDirective
+            qualityDirective: qualityDirective,
+            includeResume: includeResume
         )
     }
 
@@ -113,7 +115,8 @@ enum PromptBuilder {
         behavior: ResponseBehavior,
         tone: ResponseTone,
         emphasis: ResponseEmphasis,
-        qualityMode: ResponseQualityMode
+        qualityMode: ResponseQualityMode,
+        includeResume: Bool = true
     ) -> String {
         let base = buildBasePrompt(
             resume: resume,
@@ -125,7 +128,8 @@ enum PromptBuilder {
             behavior: behavior,
             tone: tone,
             emphasis: emphasis,
-            qualityMode: qualityMode
+            qualityMode: qualityMode,
+            includeResume: includeResume
         )
         return buildFullPrompt(
             basePrompt: base,
@@ -148,8 +152,21 @@ enum PromptBuilder {
         tone: ResponseTone,
         emphasis: ResponseEmphasis,
         roleProfile: RoleResponseProfile,
-        qualityDirective: String
+        qualityDirective: String,
+        includeResume: Bool = true
     ) -> String {
+        let resumeSection: String
+        if includeResume {
+            resumeSection = """
+            ## Candidate Resume
+            \(resume)
+            """
+        } else {
+            resumeSection = """
+            ## Candidate Resume
+            [Resume not available on the current plan. Generate answers based on the job description and general best practices for the role.]
+            """
+        }
         return """
         # Role and Objective
 
@@ -296,8 +313,7 @@ enum PromptBuilder {
 
         You have access to the candidate's full professional context below. Read ALL of it carefully before generating any answer. Every section is important — the resume, LinkedIn profile, additional notes, job description, and interview metadata all inform how you should answer.
 
-        ## Candidate Resume
-        \(resume)
+        \(resumeSection)
 
         ## Job Description
         \(jobDescription)

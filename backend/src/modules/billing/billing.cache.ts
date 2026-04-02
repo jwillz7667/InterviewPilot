@@ -15,6 +15,17 @@ export interface CachedBillingSummary {
   canStartVoicePrep: boolean;
   currentPeriodEndsAt: string | null;
   featureFlags: Record<string, boolean>;
+  trialDaysRemaining: number | null;
+  responseQuality: string;
+  modelConfig: {
+    defaultModel: string;
+    technicalModel: string;
+    codingModel: string;
+    maxTokens: number;
+  };
+  monthlyInterviewsUsed: number;
+  monthlyInterviewLimit: number;
+  monthlyInterviewsRemaining: number;
 }
 
 export async function getCachedBillingSummary(userId: string): Promise<CachedBillingSummary | null> {

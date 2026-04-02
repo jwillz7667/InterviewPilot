@@ -155,17 +155,23 @@ export async function registerUser(input: RegisterInput) {
   const prisma = getPrisma();
   const appAccountToken = randomUUID();
 
+  const env = getEnv();
+  const now = new Date();
   const user = await prisma.user.create({
     data: {
       email,
       passwordHash,
       displayName: input.displayName,
       appAccountToken,
-      lastLoginAt: new Date(),
+      lastLoginAt: now,
       settings: { create: {} },
       entitlement: {
         create: {
-          trialInterviewLimit: getEnv().TRIAL_INTERVIEW_LIMIT,
+          tier: 'TRIAL',
+          status: 'TRIALING',
+          trialInterviewLimit: env.TRIAL_INTERVIEW_LIMIT,
+          trialStartedAt: now,
+          trialEndsAt: new Date(now.getTime() + env.TRIAL_DURATION_DAYS * 24 * 60 * 60 * 1000),
         },
       },
     },
@@ -378,6 +384,8 @@ export async function authenticateWithApple(input: AppleLoginInput) {
     }
 
     const appAccountToken = randomUUID();
+    const appleEnv = getEnv();
+    const appleNow = new Date();
     const user = await tx.user.create({
       data: {
         email,
@@ -386,11 +394,15 @@ export async function authenticateWithApple(input: AppleLoginInput) {
         displayName,
         appAccountToken,
         emailVerified: isEmailVerified(claims.email_verified),
-        lastLoginAt: new Date(),
+        lastLoginAt: appleNow,
         settings: { create: {} },
         entitlement: {
           create: {
-            trialInterviewLimit: getEnv().TRIAL_INTERVIEW_LIMIT,
+            tier: 'TRIAL',
+            status: 'TRIALING',
+            trialInterviewLimit: appleEnv.TRIAL_INTERVIEW_LIMIT,
+            trialStartedAt: appleNow,
+            trialEndsAt: new Date(appleNow.getTime() + appleEnv.TRIAL_DURATION_DAYS * 24 * 60 * 60 * 1000),
           },
         },
       },

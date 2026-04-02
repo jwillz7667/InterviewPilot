@@ -149,8 +149,25 @@ final class AuthService {
 
         clearAuthData()
         SubscriptionService.shared.reset()
+        ProfileService.shared.reset()
+        SyncRetryQueue.shared.clear()
+        SessionStorageService.shared.deleteAllSessions()
+        clearUserDefaults()
         isAuthenticated = false
         currentUser = nil
+    }
+
+    private func clearUserDefaults() {
+        let keysToRemove = [
+            "linkedInProfileText",
+            "additionalNotes",
+            "onboardingCompletedLocal",
+            "hasSeenTrialExpiry",
+            "hasSeenOnboarding",
+        ]
+        for key in keysToRemove {
+            UserDefaults.standard.removeObject(forKey: key)
+        }
     }
 
     func requestPasswordReset(email: String) async throws {

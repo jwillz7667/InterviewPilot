@@ -18,11 +18,13 @@ final class ResponseGeneratorService {
     private var streamingSession: URLSession {
         if let session = _streamingSession { return session }
         let config = URLSessionConfiguration.default
-        config.timeoutIntervalForRequest = 30      // 30s to establish connection
-        config.timeoutIntervalForResource = 300    // 5 min max per streaming response
-        config.waitsForConnectivity = true
+        config.timeoutIntervalForRequest = 15
+        config.timeoutIntervalForResource = 120
+        config.waitsForConnectivity = false
         config.allowsConstrainedNetworkAccess = true
         config.allowsExpensiveNetworkAccess = true
+        config.httpShouldUsePipelining = true
+        config.httpMaximumConnectionsPerHost = 2
         let session = URLSession(configuration: config)
         _streamingSession = session
         return session
@@ -103,7 +105,8 @@ final class ResponseGeneratorService {
             behavior: behavior,
             tone: tone,
             emphasis: emphasis,
-            qualityMode: qualityMode
+            qualityMode: qualityMode,
+            includeResume: qualityMode != .free
         )
         let tokenLimit = qualityMode.liveTokenLimit(
             baseTokens: format.maxTokens(for: emphasis, questionType: questionType)
@@ -251,12 +254,13 @@ final class ResponseGeneratorService {
     private func streamResponse(url: URL, body: [String: Any]) async throws -> String {
         var payload = body
         payload["stream"] = true
+        payload["stream_options"] = ["include_usage": false]
 
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.timeoutInterval = 30
+        request.timeoutInterval = 15
         request.httpBody = try JSONSerialization.data(withJSONObject: payload)
 
         let (bytes, response) = try await streamingSession.bytes(for: request)

@@ -40,6 +40,7 @@ final class LiveSessionViewModel {
     let responseEmphasis: ResponseEmphasis
     let responseQualityMode: ResponseQualityMode
     let preComputedAnswers: [PreComputedAnswer]
+    let modelConfig: ModelConfig?
 
     // Private state
     private var accumulatedTranscript: String = ""  // Finalized segments only
@@ -125,6 +126,7 @@ final class LiveSessionViewModel {
         responseEmphasis: ResponseEmphasis,
         responseQualityMode: ResponseQualityMode,
         preComputedAnswers: [PreComputedAnswer],
+        modelConfig: ModelConfig? = nil,
         deepgramKey: String,
         openAIKey: String
     ) {
@@ -140,6 +142,7 @@ final class LiveSessionViewModel {
         self.responseEmphasis = responseEmphasis
         self.responseQualityMode = responseQualityMode
         self.preComputedAnswers = preComputedAnswers
+        self.modelConfig = modelConfig
         self.hasDeepgramAPIKey = !deepgramKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         self.hasOpenAIAPIKey = !openAIKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
 
@@ -411,7 +414,8 @@ final class LiveSessionViewModel {
             behavior: responseBehavior,
             tone: responseTone,
             emphasis: responseEmphasis,
-            qualityMode: responseQualityMode
+            qualityMode: responseQualityMode,
+            includeResume: responseQualityMode != .free
         )
         responseGenerator.preWarmConnection()
 
@@ -463,16 +467,27 @@ final class LiveSessionViewModel {
         let wordCount = fullText.split(separator: " ").count
         guard wordCount >= APIConfig.predictiveFireMinWords else { return }
 
-        // Check answer bank first
+        // Run cache lookup and classification in parallel
         let cacheLookupStartedAt = Date()
-        if let cachedAnswer = answerBank.findMatch(
+        let cachedAnswer = answerBank.findMatch(
             query: fullText,
             threshold: APIConfig.cacheMatchThreshold
-        ) {
-            pendingExchangeMetrics.cacheLookupMs = elapsedMilliseconds(
-                from: cacheLookupStartedAt,
-                to: Date()
-            )
+        )
+        pendingExchangeMetrics.cacheLookupMs = elapsedMilliseconds(
+            from: cacheLookupStartedAt,
+            to: Date()
+        )
+
+        let classificationStartedAt = Date()
+        let classification = classifier.classify(fullText)
+        pendingExchangeMetrics.classificationMs = elapsedMilliseconds(
+            from: classificationStartedAt,
+            to: Date()
+        )
+        self.questionType = classification
+
+        // Cache hit — use immediately
+        if let cachedAnswer {
             pendingExchangeMetrics.usedPredictiveFire = true
             pendingExchangeMetrics.responseStartedAt = Date()
             hasFiredResponse = true
@@ -486,22 +501,11 @@ final class LiveSessionViewModel {
             bufferCachedAnswer(cachedAnswer)
             return
         }
-        pendingExchangeMetrics.cacheLookupMs = elapsedMilliseconds(
-            from: cacheLookupStartedAt,
-            to: Date()
-        )
 
-        // Classify question type
-        let classificationStartedAt = Date()
-        let classification = classifier.classify(fullText)
-        pendingExchangeMetrics.classificationMs = elapsedMilliseconds(
-            from: classificationStartedAt,
-            to: Date()
-        )
-        self.questionType = classification
-
-        // Start background generation if enough confidence — response stays hidden until speech ends
-        if classification.confidence > APIConfig.predictiveFireConfidence && wordCount >= APIConfig.predictiveFireMinWords {
+        // Fire generation aggressively — classification confidence OR sufficient word count
+        let hasConfidence = classification.confidence > APIConfig.predictiveFireConfidence
+        let hasEnoughWords = wordCount >= APIConfig.predictiveFireMinWords + 2
+        if hasConfidence || hasEnoughWords {
             startPredictiveGeneration(question: fullText)
         }
     }
@@ -588,6 +592,19 @@ final class LiveSessionViewModel {
     }
 
     private func selectModel(for classification: QuestionClassification?) -> String {
+        // Use server-provided model config if available
+        if let config = modelConfig {
+            switch classification?.type {
+            case .coding:
+                return config.codingModel
+            case .technical, .systemDesign:
+                return config.technicalModel
+            default:
+                return config.defaultModel
+            }
+        }
+
+        // Fallback to hardcoded config
         if responseQualityMode == .premium {
             switch classification?.type {
             case .coding:
@@ -597,6 +614,10 @@ final class LiveSessionViewModel {
             default:
                 return APIConfig.premiumResponseModel
             }
+        }
+
+        if responseQualityMode == .free {
+            return APIConfig.defaultResponseModel
         }
 
         switch classification?.type {

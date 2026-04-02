@@ -33,6 +33,8 @@ const envSchema = z.object({
   APP_STORE_PRO_MONTHLY_PRODUCT_ID: z.string().default('com.res.jobhopperAI.pro.monthly'),
   APP_STORE_PRO_YEARLY_PRODUCT_ID: z.string().default('com.res.jobhopperAI.pro.yearly'),
   TRIAL_INTERVIEW_LIMIT: z.coerce.number().int().min(1).max(100).default(5),
+  TRIAL_DURATION_DAYS: z.coerce.number().int().min(1).max(90).default(7),
+  FREE_MONTHLY_INTERVIEW_LIMIT: z.coerce.number().int().min(0).max(100).default(3),
   SANDBOX_TESTER_EMAILS: z.string().default(''),
   DATABASE_POOL_SIZE: z.coerce.number().int().min(1).max(50).default(15),
   SENDGRID_API_KEY: z.string().optional(),

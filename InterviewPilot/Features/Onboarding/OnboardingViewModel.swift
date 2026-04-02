@@ -38,16 +38,12 @@ final class OnboardingViewModel {
 
     func advance() {
         guard let nextRaw = Step(rawValue: currentStep.rawValue + 1) else { return }
-        withAnimation(IAAnimations.standard) {
-            currentStep = nextRaw
-        }
+        currentStep = nextRaw
     }
 
     func goBack() {
         guard let prevRaw = Step(rawValue: currentStep.rawValue - 1) else { return }
-        withAnimation(IAAnimations.standard) {
-            currentStep = prevRaw
-        }
+        currentStep = prevRaw
     }
 
     func handleResumeFile(result: Result<URL, Error>) {

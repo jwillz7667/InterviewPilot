@@ -30,6 +30,7 @@ enum DependencyContainer {
             responseEmphasis: responseEmphasis,
             responseQualityMode: responseQualityMode,
             preComputedAnswers: preComputedAnswers,
+            modelConfig: SubscriptionService.shared.currentEntitlement?.modelConfig,
             deepgramKey: deepgramKey,
             openAIKey: openAIKey
         )

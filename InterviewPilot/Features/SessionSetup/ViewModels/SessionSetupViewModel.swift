@@ -47,6 +47,17 @@ final class SessionSetupViewModel {
     private var analyzedJobListingURL: String?
     private var preparedFingerprint: String?
 
+    var effectiveQualityMode: ResponseQualityMode {
+        guard let quality = subscriptionService.currentEntitlement?.responseQuality else {
+            return .free
+        }
+        switch quality {
+        case "premium": return .premium
+        case "enhanced": return .standard
+        default: return .free
+        }
+    }
+
     var hasResume: Bool { !resumeText.isEmpty }
     var hasJobListingURL: Bool { !jobListingURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
     var hasJobListing: Bool { !jobListingText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
@@ -405,6 +416,9 @@ final class SessionSetupViewModel {
             // Sync StoreKit transactions so entitlement is current.
             await subscriptionService.refresh(forceStoreKitSync: true)
 
+            // Derive quality mode from subscription entitlement
+            responseQualityMode = effectiveQualityMode
+
             if responseQualityMode.requiresPriorityModels,
                !(subscriptionService.currentEntitlement?.hasPriorityModels ?? false) {
                 errorMessage = "Top Tier mode requires a Pro subscription."
@@ -465,6 +479,7 @@ final class SessionSetupViewModel {
             responseEmphasis: profile.responseEmphasis,
             responseQualityMode: responseQualityMode,
             preComputedAnswers: shouldPreGenerate ? preparedAnswers : [],
+            modelConfig: subscriptionService.currentEntitlement?.modelConfig,
             deepgramKey: deepgramKey,
             openAIKey: openAIKey
         )

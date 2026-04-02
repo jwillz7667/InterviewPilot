@@ -15,6 +15,7 @@ struct OnboardingView: View {
 
             ScrollView {
                 stepContent
+                    .id(viewModel.currentStep)
                     .frame(maxWidth: .infinity, alignment: .topLeading)
                     .padding(.horizontal, IATheme.spacing20)
                     .padding(.top, 12)
@@ -22,6 +23,7 @@ struct OnboardingView: View {
             }
             .scrollIndicators(.hidden)
             .defaultScrollAnchor(.top)
+            .scrollDismissesKeyboard(.immediately)
 
             footerButtons
                 .padding(.horizontal, IATheme.spacing20)
@@ -65,7 +67,10 @@ struct OnboardingView: View {
                 .font(IATypography.labelLarge)
                 .foregroundStyle(IATheme.textSecondary)
             } else {
-                Color.clear.frame(width: 40)
+                Text("Skip")
+                    .font(IATypography.labelLarge)
+                    .foregroundStyle(.clear)
+                    .accessibilityHidden(true)
             }
         }
     }

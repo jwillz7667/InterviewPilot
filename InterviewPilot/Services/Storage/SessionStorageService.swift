@@ -42,4 +42,14 @@ final class SessionStorageService {
         modelContext?.delete(session)
         saveChanges()
     }
+
+    func deleteAllSessions() {
+        guard let modelContext else { return }
+        let descriptor = FetchDescriptor<InterviewSession>()
+        guard let sessions = try? modelContext.fetch(descriptor) else { return }
+        for session in sessions {
+            modelContext.delete(session)
+        }
+        saveChanges()
+    }
 }

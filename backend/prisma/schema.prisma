@@ -8,6 +8,7 @@ datasource db {
 }
 
 enum SubscriptionTier {
+  FREE
   TRIAL
   PLUS
   PRO
@@ -15,6 +16,7 @@ enum SubscriptionTier {
 }
 
 enum SubscriptionStatus {
+  FREE
   TRIALING
   ACTIVE
   IN_GRACE_PERIOD
@@ -147,6 +149,10 @@ model UserEntitlement {
   featuresOverride             Json?
   trialInterviewLimit          Int                 @default(5)
   trialInterviewsUsed          Int                 @default(0)
+  trialStartedAt               DateTime?
+  trialEndsAt                  DateTime?
+  monthlyInterviewsUsed        Int                 @default(0)
+  monthlyInterviewsResetAt     DateTime?
   currentPeriodStartedAt       DateTime            @default(now())
   currentPeriodEndsAt          DateTime?
   gracePeriodEndsAt            DateTime?

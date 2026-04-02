@@ -51,6 +51,13 @@ final class ProfileService {
         profile?.onboardingCompleted ?? false
     }
 
+    func reset() {
+        profile = nil
+        errorMessage = nil
+        isLoading = false
+        UserDefaults.standard.removeObject(forKey: profileCacheKey)
+    }
+
     private func cacheProfile(_ profile: UserProfile) {
         if let data = try? JSONEncoder().encode(profile) {
             UserDefaults.standard.set(data, forKey: profileCacheKey)

@@ -36,7 +36,11 @@ import {
   isSubscriptionActive,
   resolveFeatureSet,
   SESSION_MODE_FEATURE,
+  TIER_MODEL_CONFIG,
+  TIER_RESPONSE_QUALITY,
   type FeatureKey,
+  type ModelConfig,
+  type ResponseQuality,
 } from './billing.constants.js';
 import {
   getCachedBillingSummary,
@@ -86,6 +90,12 @@ export type BillingSummary = {
   appAccountToken: string;
   currentPeriodEndsAt: string | null;
   gracePeriodEndsAt: string | null;
+  trialDaysRemaining: number | null;
+  responseQuality: ResponseQuality;
+  modelConfig: ModelConfig;
+  monthlyInterviewsUsed: number;
+  monthlyInterviewLimit: number;
+  monthlyInterviewsRemaining: number;
   catalog: Array<{
     product: string;
     productId: string;
@@ -181,9 +191,16 @@ function rankTier(tier: SubscriptionTier): number {
     case SubscriptionTier.PLUS:
       return 2;
     case SubscriptionTier.TRIAL:
-    default:
       return 1;
+    case SubscriptionTier.FREE:
+    default:
+      return 0;
   }
+}
+
+function getNextMonthlyReset(): Date {
+  const now = new Date();
+  return new Date(now.getFullYear(), now.getMonth() + 1, 1);
 }
 
 function isSandboxTesterEmail(email: string): boolean {
@@ -223,10 +240,15 @@ async function ensureBillingContext(
 
   let entitlement = user.entitlement;
   if (!entitlement) {
+    const env = getEnv();
+    const trialStartedAt = new Date();
+    const trialEndsAt = new Date(trialStartedAt.getTime() + env.TRIAL_DURATION_DAYS * 24 * 60 * 60 * 1000);
     entitlement = await prisma.userEntitlement.create({
       data: {
         userId,
-        trialInterviewLimit: getEnv().TRIAL_INTERVIEW_LIMIT,
+        trialInterviewLimit: env.TRIAL_INTERVIEW_LIMIT,
+        trialStartedAt,
+        trialEndsAt,
       },
     });
   }
@@ -245,6 +267,20 @@ async function ensureBillingContext(
 function buildSummary(context: BillingContext): BillingSummary {
   const sandboxFullAccess =
     context.user.isSandboxTester || context.entitlement.sandboxFullAccess;
+
+  // Detect expired trial — user's stored tier is TRIAL but the trial window has closed
+  const isTrialExpired = context.entitlement.tier === SubscriptionTier.TRIAL
+    && context.entitlement.trialEndsAt !== null
+    && context.entitlement.trialEndsAt.getTime() < Date.now();
+
+  const effectiveTier = sandboxFullAccess
+    ? SubscriptionTier.SANDBOX
+    : (isTrialExpired ? SubscriptionTier.FREE : context.entitlement.tier);
+
+  const effectiveStatus = sandboxFullAccess
+    ? SubscriptionStatus.SANDBOX
+    : (isTrialExpired ? SubscriptionStatus.FREE : context.entitlement.status);
+
   const hasPaidSubscription =
     !sandboxFullAccess &&
     isSubscriptionActive(
@@ -253,23 +289,42 @@ function buildSummary(context: BillingContext): BillingSummary {
       context.entitlement.gracePeriodEndsAt
     ) &&
     context.entitlement.product !== SubscriptionProduct.NONE &&
-    context.entitlement.tier !== SubscriptionTier.TRIAL;
+    context.entitlement.tier !== SubscriptionTier.TRIAL &&
+    context.entitlement.tier !== SubscriptionTier.FREE;
 
-  const tier = sandboxFullAccess ? SubscriptionTier.SANDBOX : context.entitlement.tier;
-  const status = sandboxFullAccess ? SubscriptionStatus.SANDBOX : context.entitlement.status;
   const accessSource = sandboxFullAccess
     ? AccessSource.SANDBOX
     : hasPaidSubscription
       ? AccessSource.SUBSCRIPTION
       : AccessSource.TRIAL;
-  const features = resolveFeatureSet(tier, sandboxFullAccess);
+  const features = resolveFeatureSet(effectiveTier, sandboxFullAccess);
+
+  // Trial days remaining (only for users still in an active trial)
+  const trialDaysRemaining = context.entitlement.tier === SubscriptionTier.TRIAL
+    && context.entitlement.trialEndsAt !== null
+    && !isTrialExpired
+    ? Math.ceil((context.entitlement.trialEndsAt.getTime() - Date.now()) / (24 * 60 * 60 * 1000))
+    : null;
+
+  // Monthly interview limits for FREE tier
+  const monthlyLimit = getEnv().FREE_MONTHLY_INTERVIEW_LIMIT;
+  const monthlyUsed = context.entitlement.monthlyInterviewsUsed;
+  const monthlyRemaining = effectiveTier === SubscriptionTier.FREE
+    ? Math.max(monthlyLimit - monthlyUsed, 0)
+    : Number.MAX_SAFE_INTEGER;
+
+  // For FREE tier, use monthly remaining; for active trial, use trial-based remaining
   const interviewsRemaining = hasPaidSubscription || sandboxFullAccess
     ? Number.MAX_SAFE_INTEGER
-    : Math.max(context.entitlement.trialInterviewLimit - context.entitlement.trialInterviewsUsed, 0);
+    : effectiveTier === SubscriptionTier.FREE
+      ? monthlyRemaining
+      : Math.max(context.entitlement.trialInterviewLimit - context.entitlement.trialInterviewsUsed, 0);
+
+  const paywallRequired = !sandboxFullAccess && !hasPaidSubscription && interviewsRemaining === 0;
 
   return {
-    tier: serializeEnum(tier),
-    status: serializeEnum(status),
+    tier: serializeEnum(effectiveTier),
+    status: serializeEnum(effectiveStatus),
     accessSource: serializeEnum(accessSource),
     product: serializeEnum(
       sandboxFullAccess ? SubscriptionProduct.SANDBOX_FULL_ACCESS : context.entitlement.product
@@ -285,10 +340,16 @@ function buildSummary(context: BillingContext): BillingSummary {
     trialInterviewsUsed: context.entitlement.trialInterviewsUsed,
     interviewsRemaining,
     hasActiveSubscription: hasPaidSubscription || sandboxFullAccess,
-    paywallRequired: !sandboxFullAccess && !hasPaidSubscription && interviewsRemaining === 0,
+    paywallRequired,
     appAccountToken: context.user.appAccountToken,
     currentPeriodEndsAt: serializeDate(context.entitlement.currentPeriodEndsAt),
     gracePeriodEndsAt: serializeDate(context.entitlement.gracePeriodEndsAt),
+    trialDaysRemaining,
+    responseQuality: TIER_RESPONSE_QUALITY[effectiveTier],
+    modelConfig: TIER_MODEL_CONFIG[effectiveTier],
+    monthlyInterviewsUsed: monthlyUsed,
+    monthlyInterviewLimit: monthlyLimit,
+    monthlyInterviewsRemaining: monthlyRemaining,
     catalog: getSubscriptionCatalog().map((item) => ({
       product: serializeEnum(item.product),
       productId: item.productId,
@@ -546,7 +607,7 @@ async function withSessionAccessGrant(
         };
       }
 
-      const context = await ensureBillingContext(prisma, userId);
+      let context = await ensureBillingContext(prisma, userId);
       const summary = buildSummary(context);
       const requiredFeature = SESSION_MODE_FEATURE[sessionMode];
 
@@ -576,36 +637,93 @@ async function withSessionAccessGrant(
           throw new PaymentRequiredError('Voice Prep requires an active Pro subscription');
         }
 
-        if (summary.interviewsRemaining <= 0) {
-          throw new PaymentRequiredError('Your 5 free trial interviews are complete', {
-            requiredTier: 'plus',
+        // Determine effective tier (expired trials become FREE)
+        const isTrialExpired = context.entitlement.tier === SubscriptionTier.TRIAL
+          && context.entitlement.trialEndsAt !== null
+          && context.entitlement.trialEndsAt.getTime() < Date.now();
+        const effectiveTier = isTrialExpired ? SubscriptionTier.FREE : context.entitlement.tier;
+
+        if (effectiveTier === SubscriptionTier.FREE) {
+          // FREE tier: monthly interview limits
+          // Reset monthly counter if the reset window has passed
+          const resetAt = context.entitlement.monthlyInterviewsResetAt;
+          if (resetAt && resetAt.getTime() < Date.now()) {
+            await prisma.userEntitlement.update({
+              where: { id: context.entitlement.id },
+              data: {
+                monthlyInterviewsUsed: 0,
+                monthlyInterviewsResetAt: getNextMonthlyReset(),
+              },
+            });
+            context = await ensureBillingContext(prisma, userId);
+          }
+
+          const limit = getEnv().FREE_MONTHLY_INTERVIEW_LIMIT;
+          if (context.entitlement.monthlyInterviewsUsed >= limit) {
+            throw new PaymentRequiredError(
+              `You've used all ${limit} free interviews this month. Upgrade for unlimited access.`,
+              { requiredTier: 'plus' }
+            );
+          }
+
+          const updated = await prisma.userEntitlement.updateMany({
+            where: {
+              id: context.entitlement.id,
+              monthlyInterviewsUsed: { lt: limit },
+            },
+            data: {
+              monthlyInterviewsUsed: { increment: 1 },
+              monthlyInterviewsResetAt: context.entitlement.monthlyInterviewsResetAt ?? getNextMonthlyReset(),
+            },
           });
-        }
 
-        const updated = await prisma.userEntitlement.updateMany({
-          where: {
-            id: context.entitlement.id,
-            trialInterviewsUsed: { lt: context.entitlement.trialInterviewLimit },
-          },
-          data: {
-            trialInterviewsUsed: { increment: 1 },
-          },
-        });
+          if (updated.count !== 1) {
+            throw new PaymentRequiredError(
+              `You've used all ${limit} free interviews this month. Upgrade for unlimited access.`,
+              { requiredTier: 'plus' }
+            );
+          }
 
-        if (updated.count !== 1) {
-          throw new PaymentRequiredError('Your 5 free trial interviews are complete', {
-            requiredTier: 'plus',
+          await invalidateBillingCache(userId);
+          const refreshed = await ensureBillingContext(prisma, userId);
+          nextContext = refreshed;
+          accessSource = AccessSource.TRIAL; // Reuse TRIAL access source for compatibility
+          accessTier = SubscriptionTier.FREE;
+          consumedTrial = false;
+          trialInterviewNumber = null;
+        } else {
+          // Active trial: use trial-based interview limits
+          if (summary.interviewsRemaining <= 0) {
+            throw new PaymentRequiredError('Your free trial interviews are complete', {
+              requiredTier: 'plus',
+            });
+          }
+
+          const updated = await prisma.userEntitlement.updateMany({
+            where: {
+              id: context.entitlement.id,
+              trialInterviewsUsed: { lt: context.entitlement.trialInterviewLimit },
+            },
+            data: {
+              trialInterviewsUsed: { increment: 1 },
+            },
           });
+
+          if (updated.count !== 1) {
+            throw new PaymentRequiredError('Your free trial interviews are complete', {
+              requiredTier: 'plus',
+            });
+          }
+
+          await invalidateBillingCache(userId);
+
+          const refreshed = await ensureBillingContext(prisma, userId);
+          nextContext = refreshed;
+          accessSource = AccessSource.TRIAL;
+          accessTier = SubscriptionTier.TRIAL;
+          consumedTrial = true;
+          trialInterviewNumber = refreshed.entitlement.trialInterviewsUsed;
         }
-
-        await invalidateBillingCache(userId);
-
-        const refreshed = await ensureBillingContext(prisma, userId);
-        nextContext = refreshed;
-        accessSource = AccessSource.TRIAL;
-        accessTier = SubscriptionTier.TRIAL;
-        consumedTrial = true;
-        trialInterviewNumber = refreshed.entitlement.trialInterviewsUsed;
       }
 
       const grant = await prisma.sessionAccessGrant.create({
@@ -710,7 +828,9 @@ export async function getSessionAccessGrant(
           ? SubscriptionTier.PRO
           : grant.accessTier === 'plus'
             ? SubscriptionTier.PLUS
-            : SubscriptionTier.TRIAL,
+            : grant.accessTier === 'free'
+              ? SubscriptionTier.FREE
+              : SubscriptionTier.TRIAL,
     trialInterviewNumber: grant.trialInterviewNumber,
   };
 }

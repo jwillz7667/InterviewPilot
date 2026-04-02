@@ -28,6 +28,7 @@ struct SessionSetupView: View {
                 ScrollView {
                     VStack(spacing: IATheme.spacing24) {
                         headerSection
+                        UpgradeBannerView { showPaywall = true }
                         heroImageSection
                         jobListingSection
                         customContextSection

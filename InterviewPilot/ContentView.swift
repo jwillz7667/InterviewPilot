@@ -8,8 +8,11 @@ struct ContentView: View {
     @State private var networkMonitor = NetworkMonitor.shared
     @State private var selectedTab = 0
     @State private var showOnboarding = false
-    @AppStorage("appAppearance") private var appearanceRawValue = AppAppearance.system.rawValue
+    @State private var showTrialExpiry = false
+    @State private var showPaywall = false
+    // App is light-mode only — IATheme colors are not dark-mode aware
     @AppStorage("onboardingCompletedLocal") private var onboardingCompletedLocal = false
+    @AppStorage("hasSeenTrialExpiry") private var hasSeenTrialExpiry = false
     @Environment(\.modelContext) private var modelContext
 
     var body: some View {
@@ -28,7 +31,7 @@ struct ContentView: View {
                     mainTabView
                 }
             }
-            .preferredColorScheme(appAppearance.colorScheme)
+            .preferredColorScheme(.light)
             .onAppear {
                 SessionStorageService.shared.configure(with: modelContext)
             }
@@ -37,9 +40,21 @@ struct ContentView: View {
                     await subscriptionService.refresh(forceStoreKitSync: true)
                     await profileService.fetchProfile()
                     checkOnboardingStatus()
+                    checkTrialExpiry()
                 } else {
                     subscriptionService.reset()
+                    showOnboarding = false
+                    selectedTab = 0
                 }
+            }
+            .fullScreenCover(isPresented: $showTrialExpiry) {
+                TrialExpiryView {
+                    showTrialExpiry = false
+                    showPaywall = true
+                }
+            }
+            .sheet(isPresented: $showPaywall) {
+                SubscriptionPaywallView()
             }
 
             if !networkMonitor.isConnected {
@@ -87,7 +102,12 @@ struct ContentView: View {
         showOnboarding = true
     }
 
-    private var appAppearance: AppAppearance {
-        AppAppearance(rawValue: appearanceRawValue) ?? .system
+    private func checkTrialExpiry() {
+        guard let entitlement = subscriptionService.currentEntitlement,
+              entitlement.isFreeTier,
+              !hasSeenTrialExpiry else { return }
+        showTrialExpiry = true
+        hasSeenTrialExpiry = true
     }
+
 }

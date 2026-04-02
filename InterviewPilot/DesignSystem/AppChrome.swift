@@ -733,8 +733,42 @@ struct IASettingsRow: View {
                     .foregroundStyle(IATheme.textTertiary)
             }
             .padding(.vertical, 4)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+    }
+}
+
+// MARK: - Settings Row Label (non-button, for NavigationLink labels)
+
+struct IASettingsRowLabel: View {
+    let icon: String
+    let iconColor: Color
+    let title: String
+
+    var body: some View {
+        HStack(spacing: 14) {
+            Circle()
+                .fill(iconColor.opacity(0.12))
+                .frame(width: 40, height: 40)
+                .overlay {
+                    Image(systemName: icon)
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(iconColor)
+                }
+
+            Text(title)
+                .font(IATypography.bodyLarge)
+                .foregroundStyle(IATheme.textPrimary)
+
+            Spacer()
+
+            Image(systemName: "chevron.right")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(IATheme.textTertiary)
+        }
+        .padding(.vertical, 4)
+        .contentShape(Rectangle())
     }
 }
 
