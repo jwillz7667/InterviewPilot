@@ -35,6 +35,8 @@ struct BillingEntitlement: Codable, Sendable {
     let monthlyInterviewsUsed: Int
     let monthlyInterviewLimit: Int
     let monthlyInterviewsRemaining: Int
+    let profileLimit: Int
+    let profilesUsed: Int
     let catalog: [BillingCatalogProduct]
 
     private enum CodingKeys: String, CodingKey {
@@ -45,6 +47,7 @@ struct BillingEntitlement: Codable, Sendable {
         case currentPeriodEndsAt, gracePeriodEndsAt
         case trialDaysRemaining, responseQuality, modelConfig
         case monthlyInterviewsUsed, monthlyInterviewLimit, monthlyInterviewsRemaining
+        case profileLimit, profilesUsed
         case catalog
     }
 
@@ -71,6 +74,8 @@ struct BillingEntitlement: Codable, Sendable {
         monthlyInterviewsUsed: Int = 0,
         monthlyInterviewLimit: Int = 3,
         monthlyInterviewsRemaining: Int = 3,
+        profileLimit: Int = 0,
+        profilesUsed: Int = 0,
         catalog: [BillingCatalogProduct]
     ) {
         self.tier = tier
@@ -95,6 +100,8 @@ struct BillingEntitlement: Codable, Sendable {
         self.monthlyInterviewsUsed = monthlyInterviewsUsed
         self.monthlyInterviewLimit = monthlyInterviewLimit
         self.monthlyInterviewsRemaining = monthlyInterviewsRemaining
+        self.profileLimit = profileLimit
+        self.profilesUsed = profilesUsed
         self.catalog = catalog
     }
 
@@ -122,6 +129,8 @@ struct BillingEntitlement: Codable, Sendable {
         monthlyInterviewsUsed = try container.decodeIfPresent(Int.self, forKey: .monthlyInterviewsUsed) ?? 0
         monthlyInterviewLimit = try container.decodeIfPresent(Int.self, forKey: .monthlyInterviewLimit) ?? 3
         monthlyInterviewsRemaining = try container.decodeIfPresent(Int.self, forKey: .monthlyInterviewsRemaining) ?? 3
+        profileLimit = try container.decodeIfPresent(Int.self, forKey: .profileLimit) ?? 0
+        profilesUsed = try container.decodeIfPresent(Int.self, forKey: .profilesUsed) ?? 0
         catalog = try container.decode([BillingCatalogProduct].self, forKey: .catalog)
     }
 
@@ -144,6 +153,14 @@ struct BillingEntitlement: Codable, Sendable {
 
     var trialInterviewsRemaining: Int {
         max(interviewsRemaining, 0)
+    }
+
+    var hasResumePersonalization: Bool {
+        featureFlags["resume_personalization"] == true
+    }
+
+    var canCreateProfile: Bool {
+        hasResumePersonalization && profilesUsed < profileLimit
     }
 
     var isInTrial: Bool { tier == "trial" }
@@ -529,6 +546,7 @@ final class SubscriptionService {
         featureFlags["live_interview"] = true
         featureFlags["voice_prep"] = true
         featureFlags["priority_models"] = true
+        featureFlags["resume_personalization"] = true
 
         let features = Array(
             Set((base?.features ?? []) + [
@@ -562,6 +580,8 @@ final class SubscriptionService {
             monthlyInterviewsUsed: 0,
             monthlyInterviewLimit: 999,
             monthlyInterviewsRemaining: 999,
+            profileLimit: 10,
+            profilesUsed: base?.profilesUsed ?? 0,
             catalog: base?.catalog ?? []
         )
     }

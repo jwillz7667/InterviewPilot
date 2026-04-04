@@ -8,6 +8,7 @@ struct SettingsView: View {
     @State private var showDeleteAccountConfirm = false
     @State private var showPaywall = false
     @State private var showProfile = false
+    @State private var showProfiles = false
     @AppStorage("appAppearance") private var appearanceRawValue = AppAppearance.system.rawValue
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var colorScheme
@@ -60,6 +61,9 @@ struct SettingsView: View {
             }
             .sheet(isPresented: $showProfile) {
                 ProfileEditorView()
+            }
+            .sheet(isPresented: $showProfiles) {
+                ProfileListView()
             }
             .sheet(isPresented: $showDeleteAccountConfirm) {
                 DeleteAccountView()
@@ -137,6 +141,12 @@ struct SettingsView: View {
 
                 IASettingsRow(icon: "person.text.rectangle.fill", iconColor: IATheme.accent, title: "Edit Profile") {
                     showProfile = true
+                }
+
+                Divider().padding(.leading, 54)
+
+                IASettingsRow(icon: "person.2.fill", iconColor: IATheme.tertiary, title: "Interview Profiles") {
+                    showProfiles = true
                 }
             }
             .padding(.vertical, 8)

@@ -27,6 +27,11 @@ final class SessionSetupViewModel {
     var preparedAnswerBankIsCached: Bool = false
     var preGenerationProgress: (current: Int, total: Int) = (0, 0)
 
+    // Interview profile selection
+    var selectedProfileId: String?
+    var selectedProfile: InterviewProfile?
+    var availableProfiles: [InterviewProfileSummary] = []
+
     // LinkedIn integration
     var linkedInURL: String = ""
     var linkedInProfileText: String = ""
@@ -101,6 +106,168 @@ final class SessionSetupViewModel {
     }
 
     var enrichedResume: String {
+        if let profile = selectedProfile {
+            return buildEnrichedResumeFromInterviewProfile(profile)
+        }
+        return buildEnrichedResumeFromLegacyProfile()
+    }
+
+    private func buildEnrichedResumeFromInterviewProfile(_ profile: InterviewProfile) -> String {
+        var parts: [String] = []
+
+        // Resume text from profile or existing
+        let baseResume = profile.resumeText ?? resumeText
+        if !baseResume.isEmpty {
+            parts.append(baseResume)
+        }
+
+        // Candidate profile header
+        var profileLines: [String] = []
+
+        if let role = profile.currentRole, !role.isEmpty {
+            var line = "Current role: \(role)"
+            if let company = profile.currentCompany, !company.isEmpty {
+                line += " at \(company)"
+            }
+            if let years = profile.yearsInRole, years > 0 {
+                line += " (\(years) years)"
+            }
+            profileLines.append(line)
+        }
+        if let summary = profile.summary, !summary.isEmpty {
+            profileLines.append("Summary: \(summary)")
+        }
+        if let style = profile.communicationStyle, !style.isEmpty {
+            profileLines.append("Communication preference: \(style)")
+        }
+        if !profileLines.isEmpty {
+            parts.append("\nCANDIDATE PROFILE:\n\(profileLines.joined(separator: "\n"))")
+        }
+
+        // Work history (max 5)
+        if !profile.workExperiences.isEmpty {
+            let formatted = profile.workExperiences.prefix(5).map { entry in
+                let period = entry.endYear.map { "\(entry.startYear)-\($0)" } ?? "\(entry.startYear)-present"
+                var line = "- \(entry.title) at \(entry.company) (\(period))"
+                if let desc = entry.description, !desc.isEmpty {
+                    line += ": \(desc)"
+                }
+                return line
+            }.joined(separator: "\n")
+            parts.append("\nWORK HISTORY:\n\(formatted)")
+        }
+
+        // Skills grouped by category (max 20 per category)
+        if !profile.skills.isEmpty {
+            var skillGroups: [String: [String]] = [:]
+            for skill in profile.skills {
+                let category = skill.category?.lowercased() ?? "other"
+                skillGroups[category, default: []].append(skill.name)
+            }
+
+            var skillLines: [String] = []
+            let orderedCategories = ["language", "framework", "tool"]
+            for category in orderedCategories {
+                if let names = skillGroups[category], !names.isEmpty {
+                    let truncated = names.prefix(20).joined(separator: ", ")
+                    skillLines.append("\(category.capitalized)s: \(truncated)")
+                    skillGroups.removeValue(forKey: category)
+                }
+            }
+            // Remaining categories
+            for (category, names) in skillGroups.sorted(by: { $0.key < $1.key }) where !names.isEmpty {
+                let truncated = names.prefix(20).joined(separator: ", ")
+                let label = category == "other" ? "Other" : category.capitalized
+                skillLines.append("\(label): \(truncated)")
+            }
+
+            if !skillLines.isEmpty {
+                parts.append("\nSKILLS:\n\(skillLines.joined(separator: "\n"))")
+            }
+        }
+
+        // Education
+        if !profile.education.isEmpty {
+            let formatted = profile.education.map { entry in
+                var line = "- \(entry.degree)"
+                if let field = entry.field, !field.isEmpty {
+                    line += " in \(field)"
+                }
+                line += " from \(entry.institution)"
+                if let startYear = entry.startYear {
+                    let endPart = entry.endYear.map { String($0) } ?? "present"
+                    line += " (\(startYear)-\(endPart))"
+                } else if let endYear = entry.endYear {
+                    line += " (\(endYear))"
+                }
+                return line
+            }.joined(separator: "\n")
+            parts.append("\nEDUCATION:\n\(formatted)")
+        }
+
+        // Certifications
+        if !profile.certifications.isEmpty {
+            let formatted = profile.certifications.map { entry in
+                var line = "- \(entry.name)"
+                if let issuer = entry.issuer, !issuer.isEmpty {
+                    line += " from \(issuer)"
+                }
+                if let year = entry.year {
+                    line += " (\(year))"
+                }
+                return line
+            }.joined(separator: "\n")
+            parts.append("\nCERTIFICATIONS:\n\(formatted)")
+        }
+
+        // Key projects (max 5)
+        if !profile.projects.isEmpty {
+            let formatted = profile.projects.prefix(5).map { entry in
+                var line = "- \(entry.name)"
+                if let desc = entry.description, !desc.isEmpty {
+                    line += ": \(desc)"
+                }
+                if let tech = entry.techStack, !tech.isEmpty {
+                    line += " | Tech: \(tech)"
+                }
+                if let year = entry.year {
+                    line += " (\(year))"
+                }
+                return line
+            }.joined(separator: "\n")
+            parts.append("\nKEY PROJECTS:\n\(formatted)")
+        }
+
+        // Achievements (max 5)
+        if !profile.achievements.isEmpty {
+            let formatted = profile.achievements.prefix(5).map { entry in
+                var line = "- \(entry.description)"
+                if let metric = entry.metric, !metric.isEmpty {
+                    line += " — \(metric)"
+                }
+                if let year = entry.year {
+                    line += " (\(year))"
+                }
+                return line
+            }.joined(separator: "\n")
+            parts.append("\nACHIEVEMENTS:\n\(formatted)")
+        }
+
+        // LinkedIn
+        if let linkedin = linkedInProfile, !linkedin.isEmpty {
+            parts.append("\nCANDIDATE'S LINKEDIN PROFILE:\n\(linkedin.formattedContext)")
+        }
+
+        // Additional notes
+        let trimmedNotes = additionalNotes.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmedNotes.isEmpty {
+            parts.append("\nADDITIONAL NOTES:\n\(trimmedNotes)")
+        }
+
+        return parts.joined(separator: "\n")
+    }
+
+    private func buildEnrichedResumeFromLegacyProfile() -> String {
         var parts = [resumeText]
 
         // Inject structured profile fields that aren't already in the resume text
@@ -216,10 +383,49 @@ final class SessionSetupViewModel {
         } catch {
             // Keep local defaults if the backend is unavailable.
         }
+
+        // Load interview profiles for profile selector
+        if subscriptionService.currentEntitlement?.hasResumePersonalization == true {
+            let interviewProfileService = InterviewProfileService.shared
+            await interviewProfileService.fetchProfiles()
+            availableProfiles = interviewProfileService.profiles
+
+            // Auto-select default profile if none selected
+            if selectedProfileId == nil, let defaultProfile = interviewProfileService.defaultProfile {
+                selectedProfileId = defaultProfile.id
+                await loadSelectedProfile()
+            }
+        }
     }
 
     func saveAdditionalNotes() {
         UserDefaults.standard.set(additionalNotes, forKey: "additionalNotes")
+    }
+
+    // MARK: - Interview Profile Selection
+
+    func loadSelectedProfile() async {
+        guard let profileId = selectedProfileId else {
+            selectedProfile = nil
+            return
+        }
+        do {
+            selectedProfile = try await InterviewProfileService.shared.fetchProfile(id: profileId)
+            if let profileResume = selectedProfile?.resumeText, !profileResume.isEmpty {
+                resumeText = profileResume
+            }
+            if let linkedIn = selectedProfile?.linkedinUrl, !linkedIn.isEmpty {
+                linkedInURL = linkedIn
+            }
+        } catch {
+            // Silent fallback — keep existing resume
+        }
+    }
+
+    func selectProfile(_ profileId: String?) async {
+        selectedProfileId = profileId
+        await loadSelectedProfile()
+        invalidatePreparedAnswerBankIfNeeded()
     }
 
     // MARK: - LinkedIn
@@ -480,6 +686,7 @@ final class SessionSetupViewModel {
             responseQualityMode: responseQualityMode,
             preComputedAnswers: shouldPreGenerate ? preparedAnswers : [],
             modelConfig: subscriptionService.currentEntitlement?.modelConfig,
+            communicationStyle: selectedProfile?.communicationStyle,
             deepgramKey: deepgramKey,
             openAIKey: openAIKey
         )

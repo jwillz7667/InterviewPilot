@@ -151,6 +151,7 @@ final class AuthService {
         SessionStorageService.shared.deleteAllSessions()
         SubscriptionService.shared.reset()
         ProfileService.shared.reset()
+        InterviewProfileService.shared.reset()
         SyncRetryQueue.shared.clear()
         clearUserDefaults()
         isAuthenticated = false

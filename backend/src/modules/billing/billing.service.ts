@@ -37,6 +37,7 @@ import {
   resolveFeatureSet,
   SESSION_MODE_FEATURE,
   TIER_MODEL_CONFIG,
+  TIER_PROFILE_LIMITS,
   TIER_RESPONSE_QUALITY,
   type FeatureKey,
   type ModelConfig,
@@ -62,6 +63,7 @@ type BillingContext = {
     isSandboxTester: boolean;
   };
   entitlement: UserEntitlement;
+  profilesUsed: number;
 };
 
 type BillingDbClient = DatabaseClient | Prisma.TransactionClient;
@@ -95,6 +97,8 @@ export type BillingSummary = {
   modelConfig: ModelConfig;
   monthlyInterviewsUsed: number;
   monthlyInterviewLimit: number;
+  profileLimit: number;
+  profilesUsed: number;
   monthlyInterviewsRemaining: number;
   catalog: Array<{
     product: string;
@@ -211,7 +215,7 @@ function isSandboxTesterEmail(email: string): boolean {
 }
 
 async function ensureBillingContext(
-  prisma: Pick<BillingDbClient, 'user' | 'userEntitlement'>,
+  prisma: Pick<BillingDbClient, 'user' | 'userEntitlement' | 'interviewProfile'>,
   userId: string
 ): Promise<BillingContext> {
   const user = await prisma.user.findUnique({
@@ -253,6 +257,10 @@ async function ensureBillingContext(
     });
   }
 
+  const profilesUsed = await (prisma as BillingDbClient).interviewProfile.count({
+    where: { userId, deletedAt: null },
+  });
+
   return {
     user: {
       id: user.id,
@@ -261,6 +269,7 @@ async function ensureBillingContext(
       isSandboxTester: user.isSandboxTester,
     },
     entitlement,
+    profilesUsed,
   };
 }
 
@@ -347,6 +356,8 @@ function buildSummary(context: BillingContext): BillingSummary {
     trialDaysRemaining,
     responseQuality: TIER_RESPONSE_QUALITY[effectiveTier],
     modelConfig: TIER_MODEL_CONFIG[effectiveTier],
+    profileLimit: TIER_PROFILE_LIMITS[effectiveTier],
+    profilesUsed: context.profilesUsed,
     monthlyInterviewsUsed: monthlyUsed,
     monthlyInterviewLimit: monthlyLimit,
     monthlyInterviewsRemaining: monthlyRemaining,
@@ -573,9 +584,14 @@ async function writeEntitlementFromTransaction(
 
   await invalidateBillingCache(context.user.id);
 
+  const profilesUsed = await prisma.interviewProfile.count({
+    where: { userId: context.user.id, deletedAt: null },
+  });
+
   return buildSummary({
     user: context.user,
     entitlement,
+    profilesUsed,
   });
 }
 

@@ -17,7 +17,8 @@ enum PromptBuilder {
         tone: ResponseTone,
         emphasis: ResponseEmphasis,
         qualityMode: ResponseQualityMode,
-        includeResume: Bool = true
+        includeResume: Bool = true,
+        communicationStyle: String? = nil
     ) -> String {
         let roleProfile = RoleResponseProfile.derive(
             jobCategory: jobCategory,
@@ -49,7 +50,8 @@ enum PromptBuilder {
             emphasis: emphasis,
             roleProfile: roleProfile,
             qualityDirective: qualityDirective,
-            includeResume: includeResume
+            includeResume: includeResume,
+            communicationStyle: communicationStyle
         )
     }
 
@@ -153,8 +155,23 @@ enum PromptBuilder {
         emphasis: ResponseEmphasis,
         roleProfile: RoleResponseProfile,
         qualityDirective: String,
-        includeResume: Bool = true
+        includeResume: Bool = true,
+        communicationStyle: String? = nil
     ) -> String {
+        let communicationStyleDirective: String
+        if let style = communicationStyle, !style.isEmpty {
+            communicationStyleDirective = """
+            ## Communication Style Preference
+            The candidate prefers a \(style) communication style:
+            - If "concise": Keep answers tight and efficient. Lead with the key point and one supporting detail. Aim for 2-3 sentences max per response segment.
+            - If "detailed": Include fuller explanations with multiple technical details, tradeoff analysis, and specific examples. 4-6 sentences per segment.
+            - If "storyteller": Lead with a narrative arc. Set the scene, describe the challenge, explain the decision process, and land the outcome with impact metrics.
+            Adapt response structure to match this preference while maintaining all other quality requirements.
+            """
+        } else {
+            communicationStyleDirective = ""
+        }
+
         let resumeSection: String
         if includeResume {
             resumeSection = """
@@ -296,6 +313,8 @@ enum PromptBuilder {
         \(emphasis.promptInstruction)
 
         \(qualityDirective)
+
+        \(communicationStyleDirective)
 
         # Examples
 

@@ -41,6 +41,7 @@ final class LiveSessionViewModel {
     let responseQualityMode: ResponseQualityMode
     let preComputedAnswers: [PreComputedAnswer]
     let modelConfig: ModelConfig?
+    let communicationStyle: String?
 
     // Private state
     private var accumulatedTranscript: String = ""  // Finalized segments only
@@ -127,6 +128,7 @@ final class LiveSessionViewModel {
         responseQualityMode: ResponseQualityMode,
         preComputedAnswers: [PreComputedAnswer],
         modelConfig: ModelConfig? = nil,
+        communicationStyle: String? = nil,
         deepgramKey: String,
         openAIKey: String
     ) {
@@ -143,6 +145,7 @@ final class LiveSessionViewModel {
         self.responseQualityMode = responseQualityMode
         self.preComputedAnswers = preComputedAnswers
         self.modelConfig = modelConfig
+        self.communicationStyle = communicationStyle
         self.hasDeepgramAPIKey = !deepgramKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         self.hasOpenAIAPIKey = !openAIKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
 
@@ -415,7 +418,8 @@ final class LiveSessionViewModel {
             tone: responseTone,
             emphasis: responseEmphasis,
             qualityMode: responseQualityMode,
-            includeResume: responseQualityMode != .free
+            includeResume: responseQualityMode != .free,
+            communicationStyle: communicationStyle
         )
         responseGenerator.preWarmConnection()
 

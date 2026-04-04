@@ -101,8 +101,9 @@ model User {
   entitlement   UserEntitlement?
   billingEvents BillingEvent[]
   sessionAccessGrants SessionAccessGrant[]
-  workExperiences WorkExperience[]
-  skills          UserSkill[]
+  workExperiences    WorkExperience[]
+  skills             UserSkill[]
+  interviewProfiles  InterviewProfile[]
 
   @@map("users")
 }
@@ -381,4 +382,116 @@ model UserSkill {
   @@unique([userId, name])
   @@index([userId])
   @@map("user_skills")
+}
+
+model InterviewProfile {
+  id                 String    @id @default(cuid())
+  userId             String
+  user               User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name               String
+  isDefault          Boolean   @default(false)
+  resumeText         String?   @db.Text
+  currentRole        String?
+  currentCompany     String?
+  yearsInRole        Int?
+  linkedinUrl        String?
+  summary            String?   @db.Text
+  communicationStyle String?
+  deletedAt          DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  workExperiences  ProfileWorkExperience[]
+  skills           ProfileSkill[]
+  education        ProfileEducation[]
+  certifications   ProfileCertification[]
+  projects         ProfileProject[]
+  achievements     ProfileAchievement[]
+
+  @@index([userId])
+  @@map("interview_profiles")
+}
+
+model ProfileWorkExperience {
+  id          String           @id @default(cuid())
+  profileId   String
+  profile     InterviewProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  title       String
+  company     String
+  startYear   Int
+  endYear     Int?
+  description String?          @db.Text
+  createdAt   DateTime         @default(now())
+
+  @@index([profileId])
+  @@map("profile_work_experiences")
+}
+
+model ProfileSkill {
+  id        String           @id @default(cuid())
+  profileId String
+  profile   InterviewProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  name      String
+  category  String?
+  createdAt DateTime         @default(now())
+
+  @@unique([profileId, name])
+  @@index([profileId])
+  @@map("profile_skills")
+}
+
+model ProfileEducation {
+  id          String           @id @default(cuid())
+  profileId   String
+  profile     InterviewProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  institution String
+  degree      String
+  field       String?
+  startYear   Int?
+  endYear     Int?
+  createdAt   DateTime         @default(now())
+
+  @@index([profileId])
+  @@map("profile_education")
+}
+
+model ProfileCertification {
+  id        String           @id @default(cuid())
+  profileId String
+  profile   InterviewProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  name      String
+  issuer    String?
+  year      Int?
+  createdAt DateTime         @default(now())
+
+  @@index([profileId])
+  @@map("profile_certifications")
+}
+
+model ProfileProject {
+  id          String           @id @default(cuid())
+  profileId   String
+  profile     InterviewProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  name        String
+  description String?          @db.Text
+  techStack   String?
+  url         String?
+  year        Int?
+  createdAt   DateTime         @default(now())
+
+  @@index([profileId])
+  @@map("profile_projects")
+}
+
+model ProfileAchievement {
+  id          String           @id @default(cuid())
+  profileId   String
+  profile     InterviewProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  description String           @db.Text
+  metric      String?
+  year        Int?
+  createdAt   DateTime         @default(now())
+
+  @@index([profileId])
+  @@map("profile_achievements")
 }

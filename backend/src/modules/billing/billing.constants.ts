@@ -73,6 +73,14 @@ export const TIER_MODEL_CONFIG: Record<SubscriptionTier, ModelConfig> = {
   SANDBOX: { defaultModel: 'gpt-4.1', technicalModel: 'gpt-4.1', codingModel: 'o4-mini', maxTokens: 480 },
 };
 
+export const TIER_PROFILE_LIMITS: Record<SubscriptionTier, number> = {
+  [SubscriptionTier.FREE]: 0,
+  [SubscriptionTier.TRIAL]: 1,
+  [SubscriptionTier.PLUS]: 1,
+  [SubscriptionTier.PRO]: 5,
+  [SubscriptionTier.SANDBOX]: 5,
+};
+
 export const SESSION_MODE_FEATURE: Record<SessionMode, FeatureKey> = {
   LIVE_INTERVIEW: 'live_interview',
   VOICE_PREP: 'voice_prep',

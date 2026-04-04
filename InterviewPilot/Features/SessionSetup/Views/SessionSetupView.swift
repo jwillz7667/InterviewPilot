@@ -29,6 +29,7 @@ struct SessionSetupView: View {
                     VStack(spacing: IATheme.spacing24) {
                         headerSection
                         UpgradeBannerView { showPaywall = true }
+                        profileSelectorSection
                         heroImageSection
                         jobListingSection
                         customContextSection
@@ -112,6 +113,88 @@ struct SessionSetupView: View {
                 .font(IATypography.bodyMedium)
                 .foregroundStyle(IATheme.textSecondary)
                 .multilineTextAlignment(.center)
+        }
+    }
+
+    // MARK: - Profile Selector
+
+    @ViewBuilder
+    private var profileSelectorSection: some View {
+        let hasFeature = subscriptionService.currentEntitlement?.hasResumePersonalization == true
+
+        if hasFeature {
+            if !viewModel.availableProfiles.isEmpty {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Interview Profile")
+                        .font(IATypography.headlineSmall)
+                        .foregroundStyle(IATheme.textPrimary)
+
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            ForEach(viewModel.availableProfiles) { profile in
+                                let isSelected = viewModel.selectedProfileId == profile.id
+                                Button {
+                                    Task { await viewModel.selectProfile(profile.id) }
+                                } label: {
+                                    Text(profile.name)
+                                        .font(IATypography.labelMedium)
+                                        .foregroundStyle(isSelected ? .white : IATheme.textPrimary)
+                                        .padding(.horizontal, 16)
+                                        .padding(.vertical, 10)
+                                        .background(
+                                            isSelected ? IATheme.accent : IATheme.surfaceWhite,
+                                            in: Capsule()
+                                        )
+                                        .overlay {
+                                            Capsule().stroke(isSelected ? Color.clear : IATheme.outlineVariant, lineWidth: 1)
+                                        }
+                                }
+                            }
+                        }
+                    }
+
+                    if let profile = viewModel.selectedProfile {
+                        let subtitle = [profile.currentRole, profile.currentCompany]
+                            .compactMap { $0 }
+                            .filter { !$0.isEmpty }
+                            .joined(separator: " at ")
+                        if !subtitle.isEmpty {
+                            Text(subtitle)
+                                .font(IATypography.bodySmall)
+                                .foregroundStyle(IATheme.textSecondary)
+                        }
+                    }
+                }
+            } else {
+                HStack(alignment: .top, spacing: 12) {
+                    Circle()
+                        .fill(IATheme.accent.opacity(0.10))
+                        .frame(width: 36, height: 36)
+                        .overlay {
+                            Image(systemName: "person.crop.rectangle.stack")
+                                .font(.system(size: 15, weight: .semibold))
+                                .foregroundStyle(IATheme.accent)
+                        }
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Interview Profiles")
+                            .font(IATypography.headlineSmall)
+                            .foregroundStyle(IATheme.textPrimary)
+
+                        Text("Create a profile for more personalized responses.")
+                            .font(IATypography.bodySmall)
+                            .foregroundStyle(IATheme.textSecondary)
+                    }
+
+                    Spacer()
+                }
+                .padding(14)
+                .background(IATheme.surfaceWhite, in: RoundedRectangle(cornerRadius: IATheme.radiusMedium, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: IATheme.radiusMedium, style: .continuous)
+                        .stroke(IATheme.outlineVariant, lineWidth: 1)
+                }
+            }
         }
     }
 
