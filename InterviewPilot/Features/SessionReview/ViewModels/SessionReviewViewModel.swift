@@ -1,5 +1,36 @@
 import Foundation
 
+struct AIAnalysis: Codable, Sendable {
+    let technicalAccuracyScore: Double
+    let communicationScore: Double
+    let confidenceScore: Double
+    let overallScore: Int
+    let aiStrengths: [String]
+    let aiImprovements: [String]
+    let exchangeFeedback: [ExchangeFeedbackItem]
+}
+
+struct ExchangeFeedbackItem: Codable, Sendable {
+    let sequenceOrder: Int
+    let score: Int
+    let verdict: String
+    let feedback: String
+
+    var verdictColor: String {
+        switch verdict {
+        case "strong": return "success"
+        case "weak": return "error"
+        default: return "warning"
+        }
+    }
+}
+
+private struct AnalysisEnvelope: Decodable {
+    let analysis: AIAnalysis
+}
+
+private struct EmptyBody: Encodable {}
+
 @Observable
 final class SessionReviewViewModel {
     let exchanges: [Exchange]
@@ -7,21 +38,52 @@ final class SessionReviewViewModel {
     let duration: TimeInterval
     let interviewType: InterviewType
     let telemetrySummary: SessionTelemetrySummary?
+    let serverId: String?
 
     var selectedExchange: Exchange?
+    var analysis: AIAnalysis?
+    var isAnalyzing = false
+    var analysisError: String?
 
     init(
         exchanges: [Exchange],
         transcript: [TranscriptSegment],
         duration: TimeInterval,
         interviewType: InterviewType,
-        telemetrySummary: SessionTelemetrySummary? = nil
+        telemetrySummary: SessionTelemetrySummary? = nil,
+        serverId: String? = nil
     ) {
         self.exchanges = exchanges
         self.transcript = transcript
         self.duration = duration
         self.interviewType = interviewType
         self.telemetrySummary = telemetrySummary ?? SessionTelemetrySummary.build(from: exchanges)
+        self.serverId = serverId
+    }
+
+    var hasAnalysis: Bool { analysis != nil }
+
+    func feedbackForExchange(at index: Int) -> ExchangeFeedbackItem? {
+        analysis?.exchangeFeedback.first { $0.sequenceOrder == index }
+    }
+
+    func fetchAnalysis() async {
+        guard let serverId, !isAnalyzing else { return }
+        isAnalyzing = true
+        analysisError = nil
+
+        do {
+            let envelope: AnalysisEnvelope = try await AuthenticatedAPIClient.shared.post(
+                "/api/v1/sessions/\(serverId)/analyze",
+                body: EmptyBody(),
+                expectedStatusCodes: [200]
+            )
+            analysis = envelope.analysis
+        } catch {
+            analysisError = error.localizedDescription
+        }
+
+        isAnalyzing = false
     }
 
     var averageLatency: Int {

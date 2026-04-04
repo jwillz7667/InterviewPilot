@@ -89,7 +89,8 @@ struct SessionReviewLoaderView: View {
                 transcript: [],
                 duration: item.duration,
                 interviewType: item.reviewInterviewType,
-                telemetrySummary: item.effectiveTelemetrySummary
+                telemetrySummary: item.effectiveTelemetrySummary,
+                serverId: item.serverId
             )
             errorMessage = nil
             return
@@ -107,7 +108,8 @@ struct SessionReviewLoaderView: View {
                 transcript: [],
                 duration: detail.duration,
                 interviewType: detail.reviewInterviewType,
-                telemetrySummary: detail.effectiveTelemetrySummary
+                telemetrySummary: detail.effectiveTelemetrySummary,
+                serverId: serverId
             )
             errorMessage = nil
         } catch {

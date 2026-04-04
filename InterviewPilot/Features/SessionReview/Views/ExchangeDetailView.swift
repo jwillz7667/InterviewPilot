@@ -2,7 +2,13 @@ import SwiftUI
 
 struct ExchangeDetailView: View {
     let exchange: Exchange
+    let feedback: ExchangeFeedbackItem?
     @State private var isExpanded = false
+
+    init(exchange: Exchange, feedback: ExchangeFeedbackItem? = nil) {
+        self.exchange = exchange
+        self.feedback = feedback
+    }
 
     var body: some View {
         IAPanel(tone: .primary, padding: 18, cornerRadius: 26) {
@@ -71,6 +77,10 @@ struct ExchangeDetailView: View {
                                 .foregroundStyle(IATheme.textPrimary)
                                 .lineSpacing(4)
                         }
+
+                        if let feedback {
+                            feedbackCard(feedback)
+                        }
                     }
                     .transition(.opacity.combined(with: .move(edge: .top)))
                 }
@@ -109,5 +119,71 @@ struct ExchangeDetailView: View {
         }
 
         return String(format: "%.1fs", Double(value) / 1000)
+    }
+
+    // MARK: - Feedback
+
+    private func feedbackCard(_ item: ExchangeFeedbackItem) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                Text("AI Feedback")
+                    .font(IATypography.labelSmall)
+                    .tracking(0.8)
+                    .foregroundStyle(IATheme.textSecondary)
+
+                Spacer()
+
+                scoreBadge(item.score)
+                verdictChip(item.verdict)
+            }
+
+            Text(item.feedback)
+                .font(IATypography.bodySmall)
+                .foregroundStyle(IATheme.textPrimary)
+                .lineSpacing(3)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .iaInsetSurface(cornerRadius: 16)
+    }
+
+    private func scoreBadge(_ score: Int) -> some View {
+        Text("\(score)")
+            .font(IATypography.labelMedium)
+            .foregroundStyle(.white)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(verdictColor(for: score), in: Capsule())
+    }
+
+    private func verdictChip(_ verdict: String) -> some View {
+        let color = verdictColor(forVerdict: verdict)
+        return Text(verdict.capitalized)
+            .font(IATypography.labelSmall)
+            .foregroundStyle(color)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 5)
+            .background(color.opacity(0.10), in: Capsule())
+    }
+
+    private func verdictColor(forVerdict verdict: String) -> Color {
+        switch verdict.lowercased() {
+        case "strong":
+            return IATheme.success
+        case "adequate":
+            return IATheme.warning
+        default:
+            return IATheme.error
+        }
+    }
+
+    private func verdictColor(for score: Int) -> Color {
+        if score >= 7 {
+            return IATheme.success
+        } else if score >= 4 {
+            return IATheme.warning
+        } else {
+            return IATheme.error
+        }
     }
 }

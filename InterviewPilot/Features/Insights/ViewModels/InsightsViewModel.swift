@@ -1,12 +1,19 @@
 import Foundation
 import SwiftData
 
+private struct InsightsAnalysisEnvelope: Decodable {
+    let analysis: AIAnalysis
+}
+
+private struct InsightsEmptyBody: Encodable {}
+
 @Observable
 final class InsightsViewModel {
     var insights: SessionInsights = SessionInsights()
     var sessionCount: Int = 0
     var latestSessionDate: Date?
     var isLoading = false
+    var usedAIAnalysis = false
 
     var hasData: Bool {
         insights.overallScore != nil
@@ -27,35 +34,93 @@ final class InsightsViewModel {
 
     func loadData(modelContext: ModelContext) {
         isLoading = true
-        defer { isLoading = false }
 
         let descriptor = FetchDescriptor<InterviewSession>(
             sortBy: [SortDescriptor(\.startedAt, order: .reverse)]
         )
 
-        guard let sessions = try? modelContext.fetch(descriptor) else { return }
+        guard let sessions = try? modelContext.fetch(descriptor) else {
+            isLoading = false
+            return
+        }
         sessionCount = sessions.count
 
-        if let latest = sessions.first {
-            latestSessionDate = latest.startedAt
-
-            let exchanges = latest.exchanges
-            let count = exchanges.count
-            guard count > 0 else { return }
-
-            let technicalScore = computeTechnicalDepthScore(exchanges)
-            let communicationScore = computeCommunicationScore(exchanges)
-            let confidenceScore = computeConfidenceScore(exchanges)
-
-            insights = SessionInsights(
-                technicalAccuracyScore: technicalScore,
-                communicationScore: communicationScore,
-                confidenceScore: confidenceScore,
-                aiStrengths: computeStrengths(exchanges: exchanges),
-                aiImprovements: computeImprovements(exchanges: exchanges),
-                overallScore: Int((technicalScore * 0.4 + communicationScore * 0.35 + confidenceScore * 0.25))
-            )
+        guard let latest = sessions.first else {
+            isLoading = false
+            return
         }
+
+        latestSessionDate = latest.startedAt
+
+        let exchanges = latest.exchanges
+        guard !exchanges.isEmpty else {
+            isLoading = false
+            return
+        }
+
+        // Apply heuristic scores immediately so UI is never empty
+        applyHeuristicScores(exchanges)
+
+        // Kick off async AI analysis fetch in the background
+        let sessionClientId = latest.id.uuidString
+        Task {
+            await fetchAIAnalysis(sessionClientId: sessionClientId, fallbackExchanges: exchanges)
+        }
+    }
+
+    // MARK: - AI Analysis Fetch
+
+    private func fetchAIAnalysis(sessionClientId: String, fallbackExchanges: [Exchange]) async {
+        defer { isLoading = false }
+
+        do {
+            let serverId = try await resolveServerId(for: sessionClientId)
+            let envelope: InsightsAnalysisEnvelope = try await AuthenticatedAPIClient.shared.post(
+                "/api/v1/sessions/\(serverId)/analyze",
+                body: InsightsEmptyBody(),
+                expectedStatusCodes: [200]
+            )
+
+            let analysis = envelope.analysis
+            insights = SessionInsights(
+                technicalAccuracyScore: analysis.technicalAccuracyScore,
+                communicationScore: analysis.communicationScore,
+                confidenceScore: analysis.confidenceScore,
+                aiStrengths: analysis.aiStrengths,
+                aiImprovements: analysis.aiImprovements,
+                overallScore: analysis.overallScore
+            )
+            usedAIAnalysis = true
+        } catch {
+            // Heuristic scores are already applied; nothing else to do
+        }
+    }
+
+    private func resolveServerId(for clientId: String) async throws -> String {
+        let sessions = try await RemoteSessionsService.shared.fetchSessions(limit: 10)
+        guard let match = sessions.first(where: { $0.id == clientId || $0.clientId?.uuidString == clientId }),
+              let serverId = match.serverId else {
+            throw InsightsError.noServerId
+        }
+        return serverId
+    }
+
+    // MARK: - Heuristic Fallback
+
+    private func applyHeuristicScores(_ exchanges: [Exchange]) {
+        let technicalScore = computeTechnicalDepthScore(exchanges)
+        let communicationScore = computeCommunicationScore(exchanges)
+        let confidenceScore = computeConfidenceScore(exchanges)
+
+        insights = SessionInsights(
+            technicalAccuracyScore: technicalScore,
+            communicationScore: communicationScore,
+            confidenceScore: confidenceScore,
+            aiStrengths: computeStrengths(exchanges: exchanges),
+            aiImprovements: computeImprovements(exchanges: exchanges),
+            overallScore: Int((technicalScore * 0.4 + communicationScore * 0.35 + confidenceScore * 0.25))
+        )
+        usedAIAnalysis = false
     }
 
     // MARK: - Technical Depth Score (0-100)
@@ -350,5 +415,18 @@ final class InsightsViewModel {
         }
 
         return Array(improvements.prefix(4))
+    }
+}
+
+// MARK: - Errors
+
+private enum InsightsError: LocalizedError {
+    case noServerId
+
+    var errorDescription: String? {
+        switch self {
+        case .noServerId:
+            return "Could not resolve server session ID."
+        }
     }
 }

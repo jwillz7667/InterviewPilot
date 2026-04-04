@@ -5,6 +5,7 @@ import { buildPaginatedResponse } from '../../utils/pagination.js';
 import { z } from 'zod';
 import { getSessionAccessGrant } from '../billing/billing.service.js';
 import { SessionMode } from '@prisma/client';
+import { analyzeSession } from './session-analysis.service.js';
 
 const sessionTelemetrySummarySchema = z.object({
   exchangeCount: z.number().int().nonnegative(),
@@ -160,6 +161,15 @@ export async function sessionsRoutes(app: FastifyInstance) {
       );
 
       reply.send({ session });
+    }
+  );
+
+  // Analyze session with AI grading
+  app.post(
+    '/api/v1/sessions/:id/analyze',
+    async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+      const analysis = await analyzeSession(request.params.id, request.user.sub);
+      reply.send({ analysis });
     }
   );
 

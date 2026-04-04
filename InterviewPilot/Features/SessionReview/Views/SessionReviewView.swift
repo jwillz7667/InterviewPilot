@@ -13,7 +13,7 @@ struct SessionReviewView: View {
                     VStack(spacing: IATheme.spacing20) {
                         topUtilityBar
                         reportHeader
-                        insightSection
+                        aiAnalysisSection
                         PerformanceView(exchanges: viewModel.exchanges, summary: viewModel.telemetrySummary)
 
                         if !viewModel.questionTypeBreakdown.isEmpty {
@@ -32,6 +32,11 @@ struct SessionReviewView: View {
                 .iaScrollablePage()
             }
             .toolbar(.hidden, for: .navigationBar)
+            .task {
+                if viewModel.serverId != nil, !viewModel.hasAnalysis {
+                    await viewModel.fetchAnalysis()
+                }
+            }
         }
     }
 
@@ -74,19 +79,36 @@ struct SessionReviewView: View {
 
                 HStack {
                     Spacer()
-                    IAScoreRing(
-                        progress: performanceProgress,
-                        title: "Support\nScore",
-                        value: performanceGrade,
-                        size: 146
-                    )
+                    if let analysis = viewModel.analysis {
+                        IAScoreRing(
+                            progress: Double(analysis.overallScore) / 100.0,
+                            title: "Overall\nScore",
+                            value: "\(analysis.overallScore)",
+                            size: 146
+                        )
+                    } else {
+                        IAScoreRing(
+                            progress: performanceProgress,
+                            title: "Support\nScore",
+                            value: performanceGrade,
+                            size: 146
+                        )
+                    }
                     Spacer()
                 }
 
-                HStack(spacing: 12) {
-                    statCard(title: "Duration", value: viewModel.formattedDuration)
-                    statCard(title: "Questions", value: "\(viewModel.exchanges.count)")
-                    statCard(title: "First Token", value: viewModel.averageFirstTokenLatency.map { "\($0)ms" } ?? "n/a")
+                if let analysis = viewModel.analysis {
+                    HStack(spacing: 12) {
+                        statCard(title: "Technical", value: "\(Int(analysis.technicalAccuracyScore))")
+                        statCard(title: "Communication", value: "\(Int(analysis.communicationScore))")
+                        statCard(title: "Confidence", value: "\(Int(analysis.confidenceScore))")
+                    }
+                } else {
+                    HStack(spacing: 12) {
+                        statCard(title: "Duration", value: viewModel.formattedDuration)
+                        statCard(title: "Questions", value: "\(viewModel.exchanges.count)")
+                        statCard(title: "First Token", value: viewModel.averageFirstTokenLatency.map { "\($0)ms" } ?? "n/a")
+                    }
                 }
             }
         }
@@ -110,28 +132,88 @@ struct SessionReviewView: View {
         }
     }
 
-    private var insightSection: some View {
+    private var aiAnalysisSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            IAPanel(tone: .primary, padding: 18, cornerRadius: 28) {
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Strengths")
-                        .font(IATypography.headlineSmall)
-                        .foregroundStyle(IATheme.textPrimary)
+            if viewModel.isAnalyzing {
+                IAPanel(tone: .secondary, padding: 22, cornerRadius: 28) {
+                    HStack(spacing: 14) {
+                        ProgressView()
+                            .tint(IATheme.accent)
 
-                    ForEach(strengths, id: \.self) { item in
-                        bulletRow(item, tint: IATheme.success)
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Analyzing interview")
+                                .font(IATypography.headlineSmall)
+                                .foregroundStyle(IATheme.textPrimary)
+
+                            Text("AI is evaluating your responses for technical accuracy, communication quality, and confidence.")
+                                .font(IATypography.bodySmall)
+                                .foregroundStyle(IATheme.textSecondary)
+                        }
                     }
                 }
-            }
+            } else if let error = viewModel.analysisError {
+                IAPanel(tone: .primary, padding: 18, cornerRadius: 28) {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("Analysis unavailable")
+                            .font(IATypography.headlineSmall)
+                            .foregroundStyle(IATheme.textPrimary)
 
-            IAPanel(tone: .primary, padding: 18, cornerRadius: 28) {
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Improvements")
-                        .font(IATypography.headlineSmall)
-                        .foregroundStyle(IATheme.textPrimary)
+                        Text(error)
+                            .font(IATypography.bodySmall)
+                            .foregroundStyle(IATheme.textSecondary)
 
-                    ForEach(improvements, id: \.self) { item in
-                        bulletRow(item, tint: IATheme.warning)
+                        Button("Retry") {
+                            Task { await viewModel.fetchAnalysis() }
+                        }
+                        .buttonStyle(IASecondaryButtonStyle())
+                    }
+                }
+            } else if let analysis = viewModel.analysis {
+                IAPanel(tone: .primary, padding: 18, cornerRadius: 28) {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Strengths")
+                            .font(IATypography.headlineSmall)
+                            .foregroundStyle(IATheme.textPrimary)
+
+                        ForEach(analysis.aiStrengths, id: \.self) { item in
+                            bulletRow(item, tint: IATheme.success)
+                        }
+                    }
+                }
+
+                IAPanel(tone: .primary, padding: 18, cornerRadius: 28) {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Areas to Improve")
+                            .font(IATypography.headlineSmall)
+                            .foregroundStyle(IATheme.textPrimary)
+
+                        ForEach(analysis.aiImprovements, id: \.self) { item in
+                            bulletRow(item, tint: IATheme.warning)
+                        }
+                    }
+                }
+            } else {
+                IAPanel(tone: .primary, padding: 18, cornerRadius: 28) {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Strengths")
+                            .font(IATypography.headlineSmall)
+                            .foregroundStyle(IATheme.textPrimary)
+
+                        ForEach(fallbackStrengths, id: \.self) { item in
+                            bulletRow(item, tint: IATheme.success)
+                        }
+                    }
+                }
+
+                IAPanel(tone: .primary, padding: 18, cornerRadius: 28) {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Improvements")
+                            .font(IATypography.headlineSmall)
+                            .foregroundStyle(IATheme.textPrimary)
+
+                        ForEach(fallbackImprovements, id: \.self) { item in
+                            bulletRow(item, tint: IATheme.warning)
+                        }
                     }
                 }
             }
@@ -176,7 +258,7 @@ struct SessionReviewView: View {
                             title: "Prompt \(index + 1)",
                             detail: exchange.questionTranscript
                         )
-                        ExchangeDetailView(exchange: exchange)
+                        ExchangeDetailView(exchange: exchange, feedback: viewModel.feedbackForExchange(at: index))
                     }
                 }
             }
@@ -246,7 +328,7 @@ struct SessionReviewView: View {
         }
     }
 
-    private var strengths: [String] {
+    private var fallbackStrengths: [String] {
         var items: [String] = []
 
         if let latency = viewModel.averageFirstTokenLatency, latency < 1200 {
@@ -268,7 +350,7 @@ struct SessionReviewView: View {
         return items
     }
 
-    private var improvements: [String] {
+    private var fallbackImprovements: [String] {
         var items: [String] = []
 
         if let latency = viewModel.averageFirstTokenLatency, latency >= 1200 {
