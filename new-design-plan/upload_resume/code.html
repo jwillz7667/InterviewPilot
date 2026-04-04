@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Interview Ace - Onboarding</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700;800&amp;family=Plus+Jakarta+Sans:wght@500;600&amp;family=Source+Sans+3:wght@400;500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "primary": "#0059bb",
+              "surface-variant": "#dce2f6",
+              "inverse-on-surface": "#edf0ff",
+              "on-tertiary-fixed-variant": "#00513e",
+              "on-tertiary": "#ffffff",
+              "on-surface-variant": "#414753",
+              "on-primary": "#ffffff",
+              "outline": "#717785",
+              "tertiary-fixed-dim": "#2cdfb2",
+              "background": "#faf9ff",
+              "surface-container-high": "#e2e8fc",
+              "on-secondary-container": "#596577",
+              "on-secondary-fixed": "#101c2c",
+              "surface": "#faf9ff",
+              "on-secondary": "#ffffff",
+              "on-primary-container": "#fefcff",
+              "on-primary-fixed": "#001a41",
+              "error-container": "#ffdad6",
+              "on-surface": "#151b2a",
+              "surface-container": "#e9edff",
+              "on-error": "#ffffff",
+              "primary-fixed": "#d8e2ff",
+              "tertiary": "#006951",
+              "on-tertiary-fixed": "#002117",
+              "on-error-container": "#93000a",
+              "surface-tint": "#005bc0",
+              "on-primary-fixed-variant": "#004493",
+              "error": "#ba1a1a",
+              "inverse-surface": "#2a303f",
+              "surface-container-highest": "#dce2f6",
+              "secondary-fixed": "#d7e3f9",
+              "secondary": "#535f71",
+              "surface-dim": "#d4daed",
+              "on-secondary-fixed-variant": "#3c4759",
+              "on-background": "#151b2a",
+              "tertiary-container": "#008468",
+              "primary-fixed-dim": "#adc7ff",
+              "surface-container-lowest": "#ffffff",
+              "secondary-container": "#d7e3f9",
+              "surface-bright": "#faf9ff",
+              "on-tertiary-container": "#f5fff8",
+              "surface-container-low": "#f1f3ff",
+              "primary-container": "#0070ea",
+              "inverse-primary": "#adc7ff",
+              "outline-variant": "#c1c6d5",
+              "tertiary-fixed": "#57fcce",
+              "secondary-fixed-dim": "#bbc7dc"
+            },
+            fontFamily: {
+              "headline": ["Public Sans"],
+              "body": ["Source Sans 3"],
+              "label": ["Plus Jakarta Sans"]
+            },
+            borderRadius: {"DEFAULT": "0.5rem", "lg": "1rem", "xl": "1.5rem", "full": "9999px"},
+          },
+        },
+      }
+    </script>
+<style>
+      .material-symbols-outlined {
+        font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+      }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+</head>
+<body class="bg-background font-body text-on-background min-h-screen flex flex-col">
+<!-- TopAppBar -->
+<header class="bg-white dark:bg-slate-950 border-b border-slate-100 dark:border-slate-800 w-full top-0 sticky z-50">
+<div class="flex items-center px-4 h-16 w-full max-w-7xl mx-auto">
+<button class="mr-4 p-2 text-slate-400 dark:text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors rounded-full active:opacity-80 transition-opacity">
+<span class="material-symbols-outlined" data-icon="arrow_back">arrow_back</span>
+</button>
+<h1 class="text-xl font-bold text-blue-600 dark:text-blue-400 font-['Public_Sans']">Interview Ace</h1>
+</div>
+</header>
+<!-- Main Content Canvas (Focused Journey - Navigation Suppressed) -->
+<main class="flex-grow flex items-center justify-center px-6 py-12">
+<div class="w-full max-w-xl">
+<!-- Header Section -->
+<div class="text-center mb-10">
+<div class="w-16 h-16 bg-primary-container text-white rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-sm">
+<span class="material-symbols-outlined text-4xl" data-icon="upload_file">upload_file</span>
+</div>
+<h2 class="font-extrabold font-headline text-on-surface tracking-tight mb-3 text-4xl">Upload your resume</h2>
+<p class="text-on-surface-variant leading-relaxed text-xl">Let's build your AI interview profile. Skip the forms and let our engine analyze your experience instantly.</p>
+</div>
+<!-- Upload Area -->
+<div class="bg-white border-2 border-dashed border-outline-variant rounded-xl p-12 text-center group hover:border-primary transition-colors cursor-pointer mb-8">
+<div class="flex flex-col items-center">
+<div class="mb-4">
+<span class="material-symbols-outlined text-5xl text-outline group-hover:text-primary transition-colors" data-icon="cloud_upload">cloud_upload</span>
+</div>
+<p class="font-label text-on-surface font-semibold mb-1">Drag and drop your PDF here</p>
+<p class="text-outline text-sm mb-6">PDF, DOCX up to 10MB</p>
+<button class="inline-flex items-center justify-center px-6 py-2.5 bg-[#1978e5] hover:bg-primary-container text-white font-label font-semibold rounded-lg transition-all active:scale-95 shadow-sm">
+<span class="material-symbols-outlined mr-2" data-icon="attach_file">attach_file</span>
+                        Browse Files
+                    </button>
+</div>
+</div>
+<!-- Bento Info Section -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-10">
+<div class="bg-surface-container-low p-5 rounded-lg border border-surface-variant">
+<div class="flex items-center mb-2">
+<span class="material-symbols-outlined text-tertiary mr-2 text-xl" data-icon="security" data-weight="fill" style="font-variation-settings: 'FILL' 1;">security</span>
+<span class="font-headline font-bold text-sm text-on-surface">Private &amp; Secure</span>
+</div>
+<p class="text-xs text-on-surface-variant leading-tight">Your data is encrypted and never shared with third parties.</p>
+</div>
+<div class="bg-surface-container-low p-5 rounded-lg border border-surface-variant">
+<div class="flex items-center mb-2">
+<span class="material-symbols-outlined text-primary mr-2 text-xl" data-icon="bolt" data-weight="fill" style="font-variation-settings: 'FILL' 1;">bolt</span>
+<span class="font-headline font-bold text-sm text-on-surface">AI Extraction</span>
+</div>
+<p class="text-xs text-on-surface-variant leading-tight">Auto-detect skills and experience in less than 3 seconds.</p>
+</div>
+</div>
+<!-- Action Area -->
+<div class="flex flex-col gap-4">
+<button class="w-full py-4 bg-primary text-white font-headline font-extrabold text-lg rounded-xl shadow-md hover:bg-primary-container transition-all active:scale-[0.98]">
+                    Continue
+                </button>
+<button class="w-full py-3 text-outline font-label font-semibold hover:text-on-surface transition-colors">
+                    I'll enter my details manually
+                </button>
+</div>
+</div>
+</main>
+<!-- Footer Decoration (Minimalist) -->
+<footer class="py-8 text-center">
+<p class="text-outline text-xs font-label">Step 2 of 4 • Identity Verification Pending</p>
+</footer>
+</body></html>

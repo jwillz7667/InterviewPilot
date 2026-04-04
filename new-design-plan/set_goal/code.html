@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Interview Ace - Set Your Goal</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700;800&amp;family=Plus+Jakarta+Sans:wght@500;600&amp;family=Source+Sans+3:wght@400;500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#0059bb",
+                        "surface-variant": "#dce2f6",
+                        "inverse-on-surface": "#edf0ff",
+                        "on-tertiary-fixed-variant": "#00513e",
+                        "on-tertiary": "#ffffff",
+                        "on-surface-variant": "#414753",
+                        "on-primary": "#ffffff",
+                        "outline": "#717785",
+                        "tertiary-fixed-dim": "#2cdfb2",
+                        "background": "#faf9ff",
+                        "surface-container-high": "#e2e8fc",
+                        "on-secondary-container": "#596577",
+                        "on-secondary-fixed": "#101c2c",
+                        "surface": "#faf9ff",
+                        "on-secondary": "#ffffff",
+                        "on-primary-container": "#fefcff",
+                        "on-primary-fixed": "#001a41",
+                        "error-container": "#ffdad6",
+                        "on-surface": "#151b2a",
+                        "surface-container": "#e9edff",
+                        "on-error": "#ffffff",
+                        "primary-fixed": "#d8e2ff",
+                        "tertiary": "#006951",
+                        "on-tertiary-fixed": "#002117",
+                        "on-error-container": "#93000a",
+                        "surface-tint": "#005bc0",
+                        "on-primary-fixed-variant": "#004493",
+                        "error": "#ba1a1a",
+                        "inverse-surface": "#2a303f",
+                        "surface-container-highest": "#dce2f6",
+                        "secondary-fixed": "#d7e3f9",
+                        "secondary": "#535f71",
+                        "surface-dim": "#d4daed",
+                        "on-secondary-fixed-variant": "#3c4759",
+                        "on-background": "#151b2a",
+                        "tertiary-container": "#008468",
+                        "primary-fixed-dim": "#adc7ff",
+                        "surface-container-lowest": "#ffffff",
+                        "secondary-container": "#d7e3f9",
+                        "surface-bright": "#faf9ff",
+                        "on-tertiary-container": "#f5fff8",
+                        "surface-container-low": "#f1f3ff",
+                        "primary-container": "#0070ea",
+                        "inverse-primary": "#adc7ff",
+                        "outline-variant": "#c1c6d5",
+                        "tertiary-fixed": "#57fcce",
+                        "secondary-fixed-dim": "#bbc7dc"
+                    },
+                    fontFamily: {
+                        "headline": ["Public Sans"],
+                        "body": ["Source Sans Three"],
+                        "label": ["Plus Jakarta Sans"]
+                    },
+                    borderRadius: {"DEFAULT": "0.5rem", "lg": "1rem", "xl": "1.5rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        body {
+            background-color: #ffffff;
+            font-family: 'Public Sans', sans-serif;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+</head>
+<body class="text-on-surface">
+<!-- Top Navigation Anchor (As per Shared Components JSON) -->
+<!-- Suppression Logic: Suppressed for Transactional/Onboarding screen per instructions -->
+<main class="min-h-screen flex flex-col items-center justify-center px-6 py-12 max-w-2xl mx-auto">
+<!-- Header Section -->
+<header class="text-center mb-16">
+<div class="mb-8 inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-primary-container/10">
+<span class="material-symbols-outlined text-primary text-4xl" data-icon="rocket_launch">rocket_launch</span>
+</div>
+<h1 class="font-extrabold tracking-tight text-on-surface mb-4 text-5xl md:text-6xl">
+                What's your goal?
+            </h1>
+<p class="text-on-surface-variant font-body max-w-md mx-auto text-xl">
+                Select your primary focus so we can personalize your Interview Ace experience.
+            </p>
+</header>
+<!-- Goal Selection Grid (Bento Style Variation) -->
+<section class="w-full grid grid-cols-1 gap-4 mb-16">
+<!-- Choice Card: New Job (Selected State) -->
+<button class="group relative flex items-center p-6 bg-white border-2 border-primary rounded-xl text-left transition-all duration-200 ring-4 ring-primary-container/20">
+<div class="flex-shrink-0 w-14 h-14 rounded-full bg-primary flex items-center justify-center mr-6">
+<span class="material-symbols-outlined text-white text-2xl" data-icon="work" data-weight="fill" style="font-variation-settings: 'FILL' 1;">work</span>
+</div>
+<div class="flex-grow">
+<h3 class="text-xl font-bold text-on-surface">Get a new job</h3>
+<p class="text-on-surface-variant text-sm font-body">Focus on mock interviews and career coaching.</p>
+</div>
+<div class="flex-shrink-0 ml-4">
+<span class="material-symbols-outlined text-primary text-3xl" data-icon="check_circle" data-weight="fill" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+</div>
+</button>
+<!-- Choice Card: Coding -->
+<button class="group relative flex items-center p-6 bg-surface-container-lowest border border-outline-variant rounded-xl text-left transition-all duration-200 hover:border-primary hover:bg-primary-container/5">
+<div class="flex-shrink-0 w-14 h-14 rounded-full bg-surface-container flex items-center justify-center mr-6 group-hover:bg-primary-fixed-dim transition-colors">
+<span class="material-symbols-outlined text-on-surface-variant text-2xl group-hover:text-primary transition-colors" data-icon="terminal">terminal</span>
+</div>
+<div class="flex-grow">
+<h3 class="text-xl font-bold text-on-surface">Practice coding</h3>
+<p class="text-on-surface-variant text-sm font-body">Sharpen algorithm skills and system design logic.</p>
+</div>
+<div class="flex-shrink-0 ml-4 opacity-0 group-hover:opacity-100 transition-opacity">
+<span class="material-symbols-outlined text-outline-variant" data-icon="chevron_right">chevron_right</span>
+</div>
+</button>
+<!-- Choice Card: Communication -->
+<button class="group relative flex items-center p-6 bg-surface-container-lowest border border-outline-variant rounded-xl text-left transition-all duration-200 hover:border-primary hover:bg-primary-container/5">
+<div class="flex-shrink-0 w-14 h-14 rounded-full bg-surface-container flex items-center justify-center mr-6 group-hover:bg-primary-fixed-dim transition-colors">
+<span class="material-symbols-outlined text-on-surface-variant text-2xl group-hover:text-primary transition-colors" data-icon="forum">forum</span>
+</div>
+<div class="flex-grow">
+<h3 class="text-xl font-bold text-on-surface">Improve communication</h3>
+<p class="text-on-surface-variant text-sm font-body">Master behavioral questions and soft skills.</p>
+</div>
+<div class="flex-shrink-0 ml-4 opacity-0 group-hover:opacity-100 transition-opacity">
+<span class="material-symbols-outlined text-outline-variant" data-icon="chevron_right">chevron_right</span>
+</div>
+</button>
+<!-- Choice Card: Knowledge -->
+<button class="group relative flex items-center p-6 bg-surface-container-lowest border border-outline-variant rounded-xl text-left transition-all duration-200 hover:border-primary hover:bg-primary-container/5">
+<div class="flex-shrink-0 w-14 h-14 rounded-full bg-surface-container flex items-center justify-center mr-6 group-hover:bg-primary-fixed-dim transition-colors">
+<span class="material-symbols-outlined text-on-surface-variant text-2xl group-hover:text-primary transition-colors" data-icon="menu_book">menu_book</span>
+</div>
+<div class="flex-grow">
+<h3 class="text-xl font-bold text-on-surface">Domain knowledge</h3>
+<p class="text-on-surface-variant text-sm font-body">Review specific technical concepts and trends.</p>
+</div>
+<div class="flex-shrink-0 ml-4 opacity-0 group-hover:opacity-100 transition-opacity">
+<span class="material-symbols-outlined text-outline-variant" data-icon="chevron_right">chevron_right</span>
+</div>
+</button>
+</section>
+<!-- Action Footer -->
+<footer class="w-full">
+<button class="w-full py-5 bg-primary text-white font-bold text-lg rounded-xl shadow-xl shadow-primary/20 hover:bg-primary-container active:scale-[0.98] transition-all duration-150">
+                Finish Setup
+            </button>
+<p class="mt-6 text-center text-on-secondary-fixed-variant text-sm font-label">
+                Step 1 of 1 • You can change this later in settings.
+            </p>
+</footer>
+</main>
+<!-- Decorative Element: Subtle Background Visual -->
+<div class="fixed top-0 right-0 -z-10 w-1/2 h-screen overflow-hidden opacity-20 hidden lg:block">
+<img alt="" class="object-cover w-full h-full grayscale" data-alt="Modern bright office workspace with minimalist white desk and large windows letting in soft natural morning sunlight" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAKHZh5LinfeoNeyPn8XIZiTPlCAxKzLnHJeeqTOI9XTrRUb4AEHx0ZdPplERnNubestxEqpsupvOql_AtzJDLs8y2IS3pJ8qQMf71gTXZJZ8Yj_NVFTMtCKKRGDB03IWN_D9eX9Gz-b7GwP7_AbMMJbu9BdCCGOvYarLJxSwJ07QEkKkWRTY2WGlC1rkGXWwGpb8koP_aP066VqLD3aNg7jjOVCHA_CKrze3edO9bnmiS4ANgMmdskikmzac4wADSIvyn-EO2zVPI"/>
+<div class="absolute inset-0 bg-gradient-to-l from-white via-white/50 to-transparent"></div>
+</div>
+</body></html>

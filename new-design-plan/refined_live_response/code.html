@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport"/>
+<title>Interview Co-pilot - Session</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@300;400;500;600;700;800&amp;family=Plus+Jakarta+Sans:wght@400;500;600;700&amp;family=Source+Sans+3:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        body {
+            font-family: 'Source Sans 3', sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .headline-font {
+            font-family: 'Public Sans', sans-serif;
+        }
+        .label-font {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+        }
+    </style>
+</head>
+<body class="bg-white text-on-surface h-screen flex flex-col antialiased overflow-hidden">
+<!-- Top App Bar -->
+<nav class="sticky top-0 z-50 bg-white px-4 h-14 flex items-center justify-between border-b border-gray-100 shrink-0">
+<button class="p-2 -ml-2 hover:bg-gray-50 rounded-full transition-colors">
+<span class="material-symbols-outlined text-gray-700">arrow_back</span>
+</button>
+<h1 class="headline-font font-semibold text-gray-900 text-lg">Interview Ace</h1>
+<div class="w-10"></div> <!-- Spacer for centering -->
+</nav>
+<!-- Main Container -->
+<div class="flex-1 flex flex-col px-4 pt-4 pb-2 overflow-hidden bg-white">
+<!-- Interviewer Question Area -->
+<header class="pb-6 px-4 shrink-0">
+<p class="text-[10px] font-bold label-font uppercase tracking-[0.2em] text-gray-400 mb-2 text-center">Interviewer Question</p>
+<h2 class="text-sm headline-font font-semibold leading-relaxed text-gray-900 text-center max-w-xs mx-auto">
+            "Can you explain the difference between a process and a thread in an operating system?"
+        </h2>
+</header>
+<!-- Response Area: Large Blue Bubble -->
+<main class="flex-1 bg-[#1978e5] rounded-[2.5rem] p-8 flex flex-col items-center justify-between relative shadow-lg overflow-hidden">
+<div class="w-full flex flex-col items-center">
+<!-- Live Status -->
+<div class="flex items-center gap-2 mb-8 opacity-70">
+<div class="relative flex h-1.5 w-1.5">
+<span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
+<span class="relative inline-flex rounded-full h-1.5 w-1.5 bg-white"></span>
+</div>
+<span class="text-[9px] font-bold label-font tracking-[0.3em] text-white uppercase">Live Suggestion</span>
+</div>
+<!-- Technical Response -->
+<div class="w-full max-w-sm space-y-6">
+<p class="text-white text-xl md:text-2xl leading-relaxed font-normal">
+                    A <span class="font-bold border-b-2 border-white/40">process</span> is an independent program execution unit with its own memory space.
+                </p>
+<p class="text-white text-xl md:text-2xl leading-relaxed font-normal">
+                    A <span class="font-bold border-b-2 border-white/40">thread</span> is a subset of a process that shares the same memory.
+                </p>
+<p class="text-white/80 text-base leading-relaxed font-light pt-4">
+                    Processes are heavy-weight and isolated; threads are light-weight and allow for faster communication within the same application.
+                </p>
+</div>
+</div>
+<!-- Controls within Bubble -->
+<div class="w-full flex justify-center gap-3 pt-6 shrink-0">
+<button class="flex-1 bg-white flex items-center justify-center gap-2 px-4 py-4 rounded-2xl text-[#1978e5] text-xs font-bold uppercase tracking-widest active:scale-95 transition-transform shadow-sm">
+<span class="material-symbols-outlined text-lg" data-icon="replay">replay</span>
+                Regenerate
+            </button>
+<button class="flex-1 bg-white flex items-center justify-center gap-2 px-4 py-4 rounded-2xl text-[#1978e5] text-xs font-bold uppercase tracking-widest active:scale-95 transition-transform shadow-sm">
+                Next
+                <span class="material-symbols-outlined text-lg" data-icon="arrow_forward">arrow_forward</span>
+</button>
+</div>
+</main>
+</div>
+<!-- Bottom Navigation Bar -->
+<nav class="bg-white border-t border-gray-100 px-6 py-3 flex justify-between items-center z-50 shrink-0">
+<button class="flex flex-col items-center gap-1 text-[#1978e5]">
+<span class="material-symbols-outlined">forum</span>
+<span class="text-[10px] font-bold label-font uppercase tracking-wider">Session</span>
+</button>
+<button class="flex flex-col items-center gap-1 text-gray-400">
+<span class="material-symbols-outlined">analytics</span>
+<span class="text-[10px] font-bold label-font uppercase tracking-wider">Insights</span>
+</button>
+<button class="flex flex-col items-center gap-1 text-gray-400">
+<span class="material-symbols-outlined">settings</span>
+<span class="text-[10px] font-bold label-font uppercase tracking-wider">Settings</span>
+</button>
+</nav>
+</body></html>

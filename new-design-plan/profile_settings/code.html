@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Profile Settings - Interview Ace</title>
+<!-- Fonts -->
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700;800&amp;family=Plus+Jakarta+Sans:wght@400;500;600;700&amp;family=Source+Sans+3:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<!-- Icons -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "tertiary": "#006951",
+              "on-tertiary-fixed": "#002117",
+              "on-error-container": "#93000a",
+              "surface-tint": "#005bc0",
+              "on-primary-fixed-variant": "#004493",
+              "error": "#ba1a1a",
+              "inverse-surface": "#2a303f",
+              "on-error": "#ffffff",
+              "primary-fixed": "#d8e2ff",
+              "on-surface": "#151b2a",
+              "surface-container": "#e9edff",
+              "surface-container-high": "#e2e8fc",
+              "on-secondary-container": "#596577",
+              "on-secondary-fixed": "#101c2c",
+              "surface": "#faf9ff",
+              "on-secondary": "#ffffff",
+              "on-primary-container": "#fefcff",
+              "on-primary-fixed": "#001a41",
+              "error-container": "#ffdad6",
+              "tertiary-fixed-dim": "#2cdfb2",
+              "background": "#faf9ff",
+              "on-surface-variant": "#414753",
+              "on-primary": "#ffffff",
+              "outline": "#717785",
+              "primary": "#0059bb",
+              "surface-variant": "#dce2f6",
+              "inverse-on-surface": "#edf0ff",
+              "on-tertiary-fixed-variant": "#00513e",
+              "on-tertiary": "#ffffff",
+              "secondary-fixed-dim": "#bbc7dc",
+              "surface-container-low": "#f1f3ff",
+              "primary-container": "#0070ea",
+              "inverse-primary": "#adc7ff",
+              "outline-variant": "#c1c6d5",
+              "tertiary-fixed": "#57fcce",
+              "secondary-container": "#d7e3f9",
+              "surface-bright": "#faf9ff",
+              "on-tertiary-container": "#f5fff8",
+              "surface-container-lowest": "#ffffff",
+              "tertiary-container": "#008468",
+              "primary-fixed-dim": "#adc7ff",
+              "on-background": "#151b2a",
+              "surface-dim": "#d4daed",
+              "on-secondary-fixed-variant": "#3c4759",
+              "surface-container-highest": "#dce2f6",
+              "secondary-fixed": "#d7e3f9",
+              "secondary": "#535f71"
+            },
+            fontFamily: {
+              "headline": ["Public Sans"],
+              "body": ["Source Sans Three"],
+              "label": ["Plus Jakarta Sans"]
+            },
+            borderRadius: {"DEFAULT": "0.5rem", "lg": "1rem", "xl": "1.5rem", "full": "9999px"},
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        body { font-family: 'Source Sans Three', sans-serif; }
+        h1, h2, h3 { font-family: 'Public Sans', sans-serif; }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-surface-container-lowest text-on-surface min-h-screen pb-24 md:pb-0">
+<!-- TopAppBar Component -->
+<header class="bg-white dark:bg-slate-950 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between px-4 h-16 w-full sticky top-0 z-40">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-blue-600 dark:text-blue-400" style="font-variation-settings: 'FILL' 1;">robot_2</span>
+<span class="text-xl font-bold text-blue-600 dark:text-blue-400 font-headline tracking-tight">Interview Ace</span>
+</div>
+<div class="hidden md:flex gap-6 items-center">
+<a class="text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-900 px-3 py-2 transition-colors duration-200 font-label text-sm" href="#">Home</a>
+<a class="text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-900 px-3 py-2 transition-colors duration-200 font-label text-sm" href="#">Insights</a>
+<a class="text-blue-600 dark:text-blue-400 hover:bg-slate-50 dark:hover:bg-slate-900 px-3 py-2 transition-colors duration-200 font-label text-sm font-semibold" href="#">Profile</a>
+</div>
+<button class="md:hidden p-2 text-slate-500">
+<span class="material-symbols-outlined">menu</span>
+</button>
+</header>
+<main class="max-w-3xl mx-auto px-6 py-12">
+<section class="space-y-12">
+<!-- Header Section -->
+<div class="text-center space-y-2">
+<h1 class="text-3xl font-extrabold tracking-tight text-on-surface">Account Settings</h1>
+<p class="text-on-surface-variant font-body">Update your personal information and resume to stay interview-ready.</p>
+</div>
+<!-- Profile Photo -->
+<div class="flex flex-col items-center">
+<div class="relative group">
+<div class="w-32 h-32 rounded-full overflow-hidden border-4 border-surface-container-high shadow-sm">
+<img alt="Profile avatar" class="w-full h-full object-cover" data-alt="Professional studio portrait of a young professional with soft lighting and a minimalist white background" src="https://lh3.googleusercontent.com/aida-public/AB6AXuA4w8X5-ti5diAYfQPekXhjMUZ_NzOTXfFXumwr9ZTHw-7Luj9sIv0rqBv4jqZlL3xnOzV6DJC7_Vw9q51kQgcvHwtzpgms8VFoI4LeaRUd5MnuB7aW84jwL_qSiYdLJXfjc5b0SQMzEjumKA7xeapgGcNvBMF-zm42e4MQ9Umgffk6kiOX877v5AetNZ-KkW952G9SsoiNx34atgtawf_jY1LVkMXFbo4EcJRtNlj-9PTwqM3Mrr5Ua4rabaA0eWIdV3yoWfI577M"/>
+</div>
+<button class="absolute bottom-0 right-0 bg-primary text-on-primary p-2 rounded-full shadow-lg hover:scale-105 transition-transform">
+<span class="material-symbols-outlined text-sm">edit</span>
+</button>
+</div>
+</div>
+<!-- Form Content -->
+<form class="space-y-10">
+<!-- Personal Info -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+<div class="space-y-2">
+<label class="block text-sm font-label font-semibold text-on-surface-variant" for="full-name">Full Name</label>
+<input class="w-full bg-surface-container-low border-none rounded-lg px-4 py-3 text-on-surface focus:ring-2 focus:ring-primary transition-all" id="full-name" type="text" value="Alexandra Sterling"/>
+</div>
+<div class="space-y-2">
+<label class="block text-sm font-label font-semibold text-on-surface-variant" for="email">Email Address</label>
+<input class="w-full bg-surface-container-low border-none rounded-lg px-4 py-3 text-on-surface focus:ring-2 focus:ring-primary transition-all" id="email" type="email" value="alexandra.s@design.co"/>
+</div>
+<div class="md:col-span-2 space-y-2">
+<label class="block text-sm font-label font-semibold text-on-surface-variant" for="linkedin">LinkedIn URL</label>
+<div class="relative">
+<span class="absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant">
+<span class="material-symbols-outlined text-lg">link</span>
+</span>
+<input class="w-full bg-surface-container-low border-none rounded-lg pl-12 pr-4 py-3 text-on-surface focus:ring-2 focus:ring-primary transition-all" id="linkedin" type="text" value="linkedin.com/in/alexandrasterling"/>
+</div>
+</div>
+</div>
+<!-- Resume & Skills -->
+<div class="space-y-6">
+<div class="flex items-center justify-between border-b border-outline-variant pb-2">
+<h2 class="text-lg font-bold font-headline">Professional Assets</h2>
+</div>
+<div class="space-y-4">
+<label class="block text-sm font-label font-semibold text-on-surface-variant">Resume (PDF)</label>
+<div class="border-2 border-dashed border-outline-variant rounded-xl p-8 flex flex-col items-center justify-center bg-surface hover:bg-surface-container-low transition-colors group cursor-pointer">
+<span class="material-symbols-outlined text-4xl text-outline mb-2 group-hover:text-primary transition-colors">cloud_upload</span>
+<p class="text-sm font-medium text-on-surface">Click to upload or drag and drop</p>
+<p class="text-xs text-on-surface-variant mt-1">Maximum file size 5MB</p>
+<div class="mt-4 flex items-center gap-2 bg-secondary-container text-on-secondary-container px-3 py-1.5 rounded-full text-xs font-semibold">
+<span class="material-symbols-outlined text-sm">description</span>
+                                alexandra_sterling_resume_2024.pdf
+                                <span class="material-symbols-outlined text-sm cursor-pointer hover:text-error">close</span>
+</div>
+</div>
+</div>
+<div class="space-y-4">
+<label class="block text-sm font-label font-semibold text-on-surface-variant">Expertise Tags</label>
+<div class="flex flex-wrap gap-2">
+<span class="bg-tertiary-container text-on-tertiary-container px-4 py-1.5 rounded-full text-sm font-medium flex items-center gap-2">
+                                UI Design <span class="material-symbols-outlined text-xs">close</span>
+</span>
+<span class="bg-tertiary-container text-on-tertiary-container px-4 py-1.5 rounded-full text-sm font-medium flex items-center gap-2">
+                                UX Strategy <span class="material-symbols-outlined text-xs">close</span>
+</span>
+<span class="bg-tertiary-container text-on-tertiary-container px-4 py-1.5 rounded-full text-sm font-medium flex items-center gap-2">
+                                Figma <span class="material-symbols-outlined text-xs">close</span>
+</span>
+<span class="bg-tertiary-container text-on-tertiary-container px-4 py-1.5 rounded-full text-sm font-medium flex items-center gap-2">
+                                Prototypes <span class="material-symbols-outlined text-xs">close</span>
+</span>
+<button class="border border-primary text-primary px-4 py-1.5 rounded-full text-sm font-medium hover:bg-primary-container hover:text-on-primary-container transition-colors">
+                                + Add Skill
+                            </button>
+</div>
+</div>
+</div>
+<!-- Action Buttons -->
+<div class="flex flex-col sm:flex-row items-center justify-end gap-4 pt-8 border-t border-outline-variant">
+<button class="w-full sm:w-auto px-8 py-3 rounded-lg font-label font-bold text-secondary hover:bg-surface-container transition-colors" type="button">
+                        Discard
+                    </button>
+<button class="w-full sm:w-auto px-10 py-3 rounded-lg font-label font-bold bg-primary text-on-primary shadow-lg shadow-primary/20 hover:scale-[1.02] active:scale-95 transition-all" type="submit">
+                        Save Changes
+                    </button>
+</div>
+</form>
+</section>
+</main>
+<!-- BottomNavBar Component (Mobile Only) -->
+<nav class="md:hidden fixed bottom-0 w-full z-50 flex justify-around items-center h-20 pb-safe bg-white dark:bg-slate-950 border-t border-slate-100 dark:border-slate-800 shadow-lg dark:shadow-none">
+<a class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 hover:text-blue-500 active:scale-95 transition-transform" href="#">
+<span class="material-symbols-outlined">home</span>
+<span class="font-public-sans text-xs mt-1">Home</span>
+</a>
+<a class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 hover:text-blue-500 active:scale-95 transition-transform" href="#">
+<span class="material-symbols-outlined">analytics</span>
+<span class="font-public-sans text-xs mt-1">Insights</span>
+</a>
+<a class="flex flex-col items-center justify-center text-blue-600 dark:text-blue-400 font-semibold active:scale-95 transition-transform" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">person</span>
+<span class="font-public-sans text-xs mt-1">Profile</span>
+</a>
+</nav>
+</body></html>

@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Sign In - Interview Ace</title>
+<!-- Google Fonts: Public Sans for Headline/Body, Plus Jakarta Sans for Labels -->
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;600;700;800&amp;family=Plus+Jakarta+Sans:wght@500;600&amp;family=Source+Sans+3:wght@400;600&amp;display=swap" rel="stylesheet"/>
+<!-- Material Symbols Outlined -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "on-tertiary": "#ffffff",
+              "tertiary": "#006951",
+              "surface-container-high": "#e2e8fc",
+              "primary": "#0059bb",
+              "inverse-primary": "#adc7ff",
+              "tertiary-container": "#008468",
+              "background": "#ffffff",
+              "on-secondary-container": "#596577",
+              "surface-container-highest": "#dce2f6",
+              "outline-variant": "#c1c6d5",
+              "on-primary-fixed-variant": "#004493",
+              "inverse-on-surface": "#edf0ff",
+              "tertiary-fixed": "#57fcce",
+              "surface": "#ffffff",
+              "on-surface": "#151b2a",
+              "primary-fixed": "#d8e2ff",
+              "on-secondary-fixed": "#101c2c",
+              "on-background": "#151b2a",
+              "on-primary-container": "#fefcff",
+              "surface-container-lowest": "#ffffff",
+              "tertiary-fixed-dim": "#2cdfb2",
+              "on-tertiary-container": "#f5fff8",
+              "on-error": "#ffffff",
+              "secondary-container": "#d7e3f9",
+              "surface-bright": "#ffffff",
+              "surface-tint": "#005bc0",
+              "on-secondary-fixed-variant": "#3c4759",
+              "on-error-container": "#93000a",
+              "surface-container": "#e9edff",
+              "secondary": "#535f71",
+              "error": "#ba1a1a",
+              "inverse-surface": "#2a303f",
+              "on-surface-variant": "#414753",
+              "on-primary-fixed": "#001a41",
+              "secondary-fixed-dim": "#bbc7dc",
+              "on-secondary": "#ffffff",
+              "surface-container-low": "#f1f3ff",
+              "primary-container": "#0070ea",
+              "surface-variant": "#dce2f6",
+              "secondary-fixed": "#d7e3f9",
+              "on-tertiary-fixed-variant": "#00513e",
+              "on-tertiary-fixed": "#002117",
+              "on-primary": "#ffffff",
+              "surface-dim": "#d4daed",
+              "primary-fixed-dim": "#adc7ff",
+              "outline": "#717785",
+              "error-container": "#ffdad6"
+            },
+            fontFamily: {
+              "headline": ["Public Sans", "sans-serif"],
+              "body": ["Source Sans 3", "sans-serif"],
+              "label": ["Plus Jakarta Sans", "sans-serif"]
+            },
+            borderRadius: {"DEFAULT": "0.5rem", "lg": "1rem", "xl": "1.5rem", "full": "9999px"},
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            display: inline-block;
+            line-height: 1;
+            text-transform: none;
+            letter-spacing: normal;
+            word-wrap: normal;
+            white-space: nowrap;
+            direction: ltr;
+        }
+        body {
+            font-family: 'Public Sans', sans-serif;
+            background-color: #ffffff;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center justify-between antialiased selection:bg-primary-container selection:text-on-primary-container bg-white">
+<main class="flex-grow flex flex-col items-center justify-center w-full max-w-md px-8 py-20 text-center">
+<!-- Simplified Elegant Logo Section -->
+<div class="mb-14">
+<div class="w-12 h-12 rounded-full border-2 border-primary flex items-center justify-center">
+<span class="text-primary text-xl font-extrabold tracking-tighter">A</span>
+</div>
+</div>
+<!-- Content Header -->
+<div class="space-y-4 mb-20">
+<h1 class="font-extrabold tracking-tight text-on-surface font-headline text-4xl">
+            Interview Ace
+        </h1>
+<p class="text-outline font-body mx-auto leading-relaxed text-lg max-w-xs">
+            Master your next interview with ease.
+        </p>
+</div>
+<!-- Action Buttons Section -->
+<div class="w-full space-y-10">
+<!-- Apple Sign In Button -->
+<button class="w-full h-[54px] bg-black text-white rounded-full flex items-center justify-center gap-3 transition-all active:scale-[0.98] duration-150">
+<svg class="w-5 h-5 fill-current" viewbox="0 0 384 512" xmlns="http://www.w3.org/2000/svg">
+<path d="M318.7 268.7c-.2-36.7 16.4-64.4 50-84.8-18.8-26.9-47.2-41.7-84.7-44.6-35.5-2.8-74.3 20.7-88.5 20.7-15 0-49.4-19.7-76.4-19.7C63.3 141.2 4 184.8 4 273.5q0 39.3 14.4 81.2c12.8 36.7 59 126.7 107.2 125.2 25.2-.6 43-17.9 75.8-17.9 31.8 0 48.3 17.9 76.4 17.9 48.6-.7 90.4-82.5 102.6-119.3-65.2-30.7-61.7-90-61.7-91.9zm-56.6-164.2c27.3-32.4 24.8-61.9 24-72.5-24.1 1.4-52 16.4-67.9 34.9-17.5 19.8-27.8 44.3-25.6 71.9 26.1 2 49.9-11.4 69.5-34.3z"></path>
+</svg>
+<span class="font-semibold text-[17px] tracking-tight">Sign in with Apple</span>
+</button>
+<!-- Email Secondary Action (Pure Text Link) -->
+<button class="w-full py-2 flex items-center justify-center transition-all">
+<span class="text-primary font-medium text-[15px] font-label hover:opacity-70 transition-opacity">Continue with Email</span>
+</button>
+</div>
+</main>
+<!-- Refined Minimal Footer Section -->
+<footer class="w-full max-w-md px-8 pb-10 pt-4">
+<div class="flex flex-col items-center gap-4">
+<nav class="flex gap-8">
+<a class="text-[11px] text-outline/50 font-label hover:text-on-surface transition-colors tracking-wide uppercase" href="#">Terms</a>
+<a class="text-[11px] text-outline/50 font-label hover:text-on-surface transition-colors tracking-wide uppercase" href="#">Privacy</a>
+</nav>
+<p class="text-[10px] text-outline/30 font-body uppercase tracking-[0.05em]">
+            © 2024 Interview Ace
+        </p>
+</div>
+</footer>
+</body></html>

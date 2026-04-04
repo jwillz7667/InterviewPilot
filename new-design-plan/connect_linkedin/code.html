@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Interview Ace - Onboarding</title>
+<!-- Google Fonts -->
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@300;400;500;600;700;800&amp;family=Plus+Jakarta+Sans:wght@400;500;600&amp;family=Source+Sans+3:wght@400;500&amp;display=swap" rel="stylesheet"/>
+<!-- Material Symbols -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "primary": "#0059bb",
+              "surface-variant": "#dce2f6",
+              "inverse-on-surface": "#edf0ff",
+              "on-tertiary-fixed-variant": "#00513e",
+              "on-tertiary": "#ffffff",
+              "on-surface-variant": "#414753",
+              "on-primary": "#ffffff",
+              "outline": "#717785",
+              "tertiary-fixed-dim": "#2cdfb2",
+              "background": "#faf9ff",
+              "surface-container-high": "#e2e8fc",
+              "on-secondary-container": "#596577",
+              "on-secondary-fixed": "#101c2c",
+              "surface": "#faf9ff",
+              "on-secondary": "#ffffff",
+              "on-primary-container": "#fefcff",
+              "on-primary-fixed": "#001a41",
+              "error-container": "#ffdad6",
+              "on-surface": "#151b2a",
+              "surface-container": "#e9edff",
+              "on-error": "#ffffff",
+              "primary-fixed": "#d8e2ff",
+              "tertiary": "#006951",
+              "on-tertiary-fixed": "#002117",
+              "on-error-container": "#93000a",
+              "surface-tint": "#005bc0",
+              "on-primary-fixed-variant": "#004493",
+              "error": "#ba1a1a",
+              "inverse-surface": "#2a303f",
+              "surface-container-highest": "#dce2f6",
+              "secondary-fixed": "#d7e3f9",
+              "secondary": "#535f71",
+              "surface-dim": "#d4daed",
+              "on-secondary-fixed-variant": "#3c4759",
+              "on-background": "#151b2a",
+              "tertiary-container": "#008468",
+              "primary-fixed-dim": "#adc7ff",
+              "surface-container-lowest": "#ffffff",
+              "secondary-container": "#d7e3f9",
+              "surface-bright": "#faf9ff",
+              "on-tertiary-container": "#f5fff8",
+              "surface-container-low": "#f1f3ff",
+              "primary-container": "#0070ea",
+              "inverse-primary": "#adc7ff",
+              "outline-variant": "#c1c6d5",
+              "tertiary-fixed": "#57fcce",
+              "secondary-fixed-dim": "#bbc7dc"
+            },
+            fontFamily: {
+              "headline": ["Public Sans"],
+              "body": ["Source Sans 3"],
+              "label": ["Plus Jakarta Sans"]
+            },
+            borderRadius: {"DEFAULT": "0.5rem", "lg": "1rem", "xl": "1.5rem", "full": "9999px"},
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            display: inline-block;
+            line-height: 1;
+            text-transform: none;
+            letter-spacing: normal;
+            word-wrap: normal;
+            white-space: nowrap;
+            direction: ltr;
+        }
+        body {
+            font-family: 'Public Sans', sans-serif;
+            background-color: #ffffff;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+</head>
+<body class="antialiased text-on-surface bg-white">
+<!-- Top Navigation Anchor (Suppressed based on Transactional Policy, but keeping minimal branding) -->
+<header class="w-full top-0 border-b border-slate-100 bg-white">
+<div class="flex items-center px-6 h-20 w-full max-w-7xl mx-auto justify-between">
+<span class="text-xl font-bold text-primary-container font-headline tracking-tight">Interview Ace</span>
+<div class="h-1 w-12 bg-surface-container rounded-full overflow-hidden">
+<div class="h-full w-1/3 bg-primary-container rounded-full"></div>
+</div>
+</div>
+</header>
+<main class="min-h-[calc(100vh-80px)] flex flex-col items-center justify-center px-6 pb-24 max-w-2xl mx-auto">
+<!-- Illustration/Icon Section -->
+<div class="mb-12 relative">
+<div class="w-24 h-24 rounded-full bg-primary-container/5 flex items-center justify-center">
+<span class="material-symbols-outlined text-primary-container text-5xl" data-icon="link">link</span>
+</div>
+<!-- Subtle accent circles for depth -->
+<div class="absolute -top-4 -right-4 w-8 h-8 rounded-full bg-tertiary-fixed-dim/20 blur-xl"></div>
+</div>
+<!-- Content Section -->
+<div class="text-center mb-10">
+<h1 class="font-extrabold text-on-surface font-headline mb-4 tracking-tight text-4xl">
+                Personalize your experience
+            </h1>
+<p class="text-on-surface-variant font-body leading-relaxed text-xl">
+                We'll use your LinkedIn profile to customize your interview practice sessions and track your progress.
+            </p>
+</div>
+<!-- Input Section -->
+<div class="w-full space-y-6">
+<div class="relative group">
+<label class="block text-sm font-semibold text-on-surface-variant mb-2 ml-1 font-label" for="linkedin_url">
+                    What's your LinkedIn URL?
+                </label>
+<div class="relative">
+<div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+<span class="material-symbols-outlined text-outline text-xl" data-icon="share">share</span>
+</div>
+<input class="block w-full pl-12 pr-4 py-4 bg-white border-2 border-slate-100 rounded-xl focus:ring-4 focus:ring-primary/10 focus:border-primary-container transition-all duration-200 outline-none text-on-surface placeholder:text-slate-300 font-medium" id="linkedin_url" name="linkedin_url" placeholder="linkedin.com/in/username" type="url"/>
+</div>
+</div>
+<button class="w-full bg-[#1978e5] text-white font-bold py-5 px-8 rounded-xl hover:shadow-xl hover:shadow-primary/20 active:scale-[0.98] transition-all duration-200 flex items-center justify-center gap-2 group">
+<span>Connect</span>
+<span class="material-symbols-outlined text-xl group-hover:translate-x-1 transition-transform" data-icon="arrow_forward">arrow_forward</span>
+</button>
+</div>
+<!-- Secondary Actions -->
+<div class="mt-12 text-center">
+<button class="text-outline hover:text-primary-container font-semibold transition-colors flex items-center gap-1 mx-auto font-label">
+                Skip for now
+            </button>
+</div>
+<!-- Visual Anchor Background Decoration -->
+<div class="fixed bottom-0 left-0 right-0 -z-10 h-64 opacity-5 pointer-events-none overflow-hidden">
+<div class="absolute bottom-[-100px] left-[-50px] w-96 h-96 rounded-full bg-primary blur-[120px]"></div>
+<div class="absolute bottom-[-150px] right-[-50px] w-96 h-96 rounded-full bg-tertiary blur-[120px]"></div>
+</div>
+</main>
+<!-- Bottom Navigation Suppressed (Transactional/Onboarding Context) -->
+<!-- Decorative Image Component (Minimalist style matching pure white theme) -->
+<div class="hidden lg:block fixed right-12 bottom-12 w-64 h-64 grayscale opacity-20 pointer-events-none">
+<img alt="Minimalist desk setup with a laptop and a notebook" class="w-full h-full object-cover rounded-2xl" data-alt="clean minimalist white desk setup with a thin silver laptop and professional notebook under soft natural daylight" src="https://lh3.googleusercontent.com/aida-public/AB6AXuB7NeWiBakRse1AN3wXooHue7Xpr7a_P6Bx3HcSvWZUr8Hj7fntEzjIrLy5u8ayhjfBUERObp8i_-GG9G1DUMu-i_oQ790dxVqalPVkSwklY33DeX_QW1OnAX1-HOCZ7a17Q9zkN7_KxJMslWGoYCGPLDDbCDez3WPZvwP9ofgI2sou8M7CYNkd5E-1T1u1mek3YoIivnO8WVMKA1nUr8NVo7puw6dau_un5S93DXC5X86f2WUyzyBd5fScj5mrHhqXxyvvhwDPgo0"/>
+</div>
+</body></html>

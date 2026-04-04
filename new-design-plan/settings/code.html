@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Settings - Interview Ace</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700;800&amp;family=Plus+Jakarta+Sans:wght@400;500;600&amp;family=Source+Sans+3:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "tertiary": "#006951",
+              "on-tertiary-fixed": "#002117",
+              "on-error-container": "#93000a",
+              "surface-tint": "#005bc0",
+              "on-primary-fixed-variant": "#004493",
+              "error": "#ba1a1a",
+              "inverse-surface": "#2a303f",
+              "on-error": "#ffffff",
+              "primary-fixed": "#d8e2ff",
+              "on-surface": "#151b2a",
+              "surface-container": "#e9edff",
+              "surface-container-high": "#e2e8fc",
+              "on-secondary-container": "#596577",
+              "on-secondary-fixed": "#101c2c",
+              "surface": "#faf9ff",
+              "on-secondary": "#ffffff",
+              "on-primary-container": "#fefcff",
+              "on-primary-fixed": "#001a41",
+              "error-container": "#ffdad6",
+              "tertiary-fixed-dim": "#2cdfb2",
+              "background": "#faf9ff",
+              "on-surface-variant": "#414753",
+              "on-primary": "#ffffff",
+              "outline": "#717785",
+              "primary": "#0059bb",
+              "surface-variant": "#dce2f6",
+              "inverse-on-surface": "#edf0ff",
+              "on-tertiary-fixed-variant": "#00513e",
+              "on-tertiary": "#ffffff",
+              "secondary-fixed-dim": "#bbc7dc",
+              "surface-container-low": "#f1f3ff",
+              "primary-container": "#0070ea",
+              "inverse-primary": "#adc7ff",
+              "outline-variant": "#c1c6d5",
+              "tertiary-fixed": "#57fcce",
+              "secondary-container": "#d7e3f9",
+              "surface-bright": "#faf9ff",
+              "on-tertiary-container": "#f5fff8",
+              "surface-container-lowest": "#ffffff",
+              "tertiary-container": "#008468",
+              "primary-fixed-dim": "#adc7ff",
+              "on-background": "#151b2a",
+              "surface-dim": "#d4daed",
+              "on-secondary-fixed-variant": "#3c4759",
+              "surface-container-highest": "#dce2f6",
+              "secondary-fixed": "#d7e3f9",
+              "secondary": "#535f71"
+            },
+            fontFamily: {
+              "headline": ["Public Sans"],
+              "body": ["Source Sans Three"],
+              "label": ["Plus Jakarta Sans"]
+            },
+            borderRadius: {"DEFAULT": "0.5rem", "lg": "1rem", "xl": "1.5rem", "full": "9999px"},
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            vertical-align: middle;
+        }
+        body {
+            font-family: 'Source Sans Three', sans-serif;
+            background-color: #ffffff;
+        }
+        .header-anchor {
+            font-family: 'Public Sans', sans-serif;
+            letter-spacing: -0.025em;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="text-on-surface antialiased bg-white">
+<!-- TopAppBar -->
+<header class="flex items-center justify-between px-4 h-16 w-full bg-white dark:bg-slate-950 border-b border-slate-100 dark:border-slate-800 fixed top-0 z-50">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-blue-600 dark:text-blue-400" data-icon="robot_2">robot_2</span>
+<h1 class="text-xl font-bold text-blue-600 dark:text-blue-400 header-anchor">Interview Ace</h1>
+</div>
+<div class="flex items-center gap-4">
+<button class="p-2 hover:bg-slate-50 dark:hover:bg-slate-900 rounded-full transition-colors duration-200">
+<span class="material-symbols-outlined text-slate-500" data-icon="search">search</span>
+</button>
+</div>
+</header>
+<main class="pt-24 pb-32 max-w-2xl mx-auto px-6">
+<!-- Profile Preview Section -->
+<section class="mb-12">
+<div class="flex items-center gap-6 p-2">
+<div class="relative group">
+<img alt="User Profile" class="w-24 h-24 rounded-full object-cover ring-4 ring-primary-container/10" data-alt="Professional studio headshot of a smiling man in a business casual shirt with soft natural lighting and clean background" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBVrymQx1x1_54xJn027xDA1L-ngum5DbCarsM09su6D3M4l0DJFvD32PqWDNLT1tpHSKvGne_Z1iLEXv6__evoYhEBww6w-7iLUi3qdMGFF9E5zLHzP48rBGDjpr4SeanWnuML8DI8uvuZNDRmqQPeJrZ9WYY-5ZOY3dvxcIdcAVy9ikaEgp3rXYVmGqhMPZkofdVWZSJbHniCVBWja-bHOKcV34SHstJJMAdUYvz9DhF0-YIydGRBohmCubMm1DnZ923XM7ulDBw"/>
+<button class="absolute bottom-0 right-0 bg-primary text-white p-1.5 rounded-full shadow-lg border-2 border-white">
+<span class="material-symbols-outlined text-sm" data-icon="edit">edit</span>
+</button>
+</div>
+<div>
+<h2 class="text-2xl font-bold font-headline text-on-surface">Alex Thompson</h2>
+<p class="text-on-surface-variant font-label">alex.thompson@example.com</p>
+<div class="mt-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-tertiary-container text-on-tertiary-container">
+                        Pro Member
+                    </div>
+</div>
+</div>
+</section>
+<!-- Settings List -->
+<div class="space-y-2">
+<h3 class="text-xs font-bold uppercase tracking-widest text-outline px-2 mb-4">Account Settings</h3>
+<a class="group flex items-center justify-between p-4 rounded-xl hover:bg-surface-container-low transition-all duration-200 border border-transparent hover:border-outline-variant/20" href="#">
+<div class="flex items-center gap-4">
+<div class="w-10 h-10 flex items-center justify-center rounded-lg bg-surface-container text-primary">
+<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+</div>
+<span class="text-lg font-medium font-label">Notification Preferences</span>
+</div>
+<span class="material-symbols-outlined text-outline group-hover:translate-x-1 transition-transform" data-icon="chevron_right">chevron_right</span>
+</a>
+<a class="group flex items-center justify-between p-4 rounded-xl hover:bg-surface-container-low transition-all duration-200 border border-transparent hover:border-outline-variant/20" href="#">
+<div class="flex items-center gap-4">
+<div class="w-10 h-10 flex items-center justify-center rounded-lg bg-surface-container text-primary">
+<span class="material-symbols-outlined" data-icon="payments">payments</span>
+</div>
+<span class="text-lg font-medium font-label">Subscription &amp; Billing</span>
+</div>
+<span class="material-symbols-outlined text-outline group-hover:translate-x-1 transition-transform" data-icon="chevron_right">chevron_right</span>
+</a>
+<a class="group flex items-center justify-between p-4 rounded-xl hover:bg-surface-container-low transition-all duration-200 border border-transparent hover:border-outline-variant/20" href="#">
+<div class="flex items-center gap-4">
+<div class="w-10 h-10 flex items-center justify-center rounded-lg bg-surface-container text-primary">
+<span class="material-symbols-outlined" data-icon="shield">shield</span>
+</div>
+<span class="text-lg font-medium font-label">Privacy &amp; Security</span>
+</div>
+<span class="material-symbols-outlined text-outline group-hover:translate-x-1 transition-transform" data-icon="chevron_right">chevron_right</span>
+</a>
+<div class="pt-8 pb-4">
+<h3 class="text-xs font-bold uppercase tracking-widest text-outline px-2 mb-4">Support</h3>
+</div>
+<a class="group flex items-center justify-between p-4 rounded-xl hover:bg-surface-container-low transition-all duration-200 border border-transparent hover:border-outline-variant/20" href="#">
+<div class="flex items-center gap-4">
+<div class="w-10 h-10 flex items-center justify-center rounded-lg bg-surface-container text-primary">
+<span class="material-symbols-outlined" data-icon="help">help</span>
+</div>
+<span class="text-lg font-medium font-label">Help &amp; Support</span>
+</div>
+<span class="material-symbols-outlined text-outline group-hover:translate-x-1 transition-transform" data-icon="chevron_right">chevron_right</span>
+</a>
+<button class="w-full group flex items-center justify-between p-4 rounded-xl hover:bg-error-container/20 transition-all duration-200 border border-transparent text-error">
+<div class="flex items-center gap-4">
+<div class="w-10 h-10 flex items-center justify-center rounded-lg bg-error-container text-error">
+<span class="material-symbols-outlined" data-icon="logout">logout</span>
+</div>
+<span class="text-lg font-medium font-label">Logout</span>
+</div>
+</button>
+</div>
+<!-- System Version Info -->
+<div class="mt-16 text-center">
+<p class="text-sm text-outline font-label">Interview Ace Version 2.4.0</p>
+<p class="text-xs text-outline-variant mt-1">© 2024 Ace Intelligence Inc.</p>
+</div>
+</main>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 w-full z-50 flex justify-around items-center h-20 pb-safe bg-white dark:bg-slate-950 border-t border-slate-100 dark:border-slate-800 shadow-lg dark:shadow-none">
+<a class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 hover:text-blue-500 active:scale-95 transition-transform" href="#">
+<span class="material-symbols-outlined" data-icon="home">home</span>
+<span class="font-public-sans text-xs">Home</span>
+</a>
+<a class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 hover:text-blue-500 active:scale-95 transition-transform" href="#">
+<span class="material-symbols-outlined" data-icon="analytics">analytics</span>
+<span class="font-public-sans text-xs">Insights</span>
+</a>
+<a class="flex flex-col items-center justify-center text-blue-600 dark:text-blue-400 font-semibold active:scale-95 transition-transform" href="#">
+<span class="material-symbols-outlined" data-icon="person" style="font-variation-settings: 'FILL' 1;">person</span>
+<span class="font-public-sans text-xs">Profile</span>
+</a>
+</nav>
+</body></html>
