@@ -122,7 +122,12 @@ async function main() {
 
   // Sample interview session
   const existingSession = await prisma.interviewSession.findFirst({
-    where: { userId: user.id },
+    where: {
+      OR: [
+        { userId: user.id },
+        { clientId: '00000000-0000-0000-0000-000000000001' },
+      ],
+    },
   });
 
   if (!existingSession) {
@@ -182,10 +187,85 @@ async function main() {
     console.log('Sample interview session created with 3 exchanges');
   }
 
+  // Admin dev account — full access to all features
+  const adminEmail = 'admin@interviewpilot.dev';
+  const adminPassword = 'Admin2026!Dev';
+
+  const adminPasswordHash = await argon2.hash(adminPassword, {
+    type: argon2.argon2id,
+    memoryCost: 65536,
+    timeCost: 3,
+    parallelism: 4,
+  });
+
+  const adminUser = await prisma.user.upsert({
+    where: { email: adminEmail },
+    update: {
+      displayName: 'Admin Dev',
+      emailVerified: true,
+      isSandboxTester: true,
+      role: 'ADMIN',
+      lastLoginAt: new Date(),
+    },
+    create: {
+      email: adminEmail,
+      passwordHash: adminPasswordHash,
+      displayName: 'Admin Dev',
+      emailVerified: true,
+      isSandboxTester: true,
+      role: 'ADMIN',
+      lastLoginAt: new Date(),
+      settings: {
+        create: {
+          defaultInterviewType: 'general',
+          defaultResponseFormat: 'hybrid',
+          shouldPreGenerate: true,
+        },
+      },
+    },
+  });
+
+  console.log(`Admin dev account created/found: ${adminUser.email} (id: ${adminUser.id})`);
+
+  await prisma.userEntitlement.upsert({
+    where: { userId: adminUser.id },
+    update: {
+      tier: 'PRO',
+      status: 'ACTIVE',
+      provider: 'INTERNAL',
+      product: 'PRO_YEARLY',
+      productId: 'pro.yearly.admin',
+      sandboxFullAccess: true,
+      currentPeriodStartedAt: new Date(),
+      currentPeriodEndsAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
+      lastVerifiedAt: new Date(),
+    },
+    create: {
+      userId: adminUser.id,
+      tier: 'PRO',
+      status: 'ACTIVE',
+      provider: 'INTERNAL',
+      product: 'PRO_YEARLY',
+      productId: 'pro.yearly.admin',
+      sandboxFullAccess: true,
+      trialInterviewLimit: 999,
+      currentPeriodStartedAt: new Date(),
+      currentPeriodEndsAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
+      lastVerifiedAt: new Date(),
+    },
+  });
+
+  console.log('Admin entitlement set: PRO tier, ACTIVE status, full access');
+
   console.log('\nSeed complete!');
   console.log('─────────────────────────────────────');
-  console.log(`Test account: ${testEmail}`);
-  console.log(`Password:     ${testPassword}`);
+  console.log(`Test account:  ${testEmail}`);
+  console.log(`Password:      ${testPassword}`);
+  console.log('');
+  console.log(`Admin account: ${adminEmail}`);
+  console.log(`Password:      ${adminPassword}`);
+  console.log(`Role:          ADMIN`);
+  console.log(`Tier:          PRO (full access)`);
   console.log('─────────────────────────────────────');
 }
 

@@ -148,6 +148,7 @@ final class AuthService {
         }
 
         clearAuthData()
+        SessionStorageService.shared.deleteAllSessions()
         SubscriptionService.shared.reset()
         ProfileService.shared.reset()
         SyncRetryQueue.shared.clear()
@@ -160,9 +161,7 @@ final class AuthService {
         let keysToRemove = [
             "linkedInProfileText",
             "additionalNotes",
-            "onboardingCompletedLocal",
             "hasSeenTrialExpiry",
-            "hasSeenOnboarding",
         ]
         for key in keysToRemove {
             UserDefaults.standard.removeObject(forKey: key)

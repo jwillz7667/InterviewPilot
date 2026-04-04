@@ -175,7 +175,7 @@ export async function sessionsRoutes(app: FastifyInstance) {
       if (!existing) return reply.status(404).send({ error: 'Session not found' });
 
       await withDatabaseRetry((prisma) =>
-        prisma.interviewSession.deleteMany({ where: { id: request.params.id } })
+        prisma.interviewSession.deleteMany({ where: { id: request.params.id, userId: request.user.sub } })
       );
       reply.send({ success: true });
     }

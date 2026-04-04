@@ -836,6 +836,23 @@ export async function getSessionAccessGrant(
 }
 
 export async function canAccessRuntimeAiConfig(userId: string): Promise<boolean> {
+  // Reset monthly counter if needed before checking access
+  await withDatabaseRetry(async (prisma) => {
+    const context = await ensureBillingContext(prisma, userId);
+    const resetAt = context.entitlement.monthlyInterviewsResetAt;
+    if (resetAt && resetAt.getTime() < Date.now()) {
+      await prisma.userEntitlement.update({
+        where: { id: context.entitlement.id },
+        data: {
+          monthlyInterviewsUsed: 0,
+          monthlyInterviewsResetAt: getNextMonthlyReset(),
+        },
+      });
+      // Invalidate cached summary so getBillingSummary reads fresh data
+      await invalidateBillingCache(userId).catch(() => {});
+    }
+  });
+
   const summary = await getBillingSummary(userId);
   return (
     summary.sandboxFullAccess ||
