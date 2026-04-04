@@ -695,9 +695,9 @@ struct ProfileEditorView: View {
                     yearsInRole = years
                 }
 
-                for skillName in extracted.skills {
-                    if !skills.contains(where: { $0.name.lowercased() == skillName.lowercased() }) {
-                        skills.append(SkillEntry(name: skillName))
+                for skill in extracted.skills {
+                    if !skills.contains(where: { $0.name.lowercased() == skill.name.lowercased() }) {
+                        skills.append(SkillEntry(name: skill.name))
                     }
                 }
 

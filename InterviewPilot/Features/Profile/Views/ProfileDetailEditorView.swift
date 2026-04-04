@@ -986,6 +986,7 @@ struct ProfileDetailEditorView: View {
             do {
                 let extracted = try await ResumeProfileExtractor.extract(from: resumeText, apiKey: apiKey)
 
+                // Personal info
                 if let role = extracted.currentRole, currentRole.isEmpty {
                     currentRole = role
                 }
@@ -995,20 +996,73 @@ struct ProfileDetailEditorView: View {
                 if let years = extracted.yearsInRole, yearsInRole == 0 {
                     yearsInRole = years
                 }
+                if let extractedSummary = extracted.summary, summary.isEmpty {
+                    summary = extractedSummary
+                }
 
-                for skillName in extracted.skills {
-                    if !skills.contains(where: { $0.name.lowercased() == skillName.lowercased() }) {
-                        skills.append(ProfileSkillEntry(name: skillName, category: SkillCategory.language.rawValue))
+                // Skills (merge, don't overwrite)
+                for skill in extracted.skills {
+                    if !skills.contains(where: { $0.name.lowercased() == skill.name.lowercased() }) {
+                        skills.append(ProfileSkillEntry(name: skill.name, category: skill.category))
                     }
                 }
 
+                // Work experiences (replace if empty, otherwise merge)
                 if workExperiences.isEmpty {
                     workExperiences = extracted.workExperiences.map { exp in
                         ProfileWorkExperience(
                             title: exp.title,
                             company: exp.company,
                             startYear: exp.startYear,
-                            endYear: exp.endYear
+                            endYear: exp.endYear,
+                            description: exp.description
+                        )
+                    }
+                }
+
+                // Education
+                if education.isEmpty {
+                    education = extracted.education.map { edu in
+                        ProfileEducation(
+                            institution: edu.institution,
+                            degree: edu.degree,
+                            field: edu.field,
+                            startYear: edu.startYear,
+                            endYear: edu.endYear
+                        )
+                    }
+                }
+
+                // Certifications
+                if certifications.isEmpty {
+                    certifications = extracted.certifications.map { cert in
+                        ProfileCertification(
+                            name: cert.name,
+                            issuer: cert.issuer,
+                            year: cert.year
+                        )
+                    }
+                }
+
+                // Projects
+                if projects.isEmpty {
+                    projects = extracted.projects.map { proj in
+                        ProfileProject(
+                            name: proj.name,
+                            description: proj.description,
+                            techStack: proj.techStack,
+                            year: proj.year
+                        )
+                    }
+                }
+
+                // Achievements
+                if achievements.isEmpty {
+                    achievements = extracted.achievements.map { ach in
+                        ProfileAchievement(
+                            description: ach.description,
+                            metric: ach.metric,
+                            year: ach.year
                         )
                     }
                 }
