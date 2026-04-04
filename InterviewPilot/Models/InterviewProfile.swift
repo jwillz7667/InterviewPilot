@@ -208,14 +208,29 @@ struct CreateProfileInput: Codable, Sendable {
     var resumeText: String?
 }
 
-struct UpdateProfileInput: Codable, Sendable {
+struct UpdateProfileInput: Encodable, Sendable {
     var name: String?
-    var isDefault: Bool?
-    var resumeText: String?
-    var currentRole: String?
-    var currentCompany: String?
-    var yearsInRole: Int?
-    var linkedinUrl: String?
-    var summary: String?
-    var communicationStyle: String?
+    var resumeText: String
+    var currentRole: String
+    var currentCompany: String
+    var yearsInRole: Int
+    var linkedinUrl: String
+    var summary: String
+    var communicationStyle: String
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encodeIfPresent(name, forKey: .name)
+        try container.encode(resumeText.isEmpty ? nil : resumeText, forKey: .resumeText)
+        try container.encode(currentRole.isEmpty ? nil : currentRole, forKey: .currentRole)
+        try container.encode(currentCompany.isEmpty ? nil : currentCompany, forKey: .currentCompany)
+        try container.encode(yearsInRole > 0 ? yearsInRole : nil, forKey: .yearsInRole)
+        try container.encode(linkedinUrl.isEmpty ? nil : linkedinUrl, forKey: .linkedinUrl)
+        try container.encode(summary.isEmpty ? nil : summary, forKey: .summary)
+        try container.encode(communicationStyle, forKey: .communicationStyle)
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case name, resumeText, currentRole, currentCompany, yearsInRole, linkedinUrl, summary, communicationStyle
+    }
 }

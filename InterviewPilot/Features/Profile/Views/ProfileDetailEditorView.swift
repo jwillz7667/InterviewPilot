@@ -898,14 +898,15 @@ struct ProfileDetailEditorView: View {
         showSuccessBanner = false
 
         do {
+            let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
             let input = UpdateProfileInput(
-                name: name.trimmingCharacters(in: .whitespacesAndNewlines),
-                resumeText: resumeText.isEmpty ? nil : resumeText,
-                currentRole: currentRole.isEmpty ? nil : currentRole,
-                currentCompany: currentCompany.isEmpty ? nil : currentCompany,
-                yearsInRole: yearsInRole > 0 ? yearsInRole : nil,
-                linkedinUrl: linkedinUrl.isEmpty ? nil : linkedinUrl,
-                summary: summary.isEmpty ? nil : summary,
+                name: trimmedName.isEmpty ? nil : trimmedName,
+                resumeText: resumeText,
+                currentRole: currentRole,
+                currentCompany: currentCompany,
+                yearsInRole: yearsInRole,
+                linkedinUrl: linkedinUrl,
+                summary: summary,
                 communicationStyle: communicationStyle.rawValue
             )
 
