@@ -37,7 +37,11 @@ final class InterviewProfileService {
     }
 
     func createProfile(_ input: CreateProfileInput) async throws -> InterviewProfile {
-        let response: ProfileEnvelope = try await apiClient.post("/api/v1/profiles", body: input)
+        let response: ProfileEnvelope = try await apiClient.post(
+            "/api/v1/profiles",
+            body: input,
+            expectedStatusCodes: [200, 201]
+        )
         await fetchProfiles()
         return response.profile
     }
@@ -54,7 +58,7 @@ final class InterviewProfileService {
     }
 
     func setDefault(id: String) async throws {
-        let _: SuccessEnvelope = try await apiClient.post(
+        let _: ProfileEnvelope = try await apiClient.post(
             "/api/v1/profiles/\(id)/set-default",
             body: EmptyBody()
         )
@@ -68,7 +72,7 @@ final class InterviewProfileService {
             "/api/v1/profiles/\(profileId)/work-experiences",
             body: BulkItems(items: items)
         )
-        _ = response.items
+        _ = response.workExperiences
     }
 
     func updateSkills(profileId: String, _ items: [ProfileSkillEntry]) async throws {
@@ -76,7 +80,7 @@ final class InterviewProfileService {
             "/api/v1/profiles/\(profileId)/skills",
             body: BulkItems(items: items)
         )
-        _ = response.items
+        _ = response.skills
     }
 
     func updateEducation(profileId: String, _ items: [ProfileEducation]) async throws {
@@ -84,7 +88,7 @@ final class InterviewProfileService {
             "/api/v1/profiles/\(profileId)/education",
             body: BulkItems(items: items)
         )
-        _ = response.items
+        _ = response.education
     }
 
     func updateCertifications(profileId: String, _ items: [ProfileCertification]) async throws {
@@ -92,7 +96,7 @@ final class InterviewProfileService {
             "/api/v1/profiles/\(profileId)/certifications",
             body: BulkItems(items: items)
         )
-        _ = response.items
+        _ = response.certifications
     }
 
     func updateProjects(profileId: String, _ items: [ProfileProject]) async throws {
@@ -100,7 +104,7 @@ final class InterviewProfileService {
             "/api/v1/profiles/\(profileId)/projects",
             body: BulkItems(items: items)
         )
-        _ = response.items
+        _ = response.projects
     }
 
     func updateAchievements(profileId: String, _ items: [ProfileAchievement]) async throws {
@@ -108,7 +112,7 @@ final class InterviewProfileService {
             "/api/v1/profiles/\(profileId)/achievements",
             body: BulkItems(items: items)
         )
-        _ = response.items
+        _ = response.achievements
     }
 
     // MARK: - Reset
@@ -140,25 +144,25 @@ private struct BulkItems<T: Encodable>: Encodable {
 }
 
 private struct WorkExperienceItemsEnvelope: Decodable {
-    let items: [ProfileWorkExperience]
+    let workExperiences: [ProfileWorkExperience]
 }
 
 private struct SkillItemsEnvelope: Decodable {
-    let items: [ProfileSkillEntry]
+    let skills: [ProfileSkillEntry]
 }
 
 private struct EducationItemsEnvelope: Decodable {
-    let items: [ProfileEducation]
+    let education: [ProfileEducation]
 }
 
 private struct CertificationItemsEnvelope: Decodable {
-    let items: [ProfileCertification]
+    let certifications: [ProfileCertification]
 }
 
 private struct ProjectItemsEnvelope: Decodable {
-    let items: [ProfileProject]
+    let projects: [ProfileProject]
 }
 
 private struct AchievementItemsEnvelope: Decodable {
-    let items: [ProfileAchievement]
+    let achievements: [ProfileAchievement]
 }

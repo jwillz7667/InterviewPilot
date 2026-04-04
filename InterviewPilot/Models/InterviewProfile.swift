@@ -55,6 +55,54 @@ struct InterviewProfileSummary: Codable, Sendable, Identifiable {
     let workExperienceCount: Int
     let educationCount: Int
     let projectCount: Int
+
+    private enum CodingKeys: String, CodingKey {
+        case id, name, isDefault, currentRole, currentCompany
+        case _count
+    }
+
+    private struct CountFields: Decodable {
+        let skills: Int?
+        let workExperiences: Int?
+        let education: Int?
+        let projects: Int?
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        name = try container.decode(String.self, forKey: .name)
+        isDefault = try container.decode(Bool.self, forKey: .isDefault)
+        currentRole = try container.decodeIfPresent(String.self, forKey: .currentRole)
+        currentCompany = try container.decodeIfPresent(String.self, forKey: .currentCompany)
+
+        let counts = try container.decodeIfPresent(CountFields.self, forKey: ._count)
+        skillCount = counts?.skills ?? 0
+        workExperienceCount = counts?.workExperiences ?? 0
+        educationCount = counts?.education ?? 0
+        projectCount = counts?.projects ?? 0
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(name, forKey: .name)
+        try container.encode(isDefault, forKey: .isDefault)
+        try container.encodeIfPresent(currentRole, forKey: .currentRole)
+        try container.encodeIfPresent(currentCompany, forKey: .currentCompany)
+    }
+
+    init(id: String, name: String, isDefault: Bool, currentRole: String?, currentCompany: String?, skillCount: Int = 0, workExperienceCount: Int = 0, educationCount: Int = 0, projectCount: Int = 0) {
+        self.id = id
+        self.name = name
+        self.isDefault = isDefault
+        self.currentRole = currentRole
+        self.currentCompany = currentCompany
+        self.skillCount = skillCount
+        self.workExperienceCount = workExperienceCount
+        self.educationCount = educationCount
+        self.projectCount = projectCount
+    }
 }
 
 // MARK: - Child Types
