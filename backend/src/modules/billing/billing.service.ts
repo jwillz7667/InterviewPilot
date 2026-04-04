@@ -837,7 +837,12 @@ export async function getSessionAccessGrant(
 
 export async function canAccessRuntimeAiConfig(userId: string): Promise<boolean> {
   const summary = await getBillingSummary(userId);
-  return summary.sandboxFullAccess || summary.hasActiveSubscription || summary.interviewsRemaining > 0;
+  return (
+    summary.sandboxFullAccess ||
+    summary.hasActiveSubscription ||
+    summary.interviewsRemaining > 0 ||
+    summary.monthlyInterviewsRemaining > 0
+  );
 }
 
 export async function syncAppStoreTransactions(

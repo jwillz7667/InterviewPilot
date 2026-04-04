@@ -336,7 +336,16 @@ final class AuthService {
 
     @discardableResult
     private func applyDeveloperRuntimeKeysFallback() -> Bool {
-        guard hasDeveloperFullAccess else { return false }
+        // In DEBUG builds, always try developer keys from build config
+        // so live sessions work during development without a paid subscription.
+        // This does NOT grant sandbox subscription status — only provides API keys.
+        #if DEBUG
+        let canUseFallback = true
+        #else
+        let canUseFallback = hasDeveloperFullAccess
+        #endif
+
+        guard canUseFallback else { return false }
 
         if let deepgramAPIKey = AppEnvironment.developerDeepgramAPIKey {
             _ = KeychainService.save(key: .deepgramAPIKey, value: deepgramAPIKey)
