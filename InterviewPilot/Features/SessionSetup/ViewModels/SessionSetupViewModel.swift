@@ -540,6 +540,50 @@ final class SessionSetupViewModel {
         preGenerationProgress = (bank.answers.count, bank.answers.count)
     }
 
+    // MARK: - Draft Persistence
+
+    func saveDraft() {
+        let draft = DraftSession(
+            id: UUID(),
+            savedAt: Date(),
+            jobListingURL: jobListingURL,
+            jobListingTitle: jobListingTitle ?? "",
+            jobDescription: jobListingText,
+            jobCategory: jobCategory?.rawValue ?? "",
+            positionLevel: positionLevel?.rawValue ?? "",
+            companyName: structuredJobRequirements?.companyName,
+            interviewType: interviewType.rawValue,
+            additionalNotes: additionalNotes,
+            resumeDocumentName: resumeDocumentName
+        )
+
+        var drafts = DraftSession.loadAll()
+        drafts.insert(draft, at: 0)
+        DraftSession.saveAll(drafts)
+    }
+
+    func loadDraft(_ draft: DraftSession) {
+        jobListingURL = draft.jobListingURL
+        jobListingTitle = draft.jobListingTitle.isEmpty ? nil : draft.jobListingTitle
+        jobListingText = draft.jobDescription
+        jobCategory = JobCategory(rawValue: draft.jobCategory)
+        positionLevel = PositionLevel(rawValue: draft.positionLevel)
+        interviewType = InterviewType(rawValue: draft.interviewType) ?? .general
+        additionalNotes = draft.additionalNotes
+        resumeDocumentName = draft.resumeDocumentName
+
+        // Re-derive structured requirements if we have listing text
+        if !jobListingText.isEmpty {
+            structuredJobRequirements = JobDescriptionAnalyzer.analyze(
+                title: jobListingTitle,
+                rawText: jobListingText
+            )
+        }
+
+        // Remove this draft since it's now loaded
+        DraftSession.delete(id: draft.id)
+    }
+
     private func clearAnalyzedJobListing(clearURL: Bool = true) {
         if clearURL {
             jobListingURL = ""

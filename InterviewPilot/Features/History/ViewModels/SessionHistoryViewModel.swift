@@ -37,7 +37,9 @@ final class SessionHistoryViewModel {
                 estimatedCost: session.estimatedCost,
                 exchangeCount: session.exchanges.count,
                 exchanges: session.exchanges,
-                telemetrySummary: SessionTelemetrySummary.build(from: session.exchanges)
+                telemetrySummary: SessionTelemetrySummary.build(from: session.exchanges),
+                jobDescription: session.jobDescription,
+                overallScore: nil
             )
         }
 

@@ -184,21 +184,33 @@ struct SessionHistoryView: View {
                                 .foregroundStyle(IATheme.accent)
                         }
 
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(session.reviewInterviewType.displayName)
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(session.displayTitle)
                             .font(IATypography.headlineSmall)
                             .foregroundStyle(IATheme.textPrimary)
+                            .lineLimit(2)
+                            .minimumScaleFactor(0.85)
 
-                        Text(viewModel.formatDate(session.startedAt))
-                            .font(IATypography.bodySmall)
-                            .foregroundStyle(IATheme.textSecondary)
+                        HStack(spacing: 8) {
+                            interviewTypeChip(session.reviewInterviewType)
+
+                            Text(viewModel.formatDate(session.startedAt))
+                                .font(IATypography.bodySmall)
+                                .foregroundStyle(IATheme.textSecondary)
+                        }
                     }
 
-                    Spacer()
+                    Spacer(minLength: 4)
 
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(IATheme.textTertiary)
+                    VStack(alignment: .trailing, spacing: 6) {
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(IATheme.textTertiary)
+
+                        if let score = session.overallScore {
+                            scoreBadge(score)
+                        }
+                    }
                 }
 
                 LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
@@ -226,6 +238,32 @@ struct SessionHistoryView: View {
                 }
             }
         }
+    }
+
+    private func interviewTypeChip(_ type: InterviewType) -> some View {
+        Text(type.displayName)
+            .font(IATypography.labelSmall)
+            .foregroundStyle(IATheme.accent)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
+            .background(IATheme.accent.opacity(0.10), in: Capsule())
+    }
+
+    private func scoreBadge(_ score: Int) -> some View {
+        let color = scoreColor(for: score)
+        return Text("\(score)/100")
+            .font(IATypography.labelSmall)
+            .fontWeight(.semibold)
+            .foregroundStyle(color)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(color.opacity(0.12), in: Capsule())
+    }
+
+    private func scoreColor(for score: Int) -> Color {
+        if score >= 80 { return IATheme.success }
+        if score >= 60 { return IATheme.accent }
+        return IATheme.warning
     }
 
     private func historySummaryTile(title: String, value: String, symbol: String) -> some View {
@@ -343,7 +381,9 @@ private func previewHistoryViewModel(populated: Bool) -> SessionHistoryViewModel
                 exchanges: [
                     Exchange(question: "Tell me about a challenge.", response: "Sample response", type: .behavioral, latencyMs: 780, cached: false),
                 ],
-                telemetrySummary: nil
+                telemetrySummary: nil,
+                jobDescription: "ROLE TITLE: Senior iOS Engineer\nJOB CATEGORY: Software Engineering\nSTRUCTURED JOB REQUIREMENTS:\nCompany: Stripe\nLevel: Senior",
+                overallScore: 78
             ),
         ]
     }

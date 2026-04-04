@@ -17,6 +17,7 @@ struct DashboardView: View {
                         headerSection
                         UpgradeBannerView { showPaywall = true }
                         heroCTA
+                        savedDraftsSection
                         recentActivitySection
                         dailyTipSection
                     }
@@ -87,6 +88,104 @@ struct DashboardView: View {
         .buttonStyle(.plain)
     }
 
+    // MARK: - Saved Drafts
+
+    @ViewBuilder
+    private var savedDraftsSection: some View {
+        if !viewModel.savedDrafts.isEmpty {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Saved Drafts")
+                    .font(IATypography.headlineSmall)
+                    .foregroundStyle(IATheme.textPrimary)
+
+                VStack(spacing: 8) {
+                    ForEach(viewModel.savedDrafts) { draft in
+                        NavigationLink {
+                            SessionSetupView(
+                                viewModel: Self.setupViewModel(from: draft),
+                                loadDefaultsOnTask: true
+                            )
+                        } label: {
+                            draftRow(draft)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+        }
+    }
+
+    private func draftRow(_ draft: DraftSession) -> some View {
+        HStack(spacing: 12) {
+            Circle()
+                .fill(IATheme.warning.opacity(0.12))
+                .frame(width: 40, height: 40)
+                .overlay {
+                    Image(systemName: "doc.badge.clock")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(IATheme.warning)
+                }
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(draft.jobListingTitle.isEmpty ? "Untitled Draft" : draft.jobListingTitle)
+                    .font(IATypography.headlineSmall)
+                    .foregroundStyle(IATheme.textPrimary)
+                    .lineLimit(1)
+
+                HStack(spacing: 6) {
+                    if let company = draft.companyName, !company.isEmpty {
+                        Text(company)
+                            .font(IATypography.bodySmall)
+                            .foregroundStyle(IATheme.textSecondary)
+                            .lineLimit(1)
+
+                        Text("\u{2022}")
+                            .font(IATypography.bodySmall)
+                            .foregroundStyle(IATheme.textTertiary)
+                    }
+
+                    if let type = InterviewType(rawValue: draft.interviewType) {
+                        Text(type.displayName)
+                            .font(IATypography.bodySmall)
+                            .foregroundStyle(IATheme.textSecondary)
+                    }
+                }
+
+                Text("Saved \(draft.savedAt.formatted(.relative(presentation: .named)))")
+                    .font(IATypography.bodySmall)
+                    .foregroundStyle(IATheme.textTertiary)
+            }
+
+            Spacer()
+
+            Image(systemName: "chevron.right")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(IATheme.textTertiary)
+        }
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: IATheme.radiusMedium, style: .continuous)
+                .fill(IATheme.surfaceWhite)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: IATheme.radiusMedium, style: .continuous)
+                .stroke(IATheme.warning.opacity(0.25), lineWidth: 1)
+        }
+        .contextMenu {
+            Button(role: .destructive) {
+                viewModel.deleteDraft(draft)
+            } label: {
+                Label("Delete Draft", systemImage: "trash")
+            }
+        }
+    }
+
+    private static func setupViewModel(from draft: DraftSession) -> SessionSetupViewModel {
+        let vm = SessionSetupViewModel()
+        vm.loadDraft(draft)
+        return vm
+    }
+
     // MARK: - Recent Activity
 
     private var recentActivitySection: some View {
@@ -127,9 +226,7 @@ struct DashboardView: View {
     }
 
     private func recentSessionRow(_ session: SessionHistoryItem) -> some View {
-        let sessionLabel = effectiveSessionLabel(session)
-
-        return HStack(spacing: 12) {
+        HStack(spacing: 12) {
             Circle()
                 .fill(IATheme.accent.opacity(0.12))
                 .frame(width: 40, height: 40)
@@ -140,18 +237,32 @@ struct DashboardView: View {
                 }
 
             VStack(alignment: .leading, spacing: 4) {
-                Text(sessionLabel)
+                Text(session.displayTitle)
                     .font(IATypography.headlineSmall)
                     .foregroundStyle(IATheme.textPrimary)
+                    .lineLimit(1)
 
-                Text(session.startedAt.formatted(.relative(presentation: .named)))
-                    .font(IATypography.bodySmall)
-                    .foregroundStyle(IATheme.textSecondary)
+                HStack(spacing: 6) {
+                    Text(session.reviewInterviewType.displayName)
+                        .font(IATypography.labelSmall)
+                        .foregroundStyle(IATheme.accent)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(IATheme.accent.opacity(0.10), in: Capsule())
+
+                    Text(session.startedAt.formatted(.relative(presentation: .named)))
+                        .font(IATypography.bodySmall)
+                        .foregroundStyle(IATheme.textSecondary)
+                }
             }
 
             Spacer()
 
             HStack(spacing: 6) {
+                if let score = session.overallScore {
+                    dashboardScoreBadge(score)
+                }
+
                 Text("\(session.exchangeCount) Qs")
                     .font(IATypography.labelMedium)
                     .foregroundStyle(IATheme.textSecondary)
@@ -172,28 +283,21 @@ struct DashboardView: View {
         }
     }
 
-    private func effectiveSessionLabel(_ session: SessionHistoryItem) -> String {
-        // If the stored type is meaningful (not "general"), use its display name
-        let storedType = InterviewType(rawValue: session.interviewType)
-        if let storedType, storedType != .general {
-            return storedType.displayName + " Interview"
-        }
+    private func dashboardScoreBadge(_ score: Int) -> some View {
+        let color = dashboardScoreColor(for: score)
+        return Text("\(score)")
+            .font(IATypography.labelSmall)
+            .fontWeight(.semibold)
+            .foregroundStyle(color)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(color.opacity(0.12), in: Capsule())
+    }
 
-        // Derive label from dominant question type in exchanges
-        if let exchanges = session.exchanges, !exchanges.isEmpty {
-            let typeCounts = Dictionary(grouping: exchanges, by: { $0.questionType.lowercased() })
-                .filter { $0.key != "unknown" }
-            if let dominant = typeCounts.max(by: { $0.value.count < $1.value.count }),
-               let questionType = QuestionType(rawValue: dominant.key) {
-                return questionType.displayName + " Interview"
-            }
-        }
-
-        // Fallback based on exchange count
-        let count = session.exchangeCount
-        if count >= 8 { return "Full Interview" }
-        if count >= 4 { return "Practice Session" }
-        return "Quick Practice"
+    private func dashboardScoreColor(for score: Int) -> Color {
+        if score >= 80 { return IATheme.success }
+        if score >= 60 { return IATheme.accent }
+        return IATheme.warning
     }
 
     private func sessionIcon(_ session: SessionHistoryItem) -> String {

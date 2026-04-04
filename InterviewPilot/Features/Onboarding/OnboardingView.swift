@@ -27,8 +27,20 @@ struct OnboardingView: View {
 
             footerButtons
                 .padding(.horizontal, IATheme.spacing20)
-                .padding(.vertical, 12)
-                .background(.ultraThinMaterial)
+                .padding(.top, 24)
+                .padding(.bottom, 12)
+                .background(
+                    LinearGradient(
+                        stops: [
+                            .init(color: IATheme.surfaceWhite.opacity(0), location: 0),
+                            .init(color: IATheme.surfaceWhite.opacity(0.85), location: 0.15),
+                            .init(color: IATheme.surfaceWhite, location: 0.35),
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                    .allowsHitTesting(false)
+                )
         }
         .background(IATheme.surfaceWhite.ignoresSafeArea())
         .fileImporter(

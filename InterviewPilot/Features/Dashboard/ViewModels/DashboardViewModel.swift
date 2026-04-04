@@ -4,6 +4,7 @@ import SwiftData
 @Observable
 final class DashboardViewModel {
     var recentSessions: [SessionHistoryItem] = []
+    var savedDrafts: [DraftSession] = []
     var userName: String = ""
     var isLoading = false
 
@@ -29,6 +30,8 @@ final class DashboardViewModel {
         isLoading = true
         defer { isLoading = false }
 
+        savedDrafts = DraftSession.loadAll()
+
         let descriptor = FetchDescriptor<InterviewSession>(
             sortBy: [SortDescriptor(\.startedAt, order: .reverse)]
         )
@@ -50,9 +53,16 @@ final class DashboardViewModel {
                     estimatedCost: session.estimatedCost,
                     exchangeCount: session.exchanges.count,
                     exchanges: session.exchanges,
-                    telemetrySummary: nil
+                    telemetrySummary: nil,
+                    jobDescription: session.jobDescription,
+                    overallScore: nil
                 )
             }
         }
+    }
+
+    func deleteDraft(_ draft: DraftSession) {
+        DraftSession.delete(id: draft.id)
+        savedDrafts.removeAll { $0.id == draft.id }
     }
 }

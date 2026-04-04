@@ -277,14 +277,30 @@ struct SessionSetupView: View {
             .buttonStyle(IAPrimaryButtonStyle(isEnabled: viewModel.isReady && !viewModel.isPreparingSession))
             .disabled(!viewModel.isReady || viewModel.isPreparingSession)
 
-            Button(action: { dismiss() }) {
+            Button(action: {
+                viewModel.saveDraft()
+                dismiss()
+            }) {
                 Text("Save for later")
                     .font(IATypography.bodyMedium)
                     .foregroundStyle(IATheme.accent)
             }
         }
-        .padding(16)
-        .background(.ultraThinMaterial)
+        .padding(.horizontal, 16)
+        .padding(.bottom, 16)
+        .padding(.top, 24)
+        .background(
+            LinearGradient(
+                stops: [
+                    .init(color: IATheme.surfaceWhite.opacity(0), location: 0),
+                    .init(color: IATheme.surfaceWhite.opacity(0.85), location: 0.15),
+                    .init(color: IATheme.surfaceWhite, location: 0.35),
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .allowsHitTesting(false)
+        )
     }
 
     private var jobListingSummaryCard: some View {

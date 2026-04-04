@@ -48,6 +48,8 @@ private struct RemoteSessionRecord: Decodable {
     let totalTokensUsed: Int
     let estimatedCost: Double
     let telemetrySummary: SessionTelemetrySummary?
+    let jobDescription: String?
+    let overallScore: Int?
     let exchanges: [RemoteExchangeRecord]?
     let count: RemoteExchangeCount?
 
@@ -63,6 +65,8 @@ private struct RemoteSessionRecord: Decodable {
         case totalTokensUsed
         case estimatedCost
         case telemetrySummary
+        case jobDescription
+        case overallScore
         case exchanges
         case count = "_count"
     }
@@ -84,7 +88,9 @@ private struct RemoteSessionRecord: Decodable {
             estimatedCost: estimatedCost,
             exchangeCount: resolvedExchanges?.count ?? count?.exchanges ?? 0,
             exchanges: resolvedExchanges,
-            telemetrySummary: telemetrySummary ?? SessionTelemetrySummary.build(from: resolvedExchanges ?? [])
+            telemetrySummary: telemetrySummary ?? SessionTelemetrySummary.build(from: resolvedExchanges ?? []),
+            jobDescription: jobDescription,
+            overallScore: overallScore
         )
     }
 

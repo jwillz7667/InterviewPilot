@@ -57,11 +57,8 @@ struct IAPanel<Content: View>: View {
     private var panelBackground: some View {
         if case .accent(let tint) = tone {
             RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                .fill(.regularMaterial)
-                .overlay {
-                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                        .fill(tint.opacity(0.12))
-                }
+                .fill(tint.opacity(0.12))
+                .glassEffect(.regular, in: .rect(cornerRadius: cornerRadius))
         } else if case .secondary = tone {
             RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                 .fill(.thinMaterial)
@@ -337,6 +334,7 @@ struct IABottomDock<Content: View>: View {
                         .stroke(IATheme.borderColor(for: colorScheme), lineWidth: 1)
                 }
         }
+        .glassEffect(.regular.interactive(), in: .rect(cornerRadius: IATheme.radiusXL))
         .shadow(color: IATheme.shadowColor(for: colorScheme).opacity(0.36), radius: 12, y: 6)
     }
 }
