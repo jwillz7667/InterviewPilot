@@ -39,7 +39,9 @@ final class SessionHistoryViewModel {
                 exchanges: session.exchanges,
                 telemetrySummary: SessionTelemetrySummary.build(from: session.exchanges),
                 jobDescription: session.jobDescription,
-                overallScore: nil
+                overallScore: nil,
+                jobListingUrl: session.jobListingUrl,
+                profileId: session.profileId
             )
         }
 

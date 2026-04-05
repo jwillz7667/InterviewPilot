@@ -55,10 +55,22 @@ final class DashboardViewModel {
                     exchanges: session.exchanges,
                     telemetrySummary: nil,
                     jobDescription: session.jobDescription,
-                    overallScore: nil
+                    overallScore: nil,
+                    jobListingUrl: session.jobListingUrl,
+                    profileId: session.profileId
                 )
             }
         }
+    }
+
+    /// Resume text from user profile for quick-launch practice.
+    var latestResumeText: String {
+        profileService.profile?.resumeText ?? ""
+    }
+
+    /// Job description from the most recent session for quick-launch practice.
+    var latestJobDescription: String {
+        recentSessions.first?.jobDescription ?? ""
     }
 
     func deleteDraft(_ draft: DraftSession) {

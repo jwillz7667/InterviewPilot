@@ -1180,7 +1180,9 @@ final class LiveSessionViewModel {
                     telemetry: exchange.telemetry,
                     sequenceOrder: index
                 )
-            }
+            },
+            jobListingUrl: session.jobListingUrl,
+            profileId: session.profileId
         )
 
         syncTask?.cancel()

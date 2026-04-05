@@ -13,6 +13,8 @@ struct SessionSyncSnapshot: Codable, Sendable {
     let estimatedCost: Double
     let telemetrySummary: SessionTelemetrySummary?
     let exchanges: [ExchangeSyncSnapshot]
+    let jobListingUrl: String?
+    let profileId: String?
 }
 
 struct ExchangeSyncSnapshot: Codable, Sendable {
@@ -162,6 +164,8 @@ private struct CreateSessionRequest: Encodable, Sendable {
     let totalTokensUsed: Int
     let estimatedCost: Double
     let telemetrySummary: SessionTelemetrySummary?
+    let jobListingUrl: String?
+    let profileId: String?
 
     nonisolated init(snapshot: SessionSyncSnapshot) {
         self.clientId = snapshot.clientId
@@ -175,6 +179,8 @@ private struct CreateSessionRequest: Encodable, Sendable {
         self.totalTokensUsed = snapshot.totalTokensUsed
         self.estimatedCost = snapshot.estimatedCost
         self.telemetrySummary = snapshot.telemetrySummary
+        self.jobListingUrl = snapshot.jobListingUrl
+        self.profileId = snapshot.profileId
     }
 }
 

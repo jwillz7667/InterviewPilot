@@ -17,6 +17,7 @@ struct DashboardView: View {
                         headerSection
                         UpgradeBannerView { showPaywall = true }
                         heroCTA
+                        practiceInterviewCTA
                         savedDraftsSection
                         recentActivitySection
                         dailyTipSection
@@ -83,6 +84,53 @@ struct DashboardView: View {
                         .font(.system(size: 28, weight: .medium))
                         .foregroundStyle(.white.opacity(0.9))
                 }
+            }
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: - Practice Interview CTA
+
+    private var practiceInterviewCTA: some View {
+        NavigationLink {
+            PracticeInterviewLaunchView(
+                resume: viewModel.latestResumeText,
+                jobDescription: viewModel.latestJobDescription,
+                interviewType: .behavioral,
+                companyName: nil,
+                positionTitle: nil
+            )
+        } label: {
+            HStack {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Practice Interview")
+                        .font(IATypography.headlineSmall)
+                        .foregroundStyle(IATheme.textPrimary)
+
+                    Text("Rehearse with an AI interviewer")
+                        .font(IATypography.bodySmall)
+                        .foregroundStyle(IATheme.textSecondary)
+                }
+
+                Spacer()
+
+                Circle()
+                    .fill(IATheme.tertiary.opacity(0.12))
+                    .frame(width: 44, height: 44)
+                    .overlay {
+                        Image(systemName: "person.wave.2.fill")
+                            .font(.system(size: 18, weight: .medium))
+                            .foregroundStyle(IATheme.tertiary)
+                    }
+            }
+            .padding(16)
+            .background(
+                RoundedRectangle(cornerRadius: IATheme.radiusMedium, style: .continuous)
+                    .fill(IATheme.surfaceWhite)
+            )
+            .overlay {
+                RoundedRectangle(cornerRadius: IATheme.radiusMedium, style: .continuous)
+                    .stroke(IATheme.tertiary.opacity(0.25), lineWidth: 1)
             }
         }
         .buttonStyle(.plain)

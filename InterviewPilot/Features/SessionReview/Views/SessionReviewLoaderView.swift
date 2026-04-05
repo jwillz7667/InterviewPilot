@@ -137,7 +137,9 @@ struct SessionReviewLoaderView: View {
             exchanges: nil,
             telemetrySummary: nil,
             jobDescription: nil,
-            overallScore: nil
+            overallScore: nil,
+            jobListingUrl: nil,
+            profileId: nil
         ),
         previewErrorMessage: "This session report is unavailable because the detailed payload was removed."
     )

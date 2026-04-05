@@ -29,6 +29,8 @@ const createSessionSchema = z.object({
   endedAt: z.string().datetime().optional(),
   resumeText: z.string().max(50000),
   jobDescription: z.string().max(50000),
+  jobListingUrl: z.string().max(2000).optional(),
+  profileId: z.string().max(200).optional(),
   interviewType: z.string().max(200),
   responseFormat: z.string().max(200),
   modelUsed: z.string().max(200),

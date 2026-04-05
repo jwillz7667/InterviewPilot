@@ -26,6 +26,14 @@ enum APIConfig {
     static let postResponseGracePeriodSeconds: TimeInterval = 8
     static let predictiveQuestionSimilarityThreshold: Float = 0.45
 
+    // OpenAI Realtime
+    static let realtimeModel = "gpt-4o-realtime-preview"
+    static let realtimeSampleRate = 24000
+    static let realtimeVoice = "alloy"
+    static let realtimeVadThreshold: Float = 0.5
+    static let realtimeVadSilenceDurationMs = 800
+    static let realtimeVadPrefixPaddingMs = 300
+
     // Limits
     static let freeResponseTokens = 320
     static let maxResponseTokens = 400

@@ -276,6 +276,8 @@ model InterviewSession {
   endedAt         DateTime?
   resumeText      String
   jobDescription  String
+  jobListingUrl   String?
+  profileId       String?
   interviewType   String
   responseFormat  String
   modelUsed       String

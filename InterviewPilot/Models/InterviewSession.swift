@@ -14,6 +14,8 @@ final class InterviewSession {
     var exchangesJSON: Data?
     var totalTokensUsed: Int
     var estimatedCost: Double
+    var jobListingUrl: String?
+    var profileId: String?
 
     init(
         id: UUID = UUID(),

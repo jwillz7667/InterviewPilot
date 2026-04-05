@@ -23,6 +23,8 @@ struct SessionHistoryItem: Identifiable {
     let telemetrySummary: SessionTelemetrySummary?
     let jobDescription: String?
     let overallScore: Int?
+    let jobListingUrl: String?
+    let profileId: String?
 
     var duration: TimeInterval {
         let endDate = endedAt ?? Date()

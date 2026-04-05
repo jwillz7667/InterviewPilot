@@ -194,6 +194,10 @@ struct SessionHistoryView: View {
                         HStack(spacing: 8) {
                             interviewTypeChip(session.reviewInterviewType)
 
+                            if session.sessionMode == .voicePrep {
+                                practiceModeBadge
+                            }
+
                             Text(viewModel.formatDate(session.startedAt))
                                 .font(IATypography.bodySmall)
                                 .foregroundStyle(IATheme.textSecondary)
@@ -236,8 +240,30 @@ struct SessionHistoryView: View {
                         .font(IATypography.bodySmall)
                         .foregroundStyle(IATheme.textSecondary)
                 }
+
+                NavigationLink {
+                    PracticeInterviewLaunchView(from: session)
+                } label: {
+                    Label("Practice Again", systemImage: "person.wave.2.fill")
+                        .font(IATypography.labelMedium)
+                        .foregroundStyle(IATheme.tertiary)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 8)
+                        .frame(maxWidth: .infinity)
+                        .background(IATheme.tertiary.opacity(0.10), in: Capsule())
+                }
+                .buttonStyle(.plain)
             }
         }
+    }
+
+    private var practiceModeBadge: some View {
+        Text("Practice")
+            .font(IATypography.labelSmall)
+            .foregroundStyle(IATheme.tertiary)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
+            .background(IATheme.tertiary.opacity(0.12), in: Capsule())
     }
 
     private func interviewTypeChip(_ type: InterviewType) -> some View {
@@ -383,7 +409,9 @@ private func previewHistoryViewModel(populated: Bool) -> SessionHistoryViewModel
                 ],
                 telemetrySummary: nil,
                 jobDescription: "ROLE TITLE: Senior iOS Engineer\nJOB CATEGORY: Software Engineering\nSTRUCTURED JOB REQUIREMENTS:\nCompany: Stripe\nLevel: Senior",
-                overallScore: 78
+                overallScore: 78,
+                jobListingUrl: nil,
+                profileId: nil
             ),
         ]
     }

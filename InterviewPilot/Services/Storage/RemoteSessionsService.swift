@@ -50,6 +50,8 @@ private struct RemoteSessionRecord: Decodable {
     let telemetrySummary: SessionTelemetrySummary?
     let jobDescription: String?
     let overallScore: Int?
+    let jobListingUrl: String?
+    let profileId: String?
     let exchanges: [RemoteExchangeRecord]?
     let count: RemoteExchangeCount?
 
@@ -67,6 +69,8 @@ private struct RemoteSessionRecord: Decodable {
         case telemetrySummary
         case jobDescription
         case overallScore
+        case jobListingUrl
+        case profileId
         case exchanges
         case count = "_count"
     }
@@ -90,7 +94,9 @@ private struct RemoteSessionRecord: Decodable {
             exchanges: resolvedExchanges,
             telemetrySummary: telemetrySummary ?? SessionTelemetrySummary.build(from: resolvedExchanges ?? []),
             jobDescription: jobDescription,
-            overallScore: overallScore
+            overallScore: overallScore,
+            jobListingUrl: jobListingUrl,
+            profileId: profileId
         )
     }
 
@@ -98,6 +104,8 @@ private struct RemoteSessionRecord: Decodable {
         switch rawValue {
         case "LIVE_INTERVIEW":
             return .liveInterview
+        case "VOICE_PREP":
+            return .voicePrep
         default:
             return nil
         }
