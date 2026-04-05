@@ -11,18 +11,33 @@ struct PracticeInterviewLaunchView: View {
     @State private var selectedProfileId: String?
     @State private var selectedProfile: InterviewProfile?
     @State private var isLoadingProfile = false
-    @Environment(\.colorScheme) private var colorScheme
+
+    // Job listing input
+    @State private var jobListingURLInput: String
+    @State private var isAnalyzingListing = false
+    @State private var analyzedJobDescription: String
+    @State private var analyzedCompanyName: String?
+    @State private var analyzedPositionTitle: String?
+    @State private var selectedInterviewType: InterviewType
+
     @Environment(\.dismiss) private var dismiss
 
-    // Session config — can be passed from a history item or directly
-    let resume: String
-    let jobDescription: String
-    let interviewType: InterviewType
-    let jobListingUrl: String?
+    // Pre-populated config (from history "Practice Again")
+    let initialResume: String
     let initialProfileId: String?
-    let companyName: String?
-    let positionTitle: String?
+    private let isPrepopulated: Bool
 
+    /// Fresh practice session — user will input a job listing URL
+    init() {
+        self.initialResume = ProfileService.shared.profile?.resumeText ?? ""
+        self.initialProfileId = nil
+        self.isPrepopulated = false
+        _jobListingURLInput = State(initialValue: "")
+        _analyzedJobDescription = State(initialValue: "")
+        _selectedInterviewType = State(initialValue: .behavioral)
+    }
+
+    /// Pre-populated from history or with specific data
     init(
         resume: String,
         jobDescription: String,
@@ -32,24 +47,30 @@ struct PracticeInterviewLaunchView: View {
         companyName: String? = nil,
         positionTitle: String? = nil
     ) {
-        self.resume = resume
-        self.jobDescription = jobDescription
-        self.interviewType = interviewType
-        self.jobListingUrl = jobListingUrl
+        self.initialResume = resume
         self.initialProfileId = profileId
-        self.companyName = companyName
-        self.positionTitle = positionTitle
+        self.isPrepopulated = !jobDescription.isEmpty
+        _jobListingURLInput = State(initialValue: jobListingUrl ?? "")
+        _analyzedJobDescription = State(initialValue: jobDescription)
+        _analyzedCompanyName = State(initialValue: companyName)
+        _analyzedPositionTitle = State(initialValue: positionTitle)
+        _selectedInterviewType = State(initialValue: interviewType)
     }
 
     /// Convenience init from a SessionHistoryItem for "Practice Again" flow.
     init(from session: SessionHistoryItem) {
-        self.resume = ProfileService.shared.profile?.resumeText ?? ""
-        self.jobDescription = session.jobDescription ?? ""
-        self.interviewType = session.reviewInterviewType
-        self.jobListingUrl = session.jobListingUrl
+        self.initialResume = ProfileService.shared.profile?.resumeText ?? ""
         self.initialProfileId = session.profileId
-        self.companyName = session.companyName
-        self.positionTitle = session.positionTitle
+        self.isPrepopulated = true
+        _jobListingURLInput = State(initialValue: session.jobListingUrl ?? "")
+        _analyzedJobDescription = State(initialValue: session.jobDescription ?? "")
+        _analyzedCompanyName = State(initialValue: session.companyName)
+        _analyzedPositionTitle = State(initialValue: session.positionTitle)
+        _selectedInterviewType = State(initialValue: session.reviewInterviewType)
+    }
+
+    private var hasJobListing: Bool {
+        !analyzedJobDescription.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     var body: some View {
@@ -61,8 +82,14 @@ struct PracticeInterviewLaunchView: View {
                     VStack(spacing: IATheme.spacing24) {
                         headerSection
                         heroSection
+                        jobListingInputSection
+                        interviewTypePicker
                         profileSelectorSection
-                        jobDetailsCard
+
+                        if hasJobListing {
+                            jobDetailsCard
+                        }
+
                         infoSection
 
                         if let error = errorMessage {
@@ -179,22 +206,22 @@ struct PracticeInterviewLaunchView: View {
                 .foregroundStyle(IATheme.textPrimary)
 
             VStack(alignment: .leading, spacing: 10) {
-                if let company = companyName, !company.isEmpty {
+                if let company = analyzedCompanyName, !company.isEmpty {
                     detailRow(icon: "building.2.fill", label: "Company", value: company)
                 }
 
-                if let position = positionTitle, !position.isEmpty {
+                if let position = analyzedPositionTitle, !position.isEmpty {
                     detailRow(icon: "briefcase.fill", label: "Position", value: position)
                 }
 
                 detailRow(
                     icon: "questionmark.bubble.fill",
                     label: "Type",
-                    value: interviewType.displayName
+                    value: selectedInterviewType.displayName
                 )
 
-                if let url = jobListingUrl, !url.isEmpty {
-                    detailRow(icon: "link", label: "Listing", value: url)
+                if !jobListingURLInput.isEmpty {
+                    detailRow(icon: "link", label: "Listing", value: jobListingURLInput)
                 }
             }
             .padding(14)
@@ -232,7 +259,7 @@ struct PracticeInterviewLaunchView: View {
 
     private var infoSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            let company = companyName ?? "the company"
+            let company = analyzedCompanyName ?? "the company"
 
             HStack(alignment: .top, spacing: 12) {
                 Circle()
@@ -330,8 +357,8 @@ struct PracticeInterviewLaunchView: View {
                     Text(isPreparingSession ? "Preparing Session" : "Start Practice")
                 }
             }
-            .buttonStyle(IAPrimaryButtonStyle(isEnabled: !isPreparingSession && hasVoicePrepAccess))
-            .disabled(isPreparingSession || !hasVoicePrepAccess)
+            .buttonStyle(IAPrimaryButtonStyle(isEnabled: !isPreparingSession && hasVoicePrepAccess && hasJobListing))
+            .disabled(isPreparingSession || !hasVoicePrepAccess || !hasJobListing)
 
             Button(action: { dismiss() }) {
                 Text("Go back")
@@ -400,6 +427,134 @@ struct PracticeInterviewLaunchView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(14)
             .background(IATheme.error.opacity(0.10), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+    }
+
+    // MARK: - Job Listing Input
+
+    private var jobListingInputSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Job Listing")
+                .font(IATypography.headlineSmall)
+                .foregroundStyle(IATheme.textPrimary)
+
+            HStack(spacing: 10) {
+                Image(systemName: "link")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(IATheme.textSecondary)
+
+                TextField("Paste job listing URL", text: $jobListingURLInput)
+                    .font(IATypography.bodyMedium)
+                    .foregroundStyle(IATheme.textPrimary)
+                    .keyboardType(.URL)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .onSubmit {
+                        analyzeJobListing()
+                    }
+
+                if isAnalyzingListing {
+                    ProgressView()
+                        .scaleEffect(0.8)
+                        .tint(IATheme.accent)
+                } else if !jobListingURLInput.isEmpty {
+                    Button {
+                        analyzeJobListing()
+                    } label: {
+                        Image(systemName: "arrow.right.circle.fill")
+                            .font(.system(size: 22))
+                            .foregroundStyle(IATheme.accent)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal, 14)
+            .frame(minHeight: 52)
+            .background(IATheme.surfaceWhite, in: RoundedRectangle(cornerRadius: IATheme.radiusMedium, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: IATheme.radiusMedium, style: .continuous)
+                    .stroke(IATheme.outlineVariant, lineWidth: 1)
+            }
+
+            if hasJobListing, let company = analyzedCompanyName {
+                HStack(spacing: 6) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 12))
+                        .foregroundStyle(IATheme.success)
+
+                    Text("Analyzed: \(company)")
+                        .font(IATypography.labelSmall)
+                        .foregroundStyle(IATheme.success)
+                }
+            }
+        }
+    }
+
+    private var interviewTypePicker: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Interview Type")
+                .font(IATypography.headlineSmall)
+                .foregroundStyle(IATheme.textPrimary)
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(InterviewType.allCases, id: \.self) { type in
+                        let isSelected = selectedInterviewType == type
+                        Button {
+                            selectedInterviewType = type
+                        } label: {
+                            Text(type.displayName)
+                                .font(IATypography.labelMedium)
+                                .foregroundStyle(isSelected ? .white : IATheme.textPrimary)
+                                .padding(.horizontal, 14)
+                                .padding(.vertical, 10)
+                                .background(
+                                    isSelected ? IATheme.accent : IATheme.surfaceWhite,
+                                    in: Capsule()
+                                )
+                                .overlay {
+                                    Capsule().stroke(isSelected ? Color.clear : IATheme.outlineVariant, lineWidth: 1)
+                                }
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+        }
+    }
+
+    private func analyzeJobListing() {
+        let url = jobListingURLInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !url.isEmpty else { return }
+
+        isAnalyzingListing = true
+        errorMessage = nil
+
+        Task {
+            do {
+                let analysis = try await JobListingAnalysisService.analyze(urlText: url)
+                let structured = JobDescriptionAnalyzer.analyze(title: analysis.title, rawText: analysis.extractedText)
+
+                analyzedPositionTitle = analysis.title
+                analyzedCompanyName = structured.companyName ?? structured.roleTitle ?? nil
+
+                var sections: [String] = []
+                if !analysis.title.isEmpty {
+                    sections.append("ROLE TITLE:\n\(analysis.title)")
+                }
+                sections.append("JOB LISTING URL:\n\(url)")
+                sections.append("JOB CATEGORY:\n\(analysis.jobCategory.displayName)")
+                sections.append("POSITION LEVEL:\n\(analysis.positionLevel.displayName)")
+                sections.append("JOB LISTING CONTENT:\n\(analysis.extractedText)")
+                if !structured.formattedAnalysis.isEmpty {
+                    sections.append(structured.formattedAnalysis)
+                }
+
+                analyzedJobDescription = sections.joined(separator: "\n\n")
+            } catch {
+                errorMessage = error.localizedDescription
+            }
+            isAnalyzingListing = false
+        }
     }
 
     // MARK: - Profile Selector
@@ -510,11 +665,11 @@ struct PracticeInterviewLaunchView: View {
 
     /// Build enriched resume from the selected profile, or fall back to the passed-in resume
     private var enrichedResume: String {
-        guard let profile = selectedProfile else { return resume }
+        guard let profile = selectedProfile else { return initialResume }
 
         var parts: [String] = []
 
-        let baseResume = profile.resumeText ?? resume
+        let baseResume = profile.resumeText ?? initialResume
         if !baseResume.isEmpty { parts.append(baseResume) }
 
         var profileLines: [String] = []
@@ -635,12 +790,12 @@ struct PracticeInterviewLaunchView: View {
         return PracticeInterviewViewModel(
             sessionId: sessionId,
             resume: enrichedResume,
-            jobDescription: jobDescription,
-            interviewType: interviewType,
-            jobListingUrl: jobListingUrl,
+            jobDescription: analyzedJobDescription,
+            interviewType: selectedInterviewType,
+            jobListingUrl: jobListingURLInput.isEmpty ? nil : jobListingURLInput,
             profileId: selectedProfileId ?? initialProfileId,
-            companyName: companyName,
-            positionTitle: positionTitle,
+            companyName: analyzedCompanyName,
+            positionTitle: analyzedPositionTitle,
             openAIKey: openAIKey
         )
     }

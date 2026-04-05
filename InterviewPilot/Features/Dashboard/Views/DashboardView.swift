@@ -93,13 +93,7 @@ struct DashboardView: View {
 
     private var practiceInterviewCTA: some View {
         NavigationLink {
-            PracticeInterviewLaunchView(
-                resume: viewModel.latestResumeText,
-                jobDescription: viewModel.latestJobDescription,
-                interviewType: .behavioral,
-                companyName: nil,
-                positionTitle: nil
-            )
+            PracticeInterviewLaunchView()
         } label: {
             HStack {
                 VStack(alignment: .leading, spacing: 6) {

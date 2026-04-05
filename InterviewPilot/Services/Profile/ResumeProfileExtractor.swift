@@ -1,6 +1,6 @@
 import Foundation
 
-struct ExtractedProfile: Codable, Sendable {
+struct ExtractedProfile: Sendable {
     let currentRole: String?
     let currentCompany: String?
     let yearsInRole: Int?
@@ -11,6 +11,27 @@ struct ExtractedProfile: Codable, Sendable {
     let certifications: [ExtractedCertification]
     let projects: [ExtractedProject]
     let achievements: [ExtractedAchievement]
+}
+
+extension ExtractedProfile: Decodable {
+    private enum CodingKeys: String, CodingKey {
+        case currentRole, currentCompany, yearsInRole, summary
+        case skills, workExperiences, education, certifications, projects, achievements
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        currentRole = try container.decodeIfPresent(String.self, forKey: .currentRole)
+        currentCompany = try container.decodeIfPresent(String.self, forKey: .currentCompany)
+        yearsInRole = try container.decodeIfPresent(Int.self, forKey: .yearsInRole)
+        summary = try container.decodeIfPresent(String.self, forKey: .summary)
+        skills = (try? container.decodeIfPresent([ExtractedSkill].self, forKey: .skills)) ?? []
+        workExperiences = (try? container.decodeIfPresent([ExtractedExperience].self, forKey: .workExperiences)) ?? []
+        education = (try? container.decodeIfPresent([ExtractedEducation].self, forKey: .education)) ?? []
+        certifications = (try? container.decodeIfPresent([ExtractedCertification].self, forKey: .certifications)) ?? []
+        projects = (try? container.decodeIfPresent([ExtractedProject].self, forKey: .projects)) ?? []
+        achievements = (try? container.decodeIfPresent([ExtractedAchievement].self, forKey: .achievements)) ?? []
+    }
 }
 
 struct ExtractedSkill: Codable, Sendable {
