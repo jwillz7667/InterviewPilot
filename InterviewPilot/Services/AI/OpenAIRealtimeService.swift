@@ -152,15 +152,15 @@ final class OpenAIRealtimeService {
                 "input_audio_format": "pcm16",
                 "output_audio_format": "pcm16",
                 "input_audio_transcription": [
-                    "model": "gpt-4o-mini-transcribe"
+                    "model": "whisper-1",
+                    "language": "en"
                 ],
                 "turn_detection": [
                     "type": "server_vad",
-                    "threshold": APIConfig.realtimeVadThreshold,
+                    "threshold": Double(APIConfig.realtimeVadThreshold),
                     "prefix_padding_ms": APIConfig.realtimeVadPrefixPaddingMs,
                     "silence_duration_ms": APIConfig.realtimeVadSilenceDurationMs
-                ],
-                "temperature": 0.8
+                ] as [String: Any]
             ] as [String: Any]
         ]
 
