@@ -51,7 +51,8 @@ final class RemoteSessionSyncService {
         self.decoder = decoder
     }
 
-    func syncSession(_ snapshot: SessionSyncSnapshot) async throws {
+    @discardableResult
+    func syncSession(_ snapshot: SessionSyncSnapshot) async throws -> String {
         let sessionResponse: SessionEnvelope = try await sendRequest(
             path: "/api/v1/sessions",
             method: "POST",
@@ -59,14 +60,18 @@ final class RemoteSessionSyncService {
             expectedStatusCodes: [201]
         )
 
-        guard !snapshot.exchanges.isEmpty else { return }
+        let serverId = sessionResponse.session.id
 
-        _ = try await sendRequest(
-            path: "/api/v1/sessions/\(sessionResponse.session.id)/exchanges/sync",
-            method: "POST",
-            body: SyncExchangesRequest(exchanges: snapshot.exchanges),
-            expectedStatusCodes: [200]
-        ) as SyncExchangesResponse
+        if !snapshot.exchanges.isEmpty {
+            _ = try await sendRequest(
+                path: "/api/v1/sessions/\(serverId)/exchanges/sync",
+                method: "POST",
+                body: SyncExchangesRequest(exchanges: snapshot.exchanges),
+                expectedStatusCodes: [200]
+            ) as SyncExchangesResponse
+        }
+
+        return serverId
     }
 
     private func sendRequest<Body: Encodable, Response: Decodable>(

@@ -24,7 +24,7 @@ final class SessionHistoryViewModel {
         let localSessions = storage.fetchSessions().map { session in
             SessionHistoryItem(
                 id: session.id.uuidString,
-                serverId: nil,
+                serverId: session.serverId,
                 clientId: session.id,
                 source: .local,
                 sessionMode: nil,

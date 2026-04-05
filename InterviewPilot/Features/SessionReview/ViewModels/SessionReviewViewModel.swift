@@ -38,7 +38,7 @@ final class SessionReviewViewModel {
     let duration: TimeInterval
     let interviewType: InterviewType
     let telemetrySummary: SessionTelemetrySummary?
-    let serverId: String?
+    var serverId: String?
 
     var selectedExchange: Exchange?
     var analysis: AIAnalysis?
@@ -65,6 +65,32 @@ final class SessionReviewViewModel {
 
     func feedbackForExchange(at index: Int) -> ExchangeFeedbackItem? {
         analysis?.exchangeFeedback.first { $0.sequenceOrder == index }
+    }
+
+    func resolveServerIdFromRemote() async {
+        guard serverId == nil else { return }
+
+        do {
+            let remoteSessions = try await RemoteSessionsService.shared.fetchSessions(limit: 20)
+
+            // Match by exchange count and approximate timestamp (within 60 seconds)
+            let match = remoteSessions.first { remote in
+                let exchangeCountMatches = remote.exchangeCount == exchanges.count
+                let timeDelta = abs(remote.startedAt.timeIntervalSince(exchanges.first?.timestamp ?? .distantPast))
+                let timestampClose = timeDelta < 60
+
+                // Also try matching by duration similarity
+                let durationClose = abs(remote.duration - duration) < 30
+
+                return exchangeCountMatches && (timestampClose || durationClose)
+            }
+
+            if let resolvedId = match?.serverId {
+                serverId = resolvedId
+            }
+        } catch {
+            // Silent failure — fetchAnalysis will handle the nil serverId gracefully
+        }
     }
 
     func fetchAnalysis() async {

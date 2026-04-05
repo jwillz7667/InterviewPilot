@@ -40,7 +40,7 @@ final class DashboardViewModel {
             recentSessions = Array(sessions.prefix(5)).map { session in
                 SessionHistoryItem(
                     id: session.id.uuidString,
-                    serverId: nil,
+                    serverId: session.serverId,
                     clientId: session.id,
                     source: .local,
                     sessionMode: nil,

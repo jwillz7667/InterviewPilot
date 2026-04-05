@@ -16,6 +16,7 @@ final class InterviewSession {
     var estimatedCost: Double
     var jobListingUrl: String?
     var profileId: String?
+    var serverId: String?
 
     init(
         id: UUID = UUID(),

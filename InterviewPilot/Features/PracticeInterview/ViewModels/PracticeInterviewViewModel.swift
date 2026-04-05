@@ -624,7 +624,9 @@ final class PracticeInterviewViewModel {
         syncTask = Task { @MainActor [weak self] in
             guard let self else { return }
             do {
-                try await self.remoteSync.syncSession(snapshot)
+                let serverId = try await self.remoteSync.syncSession(snapshot)
+                self.persistedSession?.serverId = serverId
+                self.localStorage.saveChanges()
             } catch {
                 if !Task.isCancelled {
                     SyncRetryQueue.shared.enqueue(snapshot)

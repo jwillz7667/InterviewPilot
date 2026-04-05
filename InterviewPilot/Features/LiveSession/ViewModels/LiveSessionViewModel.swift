@@ -1191,7 +1191,9 @@ final class LiveSessionViewModel {
             guard let self else { return }
 
             do {
-                try await self.remoteSync.syncSession(snapshot)
+                let serverId = try await self.remoteSync.syncSession(snapshot)
+                self.persistedSession?.serverId = serverId
+                self.localStorage.saveChanges()
                 self.syncState = .synced
             } catch {
                 if !Task.isCancelled {

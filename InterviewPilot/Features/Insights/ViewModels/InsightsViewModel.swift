@@ -63,18 +63,19 @@ final class InsightsViewModel {
 
         // Kick off async AI analysis fetch in the background
         let sessionClientId = latest.id.uuidString
+        let localServerId = latest.serverId
         Task {
-            await fetchAIAnalysis(sessionClientId: sessionClientId, fallbackExchanges: exchanges)
+            await fetchAIAnalysis(sessionClientId: sessionClientId, localServerId: localServerId, fallbackExchanges: exchanges)
         }
     }
 
     // MARK: - AI Analysis Fetch
 
-    private func fetchAIAnalysis(sessionClientId: String, fallbackExchanges: [Exchange]) async {
+    private func fetchAIAnalysis(sessionClientId: String, localServerId: String?, fallbackExchanges: [Exchange]) async {
         defer { isLoading = false }
 
         do {
-            let serverId = try await resolveServerId(for: sessionClientId)
+            let serverId = try await resolveServerId(for: sessionClientId, localServerId: localServerId)
             let envelope: InsightsAnalysisEnvelope = try await AuthenticatedAPIClient.shared.post(
                 "/api/v1/sessions/\(serverId)/analyze",
                 body: InsightsEmptyBody(),
@@ -96,7 +97,11 @@ final class InsightsViewModel {
         }
     }
 
-    private func resolveServerId(for clientId: String) async throws -> String {
+    private func resolveServerId(for clientId: String, localServerId: String? = nil) async throws -> String {
+        if let localServerId {
+            return localServerId
+        }
+
         let sessions = try await RemoteSessionsService.shared.fetchSessions(limit: 10)
         guard let match = sessions.first(where: { $0.id == clientId || $0.clientId?.uuidString == clientId }),
               let serverId = match.serverId else {

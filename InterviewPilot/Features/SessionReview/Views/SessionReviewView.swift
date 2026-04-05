@@ -33,6 +33,9 @@ struct SessionReviewView: View {
             }
             .toolbar(.hidden, for: .navigationBar)
             .task {
+                if viewModel.serverId == nil {
+                    await viewModel.resolveServerIdFromRemote()
+                }
                 if viewModel.serverId != nil, !viewModel.hasAnalysis {
                     await viewModel.fetchAnalysis()
                 }
