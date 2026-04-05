@@ -8,6 +8,9 @@ struct PracticeInterviewLaunchView: View {
     @State private var isPreparingSession = false
     @State private var errorMessage: String?
     @State private var preparedSessionId: UUID?
+    @State private var selectedProfileId: String?
+    @State private var selectedProfile: InterviewProfile?
+    @State private var isLoadingProfile = false
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.dismiss) private var dismiss
 
@@ -16,7 +19,7 @@ struct PracticeInterviewLaunchView: View {
     let jobDescription: String
     let interviewType: InterviewType
     let jobListingUrl: String?
-    let profileId: String?
+    let initialProfileId: String?
     let companyName: String?
     let positionTitle: String?
 
@@ -33,18 +36,18 @@ struct PracticeInterviewLaunchView: View {
         self.jobDescription = jobDescription
         self.interviewType = interviewType
         self.jobListingUrl = jobListingUrl
-        self.profileId = profileId
+        self.initialProfileId = profileId
         self.companyName = companyName
         self.positionTitle = positionTitle
     }
 
     /// Convenience init from a SessionHistoryItem for "Practice Again" flow.
     init(from session: SessionHistoryItem) {
-        self.resume = session.jobDescription ?? ""
+        self.resume = ProfileService.shared.profile?.resumeText ?? ""
         self.jobDescription = session.jobDescription ?? ""
         self.interviewType = session.reviewInterviewType
         self.jobListingUrl = session.jobListingUrl
-        self.profileId = session.profileId
+        self.initialProfileId = session.profileId
         self.companyName = session.companyName
         self.positionTitle = session.positionTitle
     }
@@ -58,6 +61,7 @@ struct PracticeInterviewLaunchView: View {
                     VStack(spacing: IATheme.spacing24) {
                         headerSection
                         heroSection
+                        profileSelectorSection
                         jobDetailsCard
                         infoSection
 
@@ -90,6 +94,15 @@ struct PracticeInterviewLaunchView: View {
             }
             .sheet(isPresented: $showPaywall) {
                 SubscriptionPaywallView()
+            }
+            .task {
+                await profileService.fetchProfiles()
+                if selectedProfileId == nil {
+                    selectedProfileId = initialProfileId ?? profileService.defaultProfile?.id
+                }
+                if let id = selectedProfileId {
+                    await loadProfile(id: id)
+                }
             }
         }
     }
@@ -389,6 +402,185 @@ struct PracticeInterviewLaunchView: View {
             .background(IATheme.error.opacity(0.10), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
 
+    // MARK: - Profile Selector
+
+    private var profileSelectorSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Interview Profile")
+                .font(IATypography.headlineSmall)
+                .foregroundStyle(IATheme.textPrimary)
+
+            if profileService.profiles.isEmpty {
+                HStack(spacing: 10) {
+                    Image(systemName: "person.crop.circle.badge.plus")
+                        .font(.system(size: 18))
+                        .foregroundStyle(IATheme.textSecondary)
+
+                    Text("No profiles yet. Using your default resume.")
+                        .font(IATypography.bodySmall)
+                        .foregroundStyle(IATheme.textSecondary)
+                }
+                .padding(14)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(IATheme.surfaceWhite, in: RoundedRectangle(cornerRadius: IATheme.radiusMedium, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: IATheme.radiusMedium, style: .continuous)
+                        .stroke(IATheme.outlineVariant, lineWidth: 1)
+                }
+            } else {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 10) {
+                        ForEach(profileService.profiles) { profile in
+                            let isSelected = selectedProfileId == profile.id
+                            Button {
+                                selectedProfileId = profile.id
+                                Task { await loadProfile(id: profile.id) }
+                            } label: {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(profile.name)
+                                        .font(IATypography.labelMedium)
+                                        .foregroundStyle(isSelected ? .white : IATheme.textPrimary)
+                                        .lineLimit(1)
+
+                                    if let role = profile.currentRole {
+                                        Text(role)
+                                            .font(IATypography.labelSmall)
+                                            .foregroundStyle(isSelected ? .white.opacity(0.7) : IATheme.textSecondary)
+                                            .lineLimit(1)
+                                    }
+                                }
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 12)
+                                .background(
+                                    isSelected ? IATheme.accent : IATheme.surfaceWhite,
+                                    in: RoundedRectangle(cornerRadius: IATheme.radiusMedium, style: .continuous)
+                                )
+                                .overlay {
+                                    RoundedRectangle(cornerRadius: IATheme.radiusMedium, style: .continuous)
+                                        .stroke(isSelected ? Color.clear : IATheme.outlineVariant, lineWidth: 1)
+                                }
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+
+                if let profile = selectedProfile {
+                    HStack(spacing: 8) {
+                        if let company = profile.currentCompany, !company.isEmpty {
+                            Label(company, systemImage: "building.2")
+                                .font(IATypography.labelSmall)
+                                .foregroundStyle(IATheme.textSecondary)
+                        }
+
+                        if profile.skills.count > 0 {
+                            Text("\(profile.skills.count) skills")
+                                .font(IATypography.labelSmall)
+                                .foregroundStyle(IATheme.textSecondary)
+                        }
+
+                        if profile.workExperiences.count > 0 {
+                            Text("\(profile.workExperiences.count) roles")
+                                .font(IATypography.labelSmall)
+                                .foregroundStyle(IATheme.textSecondary)
+                        }
+                    }
+                    .padding(.top, 4)
+                } else if isLoadingProfile {
+                    HStack(spacing: 8) {
+                        ProgressView().scaleEffect(0.7).tint(IATheme.accent)
+                        Text("Loading profile...")
+                            .font(IATypography.labelSmall)
+                            .foregroundStyle(IATheme.textSecondary)
+                    }
+                }
+            }
+        }
+    }
+
+    private func loadProfile(id: String) async {
+        isLoadingProfile = true
+        do {
+            selectedProfile = try await profileService.fetchProfile(id: id)
+        } catch {
+            selectedProfile = nil
+        }
+        isLoadingProfile = false
+    }
+
+    /// Build enriched resume from the selected profile, or fall back to the passed-in resume
+    private var enrichedResume: String {
+        guard let profile = selectedProfile else { return resume }
+
+        var parts: [String] = []
+
+        let baseResume = profile.resumeText ?? resume
+        if !baseResume.isEmpty { parts.append(baseResume) }
+
+        var profileLines: [String] = []
+        if let role = profile.currentRole, !role.isEmpty {
+            var line = "Current role: \(role)"
+            if let company = profile.currentCompany, !company.isEmpty { line += " at \(company)" }
+            if let years = profile.yearsInRole, years > 0 { line += " (\(years) years)" }
+            profileLines.append(line)
+        }
+        if let summary = profile.summary, !summary.isEmpty {
+            profileLines.append("Summary: \(summary)")
+        }
+        if let style = profile.communicationStyle, !style.isEmpty {
+            profileLines.append("Communication preference: \(style)")
+        }
+        if !profileLines.isEmpty {
+            parts.append("\nCANDIDATE PROFILE:\n\(profileLines.joined(separator: "\n"))")
+        }
+
+        if !profile.workExperiences.isEmpty {
+            let formatted = profile.workExperiences.prefix(5).map { e in
+                let period = e.endYear.map { "\(e.startYear)-\($0)" } ?? "\(e.startYear)-present"
+                var line = "- \(e.title) at \(e.company) (\(period))"
+                if let desc = e.description, !desc.isEmpty { line += ": \(desc)" }
+                return line
+            }.joined(separator: "\n")
+            parts.append("\nWORK HISTORY:\n\(formatted)")
+        }
+
+        if !profile.skills.isEmpty {
+            let names = profile.skills.prefix(30).map(\.name).joined(separator: ", ")
+            parts.append("\nSKILLS:\n\(names)")
+        }
+
+        if !profile.education.isEmpty {
+            let formatted = profile.education.map { e in
+                var line = "- \(e.degree)"
+                if let field = e.field { line += " in \(field)" }
+                line += " from \(e.institution)"
+                return line
+            }.joined(separator: "\n")
+            parts.append("\nEDUCATION:\n\(formatted)")
+        }
+
+        if !profile.projects.isEmpty {
+            let formatted = profile.projects.prefix(5).map { e in
+                var line = "- \(e.name)"
+                if let desc = e.description { line += ": \(desc)" }
+                if let tech = e.techStack { line += " | Tech: \(tech)" }
+                return line
+            }.joined(separator: "\n")
+            parts.append("\nKEY PROJECTS:\n\(formatted)")
+        }
+
+        if !profile.achievements.isEmpty {
+            let formatted = profile.achievements.prefix(5).map { e in
+                var line = "- \(e.description)"
+                if let metric = e.metric { line += " — \(metric)" }
+                return line
+            }.joined(separator: "\n")
+            parts.append("\nACHIEVEMENTS:\n\(formatted)")
+        }
+
+        return parts.joined(separator: "\n")
+    }
+
     // MARK: - Session Preparation
 
     private func startPracticeSession() {
@@ -442,11 +634,11 @@ struct PracticeInterviewLaunchView: View {
 
         return PracticeInterviewViewModel(
             sessionId: sessionId,
-            resume: resume,
+            resume: enrichedResume,
             jobDescription: jobDescription,
             interviewType: interviewType,
             jobListingUrl: jobListingUrl,
-            profileId: profileId,
+            profileId: selectedProfileId ?? initialProfileId,
             companyName: companyName,
             positionTitle: positionTitle,
             openAIKey: openAIKey
