@@ -1,4 +1,5 @@
 import { getRedis } from '../../config/redis.js';
+import type { FeatureKey, ModelConfig, ResponseQuality } from './billing.constants.js';
 
 const BILLING_CACHE_PREFIX = 'billing:summary:';
 const BILLING_CACHE_TTL = 60; // seconds
@@ -6,26 +7,36 @@ const BILLING_CACHE_TTL = 60; // seconds
 export interface CachedBillingSummary {
   tier: string;
   status: string;
+  accessSource: string;
   product: string;
-  interviewsRemaining: number | null;
-  interviewsUsed: number;
-  interviewLimit: number;
-  hasUnlimitedInterviews: boolean;
-  canStartLiveInterview: boolean;
-  canStartVoicePrep: boolean;
+  productId: string | null;
+  features: FeatureKey[];
+  featureFlags: Record<FeatureKey, boolean>;
+  sandboxFullAccess: boolean;
+  trialInterviewLimit: number;
+  trialInterviewsUsed: number;
+  interviewsRemaining: number;
+  hasActiveSubscription: boolean;
+  paywallRequired: boolean;
+  appAccountToken: string;
   currentPeriodEndsAt: string | null;
-  featureFlags: Record<string, boolean>;
+  gracePeriodEndsAt: string | null;
   trialDaysRemaining: number | null;
-  responseQuality: string;
-  modelConfig: {
-    defaultModel: string;
-    technicalModel: string;
-    codingModel: string;
-    maxTokens: number;
-  };
+  responseQuality: ResponseQuality;
+  modelConfig: ModelConfig;
   monthlyInterviewsUsed: number;
   monthlyInterviewLimit: number;
+  profileLimit: number;
+  profilesUsed: number;
   monthlyInterviewsRemaining: number;
+  catalog: Array<{
+    product: string;
+    productId: string;
+    tier: string;
+    displayName: string;
+    billingLabel: string;
+    features: FeatureKey[];
+  }>;
 }
 
 export async function getCachedBillingSummary(userId: string): Promise<CachedBillingSummary | null> {

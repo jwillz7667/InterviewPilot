@@ -54,7 +54,7 @@ final class LiveSessionViewModel {
     private var postResponseSpeechStartedAt: Date?
     private var hasFiredResponse: Bool = false
     private var sessionStartTime: Date?
-    private var timer: Timer?
+    nonisolated(unsafe) private var timer: Timer?
     private var currentExchangeStart: Date?
     private var exchanges: [Exchange] = []
     private var persistedSession: InterviewSession?
@@ -112,6 +112,10 @@ final class LiveSessionViewModel {
                 return "Sync Pending"
             }
         }
+    }
+
+    deinit {
+        timer?.invalidate()
     }
 
     init(
@@ -454,6 +458,7 @@ final class LiveSessionViewModel {
         audioCapture.stopCapture()
         deepgram.disconnect()
         responseGenerator.cancelGeneration()
+        responseGenerator.tearDown()
         syncTask?.cancel()
         timer?.invalidate()
         timer = nil

@@ -27,11 +27,11 @@ const createSessionSchema = z.object({
   sessionMode: z.enum(['liveInterview', 'voicePrep']).default('liveInterview'),
   startedAt: z.string().datetime(),
   endedAt: z.string().datetime().optional(),
-  resumeText: z.string(),
-  jobDescription: z.string(),
-  interviewType: z.string(),
-  responseFormat: z.string(),
-  modelUsed: z.string(),
+  resumeText: z.string().max(50000),
+  jobDescription: z.string().max(50000),
+  interviewType: z.string().max(200),
+  responseFormat: z.string().max(200),
+  modelUsed: z.string().max(200),
   totalTokensUsed: z.number().int().default(0),
   estimatedCost: z.number().default(0),
   telemetrySummary: sessionTelemetrySummarySchema.optional(),
@@ -99,6 +99,18 @@ export async function sessionsRoutes(app: FastifyInstance) {
   // Create session
   app.post('/api/v1/sessions', async (request: FastifyRequest, reply: FastifyReply) => {
     const input = createSessionSchema.parse(request.body);
+
+    // Verify ownership: if a session with this clientId already exists, it must belong to the requesting user
+    const existingByClientId = await withDatabaseRetry((prisma) =>
+      prisma.interviewSession.findUnique({
+        where: { clientId: input.clientId },
+        select: { userId: true },
+      })
+    );
+    if (existingByClientId && existingByClientId.userId !== request.user.sub) {
+      return reply.status(403).send({ error: 'Forbidden', message: 'Session belongs to another user' });
+    }
+
     const accessGrant = await getSessionAccessGrant(
       request.user.sub,
       input.clientId,
@@ -167,6 +179,7 @@ export async function sessionsRoutes(app: FastifyInstance) {
   // Analyze session with AI grading
   app.post(
     '/api/v1/sessions/:id/analyze',
+    { config: { rateLimit: { max: 5, timeWindow: '1 minute' } } },
     async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
       const analysis = await analyzeSession(request.params.id, request.user.sub);
       reply.send({ analysis });

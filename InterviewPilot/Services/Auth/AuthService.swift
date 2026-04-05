@@ -207,7 +207,15 @@ final class AuthService {
                 _ = KeychainService.save(key: .refreshToken, value: response.refreshToken)
 
                 return response.accessToken
+            } catch let urlError as URLError {
+                // Network-level errors (timeout, no connection, DNS failure, etc.)
+                // are transient — don't destroy the session. The user can retry
+                // once connectivity recovers.
+                _ = urlError
+                return nil
             } catch {
+                // Server explicitly rejected the refresh token (e.g. expired,
+                // revoked, or 401/403). Clear all auth data and force re-login.
                 self.clearAuthData()
                 SubscriptionService.shared.reset()
                 self.isAuthenticated = false

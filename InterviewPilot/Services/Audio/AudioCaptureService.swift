@@ -215,6 +215,7 @@ final class AudioCaptureService {
 
     func stopCapture() {
         stopEngineOnly()
+        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
         isCapturing = false
         isInterrupted = false
         audioLevel = 0.0

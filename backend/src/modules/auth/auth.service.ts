@@ -439,24 +439,39 @@ export async function rotateRefreshToken(
   oldToken: string
 ): Promise<{ userId: string; newToken: string }> {
   const oldTokenHash = hashRefreshToken(oldToken);
-  const existing = await withDatabaseRetry((prisma) =>
-    prisma.refreshToken.findUnique({ where: { tokenHash: oldTokenHash } })
-  );
+  const prisma = getPrisma();
 
-  if (!existing || existing.revokedAt || existing.expiresAt < new Date()) {
-    throw new UnauthorizedError('Invalid or expired refresh token');
-  }
+  const result = await prisma.$transaction(async (tx) => {
+    const existing = await tx.refreshToken.findUnique({
+      where: { tokenHash: oldTokenHash },
+    });
 
-  await withDatabaseRetry((prisma) =>
-    prisma.refreshToken.update({
+    if (!existing || existing.revokedAt || existing.expiresAt < new Date()) {
+      throw new UnauthorizedError('Invalid or expired refresh token');
+    }
+
+    await tx.refreshToken.update({
       where: { id: existing.id },
       data: { revokedAt: new Date() },
-    })
-  );
+    });
 
-  const newToken = await createRefreshToken(existing.userId, existing.deviceId ?? undefined);
+    const newTokenValue = randomBytes(64).toString('hex');
+    const newTokenHash = hashRefreshToken(newTokenValue);
+    const expiresAt = new Date(Date.now() + REFRESH_TOKEN_EXPIRY_DAYS * 24 * 60 * 60 * 1000);
 
-  return { userId: existing.userId, newToken };
+    await tx.refreshToken.create({
+      data: {
+        tokenHash: newTokenHash,
+        userId: existing.userId,
+        deviceId: existing.deviceId,
+        expiresAt,
+      },
+    });
+
+    return { userId: existing.userId, newToken: newTokenValue };
+  });
+
+  return result;
 }
 
 export async function revokeRefreshToken(token: string): Promise<void> {

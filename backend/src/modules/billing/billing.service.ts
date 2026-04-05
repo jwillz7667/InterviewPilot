@@ -800,14 +800,14 @@ async function withSessionAccessGrant(
 export async function getBillingSummary(userId: string): Promise<BillingSummary> {
   const cached = await getCachedBillingSummary(userId);
   if (cached) {
-    return cached as unknown as BillingSummary;
+    return cached;
   }
 
   const summary = await withDatabaseRetry(async (prisma) =>
     buildSummary(await ensureBillingContext(prisma, userId))
   );
 
-  await setCachedBillingSummary(userId, summary as unknown as import('./billing.cache.js').CachedBillingSummary).catch(() => {});
+  await setCachedBillingSummary(userId, summary).catch(() => {});
 
   return summary;
 }

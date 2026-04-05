@@ -227,6 +227,13 @@ final class ResponseGeneratorService {
         isGenerating = false
     }
 
+    /// Invalidates the dedicated streaming URLSession and releases its resources.
+    /// Call when the live session ends to prevent connection leaks.
+    func tearDown() {
+        _streamingSession?.invalidateAndCancel()
+        _streamingSession = nil
+    }
+
     /// Returns true for HTTP status codes that should NOT be retried.
     private static func isNonRetryable(statusCode: Int) -> Bool {
         switch statusCode {

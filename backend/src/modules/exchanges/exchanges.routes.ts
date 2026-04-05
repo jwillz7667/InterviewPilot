@@ -18,9 +18,9 @@ const exchangeTelemetrySchema = z.object({
 const exchangeSchema = z.object({
   clientId: z.string().uuid(),
   timestamp: z.string().datetime(),
-  questionTranscript: z.string(),
-  questionType: z.string(),
-  generatedResponse: z.string(),
+  questionTranscript: z.string().max(10000),
+  questionType: z.string().max(200),
+  generatedResponse: z.string().max(10000),
   responseLatencyMs: z.number().int(),
   wasPreComputed: z.boolean().default(false),
   telemetry: exchangeTelemetrySchema.optional(),

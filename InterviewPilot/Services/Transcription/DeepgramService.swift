@@ -87,6 +87,11 @@ final class DeepgramService {
         self.urlSession = session
         self.webSocket = session.webSocketTask(with: request)
         self.webSocket?.resume()
+
+        // Wait for the first message to confirm the WebSocket handshake completed.
+        // Setting isConnected before the handshake finishes causes audio sent in
+        // that window to be silently dropped.
+        await receiveFirstMessage()
         self.isConnected = true
 
         startKeepAlive()
@@ -199,6 +204,40 @@ final class DeepgramService {
         webSocket = nil
         urlSession?.invalidateAndCancel()
         urlSession = nil
+    }
+
+    /// Waits for the first WebSocket message to confirm the handshake completed.
+    /// Deepgram sends metadata on connect; receiving it proves the connection is live.
+    /// Times out after 5 seconds so we don't block forever on a broken socket.
+    private func receiveFirstMessage() async {
+        guard let ws = webSocket else { return }
+        do {
+            let message = try await withThrowingTaskGroup(of: URLSessionWebSocketTask.Message.self) { group in
+                group.addTask {
+                    try await ws.receive()
+                }
+                group.addTask {
+                    try await Task.sleep(nanoseconds: 5_000_000_000)
+                    throw CancellationError()
+                }
+                let result = try await group.next()!
+                group.cancelAll()
+                return result
+            }
+            // Process the first message so it isn't lost
+            switch message {
+            case .string(let text):
+                handleMessage(text)
+            case .data(let data):
+                if let text = String(data: data, encoding: .utf8) {
+                    handleMessage(text)
+                }
+            @unknown default:
+                break
+            }
+        } catch {
+            // Timeout or failure — isConnected stays false, caller can handle
+        }
     }
 
     private func receiveMessages() async {
