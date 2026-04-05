@@ -973,9 +973,8 @@ struct ProfileDetailEditorView: View {
     }
 
     private func extractProfileFromResume() {
-        guard !resumeText.isEmpty else { return }
-        guard let apiKey = KeychainService.load(key: .openAIAPIKey), !apiKey.isEmpty else {
-            errorMessage = "API key not available. Start an interview session first to configure keys."
+        guard !resumeText.isEmpty else {
+            errorMessage = "Add your resume text first, then tap Auto-fill."
             return
         }
 
@@ -983,88 +982,90 @@ struct ProfileDetailEditorView: View {
         errorMessage = nil
 
         Task {
+            // Ensure API key is available — fetch from backend if not in Keychain
+            var apiKey = KeychainService.load(key: .openAIAPIKey) ?? ""
+            if apiKey.isEmpty {
+                await AuthService.shared.fetchAndStoreAPIKeys()
+                apiKey = KeychainService.load(key: .openAIAPIKey) ?? ""
+            }
+            guard !apiKey.isEmpty else {
+                errorMessage = "Unable to load API key. Please check your connection and try again."
+                isExtractingProfile = false
+                return
+            }
+
             do {
                 let extracted = try await ResumeProfileExtractor.extract(from: resumeText, apiKey: apiKey)
 
-                // Personal info
-                if let role = extracted.currentRole, currentRole.isEmpty {
+                // Personal info — always overwrite with extracted data
+                if let role = extracted.currentRole {
                     currentRole = role
                 }
-                if let company = extracted.currentCompany, currentCompany.isEmpty {
+                if let company = extracted.currentCompany {
                     currentCompany = company
                 }
-                if let years = extracted.yearsInRole, yearsInRole == 0 {
+                if let years = extracted.yearsInRole, years > 0 {
                     yearsInRole = years
                 }
-                if let extractedSummary = extracted.summary, summary.isEmpty {
+                if let extractedSummary = extracted.summary, !extractedSummary.isEmpty {
                     summary = extractedSummary
                 }
 
-                // Skills (merge, don't overwrite)
+                // Skills — merge (add new, keep existing)
                 for skill in extracted.skills {
                     if !skills.contains(where: { $0.name.lowercased() == skill.name.lowercased() }) {
                         skills.append(ProfileSkillEntry(name: skill.name, category: skill.category))
                     }
                 }
 
-                // Work experiences (replace if empty, otherwise merge)
-                if workExperiences.isEmpty {
-                    workExperiences = extracted.workExperiences.map { exp in
-                        ProfileWorkExperience(
-                            title: exp.title,
-                            company: exp.company,
-                            startYear: exp.startYear,
-                            endYear: exp.endYear,
-                            description: exp.description
-                        )
-                    }
+                // Work experiences — always replace with extracted data
+                workExperiences = extracted.workExperiences.map { exp in
+                    ProfileWorkExperience(
+                        title: exp.title,
+                        company: exp.company,
+                        startYear: exp.startYear,
+                        endYear: exp.endYear,
+                        description: exp.description
+                    )
                 }
 
-                // Education
-                if education.isEmpty {
-                    education = extracted.education.map { edu in
-                        ProfileEducation(
-                            institution: edu.institution,
-                            degree: edu.degree,
-                            field: edu.field,
-                            startYear: edu.startYear,
-                            endYear: edu.endYear
-                        )
-                    }
+                // Education — always replace
+                education = extracted.education.map { edu in
+                    ProfileEducation(
+                        institution: edu.institution,
+                        degree: edu.degree,
+                        field: edu.field,
+                        startYear: edu.startYear,
+                        endYear: edu.endYear
+                    )
                 }
 
-                // Certifications
-                if certifications.isEmpty {
-                    certifications = extracted.certifications.map { cert in
-                        ProfileCertification(
-                            name: cert.name,
-                            issuer: cert.issuer,
-                            year: cert.year
-                        )
-                    }
+                // Certifications — always replace
+                certifications = extracted.certifications.map { cert in
+                    ProfileCertification(
+                        name: cert.name,
+                        issuer: cert.issuer,
+                        year: cert.year
+                    )
                 }
 
-                // Projects
-                if projects.isEmpty {
-                    projects = extracted.projects.map { proj in
-                        ProfileProject(
-                            name: proj.name,
-                            description: proj.description,
-                            techStack: proj.techStack,
-                            year: proj.year
-                        )
-                    }
+                // Projects — always replace
+                projects = extracted.projects.map { proj in
+                    ProfileProject(
+                        name: proj.name,
+                        description: proj.description,
+                        techStack: proj.techStack,
+                        year: proj.year
+                    )
                 }
 
-                // Achievements
-                if achievements.isEmpty {
-                    achievements = extracted.achievements.map { ach in
-                        ProfileAchievement(
-                            description: ach.description,
-                            metric: ach.metric,
-                            year: ach.year
-                        )
-                    }
+                // Achievements — always replace
+                achievements = extracted.achievements.map { ach in
+                    ProfileAchievement(
+                        description: ach.description,
+                        metric: ach.metric,
+                        year: ach.year
+                    )
                 }
             } catch {
                 errorMessage = error.localizedDescription

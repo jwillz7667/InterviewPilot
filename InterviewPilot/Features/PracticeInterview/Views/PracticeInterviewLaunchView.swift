@@ -138,7 +138,7 @@ struct PracticeInterviewLaunchView: View {
         RoundedRectangle(cornerRadius: IATheme.radiusLarge, style: .continuous)
             .fill(
                 LinearGradient(
-                    colors: [IATheme.tertiaryContainer.opacity(0.3), IATheme.tertiary.opacity(0.12)],
+                    colors: [IATheme.primaryContainer.opacity(0.3), IATheme.primary.opacity(0.12)],
                     startPoint: .topLeading,
                     endPoint: .bottomTrailing
                 )
@@ -148,7 +148,7 @@ struct PracticeInterviewLaunchView: View {
                 VStack(spacing: 10) {
                     Image(systemName: "person.wave.2.fill")
                         .font(.system(size: 42, weight: .light))
-                        .foregroundStyle(IATheme.tertiary.opacity(0.7))
+                        .foregroundStyle(IATheme.accent.opacity(0.7))
 
                     Text("Voice-to-voice practice")
                         .font(IATypography.labelLarge)
@@ -197,7 +197,7 @@ struct PracticeInterviewLaunchView: View {
         HStack(alignment: .top, spacing: 10) {
             Image(systemName: icon)
                 .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(IATheme.tertiary)
+                .foregroundStyle(IATheme.accent)
                 .frame(width: 20)
 
             VStack(alignment: .leading, spacing: 2) {
@@ -223,12 +223,12 @@ struct PracticeInterviewLaunchView: View {
 
             HStack(alignment: .top, spacing: 12) {
                 Circle()
-                    .fill(IATheme.tertiary.opacity(0.10))
+                    .fill(IATheme.accent.opacity(0.10))
                     .frame(width: 36, height: 36)
                     .overlay {
                         Image(systemName: "info.circle.fill")
                             .font(.system(size: 15, weight: .semibold))
-                            .foregroundStyle(IATheme.tertiary)
+                            .foregroundStyle(IATheme.accent)
                     }
 
                 VStack(alignment: .leading, spacing: 4) {
@@ -273,12 +273,12 @@ struct PracticeInterviewLaunchView: View {
     private func tipCard(icon: String, title: String, detail: String) -> some View {
         HStack(alignment: .top, spacing: 12) {
             Circle()
-                .fill(IATheme.tertiary.opacity(0.10))
+                .fill(IATheme.accent.opacity(0.10))
                 .frame(width: 36, height: 36)
                 .overlay {
                     Image(systemName: icon)
                         .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(IATheme.tertiary)
+                        .foregroundStyle(IATheme.accent)
                 }
 
             VStack(alignment: .leading, spacing: 4) {
@@ -352,7 +352,7 @@ struct PracticeInterviewLaunchView: View {
                 VStack(spacing: 16) {
                     Image(systemName: "lock.fill")
                         .font(.system(size: 32, weight: .medium))
-                        .foregroundStyle(IATheme.tertiary)
+                        .foregroundStyle(IATheme.accent)
 
                     Text("Practice Interview")
                         .font(IATypography.headlineMedium)

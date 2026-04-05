@@ -115,12 +115,12 @@ struct DashboardView: View {
                 Spacer()
 
                 Circle()
-                    .fill(IATheme.tertiary.opacity(0.12))
+                    .fill(IATheme.accent.opacity(0.12))
                     .frame(width: 44, height: 44)
                     .overlay {
                         Image(systemName: "person.wave.2.fill")
                             .font(.system(size: 18, weight: .medium))
-                            .foregroundStyle(IATheme.tertiary)
+                            .foregroundStyle(IATheme.accent)
                     }
             }
             .padding(16)
@@ -130,7 +130,7 @@ struct DashboardView: View {
             )
             .overlay {
                 RoundedRectangle(cornerRadius: IATheme.radiusMedium, style: .continuous)
-                    .stroke(IATheme.tertiary.opacity(0.25), lineWidth: 1)
+                    .stroke(IATheme.accent.opacity(0.25), lineWidth: 1)
             }
         }
         .buttonStyle(.plain)
@@ -406,7 +406,7 @@ struct DashboardView: View {
              "star.fill", IATheme.accent),
             ("Own Your Story",
              "Use 'I' not 'we'. Interviewers want to hear YOUR contribution. Name the specific system you built, the decision you made, the metric you moved.",
-             "person.fill", IATheme.tertiary),
+             "person.fill", IATheme.accent),
             ("Quantify Impact",
              "Replace vague claims with numbers: 'reduced latency from 800ms to 120ms' beats 'improved performance significantly' every time.",
              "chart.bar.fill", IATheme.success),
@@ -421,7 +421,7 @@ struct DashboardView: View {
              "bolt.fill", IATheme.primaryContainer),
             ("Prep Your Projects",
              "Have 3-4 go-to projects ready. For each, know: what you built, why, what went wrong, what you'd change, and the measurable outcome.",
-             "folder.fill", IATheme.tertiary),
+             "folder.fill", IATheme.accent),
         ]
         let dayIndex = Calendar.current.ordinality(of: .day, in: .year, for: Date()) ?? 0
         let tip = tips[dayIndex % tips.count]

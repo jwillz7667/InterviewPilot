@@ -246,11 +246,11 @@ struct SessionHistoryView: View {
                 } label: {
                     Label("Practice Again", systemImage: "person.wave.2.fill")
                         .font(IATypography.labelMedium)
-                        .foregroundStyle(IATheme.tertiary)
+                        .foregroundStyle(IATheme.secondary)
                         .padding(.horizontal, 14)
                         .padding(.vertical, 8)
                         .frame(maxWidth: .infinity)
-                        .background(IATheme.tertiary.opacity(0.10), in: Capsule())
+                        .background(IATheme.secondaryContainer.opacity(0.4), in: Capsule())
                 }
                 .buttonStyle(.plain)
             }
@@ -260,10 +260,10 @@ struct SessionHistoryView: View {
     private var practiceModeBadge: some View {
         Text("Practice")
             .font(IATypography.labelSmall)
-            .foregroundStyle(IATheme.tertiary)
+            .foregroundStyle(IATheme.secondary)
             .padding(.horizontal, 8)
             .padding(.vertical, 3)
-            .background(IATheme.tertiary.opacity(0.12), in: Capsule())
+            .background(IATheme.secondaryContainer.opacity(0.5), in: Capsule())
     }
 
     private func interviewTypeChip(_ type: InterviewType) -> some View {

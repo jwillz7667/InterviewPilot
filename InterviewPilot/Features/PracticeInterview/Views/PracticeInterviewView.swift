@@ -92,7 +92,7 @@ struct PracticeInterviewView: View {
             HStack(spacing: 8) {
                 AnimatedStatusBadge(
                     text: "Practice",
-                    color: IATheme.tertiary,
+                    color: IATheme.secondary,
                     isActive: viewModel.sessionState != .idle && viewModel.sessionState != .ended
                 )
 
@@ -121,10 +121,10 @@ struct PracticeInterviewView: View {
                     Text("Q\(viewModel.questionNumber)")
                         .font(IATypography.labelSmall)
                         .fontWeight(.semibold)
-                        .foregroundStyle(IATheme.tertiary)
+                        .foregroundStyle(IATheme.primary)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 3)
-                        .background(IATheme.tertiary.opacity(0.12), in: Capsule())
+                        .background(IATheme.primary.opacity(0.12), in: Capsule())
                 }
             }
 
@@ -159,7 +159,7 @@ struct PracticeInterviewView: View {
             HStack {
                 HStack(spacing: 6) {
                     Circle()
-                        .fill(IATheme.tertiary)
+                        .fill(IATheme.primary)
                         .frame(width: 8, height: 8)
                         .opacity(viewModel.sessionState == .userSpeaking ? 1 : 0.5)
 
@@ -170,7 +170,7 @@ struct PracticeInterviewView: View {
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 6)
-                .background(Capsule().fill(.white.opacity(0.15)))
+                .background(Capsule().fill(IATheme.secondaryContainer.opacity(0.3)))
 
                 Spacer()
 
@@ -232,13 +232,13 @@ struct PracticeInterviewView: View {
             RoundedRectangle(cornerRadius: 28, style: .continuous)
                 .fill(
                     LinearGradient(
-                        colors: [IATheme.tertiaryContainer, IATheme.tertiary],
+                        colors: [IATheme.primaryContainer, IATheme.primary],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
                     )
                 )
         )
-        .shadow(color: IATheme.tertiary.opacity(0.2), radius: 16, y: 8)
+        .shadow(color: IATheme.primary.opacity(0.2), radius: 16, y: 8)
     }
 
     // MARK: - Controls
@@ -259,7 +259,7 @@ struct PracticeInterviewView: View {
         HStack(spacing: 5) {
             ForEach(0..<5, id: \.self) { index in
                 RoundedRectangle(cornerRadius: 2, style: .continuous)
-                    .fill(IATheme.tertiary)
+                    .fill(IATheme.primary)
                     .frame(width: 4, height: aiBarHeight(for: index))
                     .animation(
                         .easeInOut(duration: 0.4)
@@ -352,7 +352,7 @@ struct PracticeInterviewView: View {
             icon: viewModel.isMuted ? "mic.slash.fill" : "mic.fill",
             label: viewModel.isMuted ? "Unmute" : "Mute",
             isActive: !viewModel.isMuted,
-            tint: IATheme.tertiary
+            tint: IATheme.primary
         ) {
             viewModel.toggleMute()
         }
@@ -374,7 +374,7 @@ struct PracticeInterviewView: View {
             icon: "forward.fill",
             label: "Skip",
             isActive: true,
-            tint: IATheme.tertiary
+            tint: IATheme.accent
         ) {
             viewModel.skipQuestion()
         }
