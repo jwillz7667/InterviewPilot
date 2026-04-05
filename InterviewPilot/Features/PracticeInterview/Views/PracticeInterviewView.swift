@@ -20,8 +20,10 @@ struct PracticeInterviewView: View {
                     ScrollView {
                         VStack(alignment: .leading, spacing: 16) {
                             interviewerSection
+                            idealAnswerSection
                             userResponseSection
                                 .id("userResponseTop")
+                            deliveryVerdictSection
                             Color.clear.frame(height: 1).id("bottom")
                         }
                         .padding(.horizontal, 16)
@@ -239,6 +241,124 @@ struct PracticeInterviewView: View {
                 )
         )
         .shadow(color: IATheme.primary.opacity(0.2), radius: 16, y: 8)
+    }
+
+    // MARK: - Ideal Answer Section
+
+    @ViewBuilder
+    private var idealAnswerSection: some View {
+        if !viewModel.idealAnswer.isEmpty || viewModel.isGeneratingAnswer {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 8) {
+                    Image(systemName: "lightbulb.fill")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(IATheme.accent)
+
+                    Text("IDEAL ANSWER")
+                        .font(IATypography.labelSmall)
+                        .tracking(1.2)
+                        .foregroundStyle(IATheme.textSecondary)
+
+                    if viewModel.isGeneratingAnswer {
+                        ProgressView()
+                            .scaleEffect(0.7)
+                            .tint(IATheme.accent)
+                    }
+                }
+
+                if viewModel.idealAnswer.isEmpty && viewModel.isGeneratingAnswer {
+                    VStack(alignment: .leading, spacing: 8) {
+                        ForEach(0..<3, id: \.self) { index in
+                            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                .fill(IATheme.accent.opacity(0.08))
+                                .frame(height: 14)
+                                .frame(maxWidth: index == 2 ? 200 : .infinity)
+                                .shimmer()
+                        }
+                    }
+                    .padding(16)
+                } else {
+                    Text(viewModel.idealAnswer)
+                        .font(IATypography.bodyMedium)
+                        .foregroundStyle(IATheme.textPrimary)
+                        .lineSpacing(4)
+                        .padding(16)
+                }
+            }
+            .padding(16)
+            .background(
+                RoundedRectangle(cornerRadius: IATheme.radiusMedium, style: .continuous)
+                    .fill(IATheme.accent.opacity(0.06))
+            )
+            .overlay {
+                RoundedRectangle(cornerRadius: IATheme.radiusMedium, style: .continuous)
+                    .stroke(IATheme.accent.opacity(0.15), lineWidth: 1)
+            }
+        }
+    }
+
+    // MARK: - Delivery Verdict
+
+    @ViewBuilder
+    private var deliveryVerdictSection: some View {
+        if let verdict = viewModel.deliveryVerdict {
+            HStack(spacing: 12) {
+                Image(systemName: verdict.icon)
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundStyle(verdictColor(verdict))
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(verdict.label)
+                        .font(IATypography.headlineSmall)
+                        .foregroundStyle(IATheme.textPrimary)
+
+                    Text(verdictDetail(verdict))
+                        .font(IATypography.bodySmall)
+                        .foregroundStyle(IATheme.textSecondary)
+                }
+
+                Spacer()
+
+                Text("\(verdict.score)")
+                    .font(IATypography.displayMedium)
+                    .foregroundStyle(verdictColor(verdict))
+            }
+            .padding(16)
+            .background(
+                RoundedRectangle(cornerRadius: IATheme.radiusMedium, style: .continuous)
+                    .fill(verdictColor(verdict).opacity(0.08))
+            )
+            .overlay {
+                RoundedRectangle(cornerRadius: IATheme.radiusMedium, style: .continuous)
+                    .stroke(verdictColor(verdict).opacity(0.2), lineWidth: 1)
+            }
+            .transition(.opacity.combined(with: .move(edge: .bottom)))
+            .animation(IAAnimations.standard, value: viewModel.deliveryVerdict)
+        }
+    }
+
+    private func verdictColor(_ verdict: PracticeInterviewViewModel.DeliveryVerdict) -> Color {
+        switch verdict {
+        case .natural(let score):
+            return score >= 70 ? IATheme.success : IATheme.accent
+        case .reading:
+            return IATheme.warning
+        case .incomplete:
+            return IATheme.error
+        }
+    }
+
+    private func verdictDetail(_ verdict: PracticeInterviewViewModel.DeliveryVerdict) -> String {
+        switch verdict {
+        case .natural(let score):
+            if score >= 80 { return "Great job! You sounded confident and natural." }
+            if score >= 60 { return "Good delivery. Try adding more specific details." }
+            return "Cover more of the key points in your answer."
+        case .reading:
+            return "Try paraphrasing instead of reading verbatim. Use your own words."
+        case .incomplete:
+            return "Your answer was too short. Expand with examples and specifics."
+        }
     }
 
     // MARK: - Controls
