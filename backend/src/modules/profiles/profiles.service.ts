@@ -153,6 +153,14 @@ export async function createProfile(userId: string, data: CreateProfileInput) {
         summary: data.summary ?? null,
         communicationStyle: data.communicationStyle ?? null,
       },
+      include: {
+        workExperiences: true,
+        skills: true,
+        education: true,
+        certifications: true,
+        projects: true,
+        achievements: true,
+      },
     })
   );
 
@@ -176,6 +184,14 @@ export async function updateProfile(userId: string, profileId: string, data: Upd
         ...(data.linkedinUrl !== undefined && { linkedinUrl: data.linkedinUrl }),
         ...(data.summary !== undefined && { summary: data.summary }),
         ...(data.communicationStyle !== undefined && { communicationStyle: data.communicationStyle }),
+      },
+      include: {
+        workExperiences: { orderBy: { startYear: 'desc' } },
+        skills: { orderBy: { name: 'asc' } },
+        education: { orderBy: { endYear: 'desc' } },
+        certifications: { orderBy: { year: 'desc' } },
+        projects: { orderBy: { year: 'desc' } },
+        achievements: { orderBy: { year: 'desc' } },
       },
     })
   );
@@ -239,6 +255,14 @@ export async function setDefaultProfile(userId: string, profileId: string) {
       return tx.interviewProfile.update({
         where: { id: profileId },
         data: { isDefault: true },
+        include: {
+          workExperiences: { orderBy: { startYear: 'desc' } },
+          skills: { orderBy: { name: 'asc' } },
+          education: { orderBy: { endYear: 'desc' } },
+          certifications: { orderBy: { year: 'desc' } },
+          projects: { orderBy: { year: 'desc' } },
+          achievements: { orderBy: { year: 'desc' } },
+        },
       });
     })
   );
