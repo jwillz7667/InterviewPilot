@@ -4,7 +4,7 @@ import StoreKit
 struct BillingCatalogProduct: Codable, Sendable, Identifiable {
     let product: String
     let productId: String
-    let tier: String
+    let tier: SubscriptionTier
     let displayName: String
     let billingLabel: String
     let features: [String]
@@ -12,8 +12,49 @@ struct BillingCatalogProduct: Codable, Sendable, Identifiable {
     var id: String { productId }
 }
 
+/// Per-quality quota window. Maps to backend `QuotaWindowDTO`.
+///
+/// `limit < 0` is the wire-format sentinel for "unlimited" — translated into
+/// `isUnlimited == true` so UI never shows "−1 of −1 remaining".
+struct QuotaWindow: Codable, Sendable, Equatable {
+    let used: Int
+    let limit: Int
+    let remaining: Int
+    let isUnlimited: Bool
+    let resetsAt: String?
+
+    /// What to render under the quality picker. Empty for unlimited tiers.
+    var summaryLabel: String {
+        if isUnlimited { return "Unlimited" }
+        if limit == 0 { return "Upgrade to use" }
+        return "\(remaining) of \(limit) left"
+    }
+
+    /// True when the quota is positive but currently zero — a paywall trigger
+    /// rather than a "feature unavailable" gate.
+    var isExhausted: Bool {
+        !isUnlimited && remaining <= 0 && limit > 0
+    }
+}
+
+/// Aggregate quota summary returned from the backend. Maps to `QuotaSummaryDTO`.
+struct QuotaSummary: Codable, Sendable, Equatable {
+    let standard: QuotaWindow
+    let premium: QuotaWindow
+    let periodStartedAt: String
+    let periodEndsAt: String?
+
+    /// Convenience accessor for the dimension matching a chosen quality.
+    func window(for quality: InterviewQuality) -> QuotaWindow {
+        switch quality {
+        case .standard: return standard
+        case .premium: return premium
+        }
+    }
+}
+
 struct BillingEntitlement: Codable, Sendable {
-    let tier: String
+    let tier: SubscriptionTier
     let status: String
     let accessSource: String
     let product: String
@@ -35,6 +76,7 @@ struct BillingEntitlement: Codable, Sendable {
     let monthlyInterviewsUsed: Int
     let monthlyInterviewLimit: Int
     let monthlyInterviewsRemaining: Int
+    let quotas: QuotaSummary
     let profileLimit: Int
     let profilesUsed: Int
     let catalog: [BillingCatalogProduct]
@@ -47,12 +89,13 @@ struct BillingEntitlement: Codable, Sendable {
         case currentPeriodEndsAt, gracePeriodEndsAt
         case trialDaysRemaining, responseQuality, modelConfig
         case monthlyInterviewsUsed, monthlyInterviewLimit, monthlyInterviewsRemaining
+        case quotas
         case profileLimit, profilesUsed
         case catalog
     }
 
     init(
-        tier: String,
+        tier: SubscriptionTier,
         status: String,
         accessSource: String,
         product: String,
@@ -74,6 +117,7 @@ struct BillingEntitlement: Codable, Sendable {
         monthlyInterviewsUsed: Int = 0,
         monthlyInterviewLimit: Int = 3,
         monthlyInterviewsRemaining: Int = 3,
+        quotas: QuotaSummary,
         profileLimit: Int = 0,
         profilesUsed: Int = 0,
         catalog: [BillingCatalogProduct]
@@ -100,6 +144,7 @@ struct BillingEntitlement: Codable, Sendable {
         self.monthlyInterviewsUsed = monthlyInterviewsUsed
         self.monthlyInterviewLimit = monthlyInterviewLimit
         self.monthlyInterviewsRemaining = monthlyInterviewsRemaining
+        self.quotas = quotas
         self.profileLimit = profileLimit
         self.profilesUsed = profilesUsed
         self.catalog = catalog
@@ -107,7 +152,7 @@ struct BillingEntitlement: Codable, Sendable {
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        tier = try container.decode(String.self, forKey: .tier)
+        tier = try container.decode(SubscriptionTier.self, forKey: .tier)
         status = try container.decode(String.self, forKey: .status)
         accessSource = try container.decode(String.self, forKey: .accessSource)
         product = try container.decode(String.self, forKey: .product)
@@ -129,14 +174,31 @@ struct BillingEntitlement: Codable, Sendable {
         monthlyInterviewsUsed = try container.decodeIfPresent(Int.self, forKey: .monthlyInterviewsUsed) ?? 0
         monthlyInterviewLimit = try container.decodeIfPresent(Int.self, forKey: .monthlyInterviewLimit) ?? 3
         monthlyInterviewsRemaining = try container.decodeIfPresent(Int.self, forKey: .monthlyInterviewsRemaining) ?? 3
+        // Backwards-compat: a freshly-installed app paired with a backend that
+        // hasn't yet been redeployed would receive a payload without `quotas`.
+        // Synthesize a minimal Free-tier window so the UI doesn't crash.
+        if let decoded = try container.decodeIfPresent(QuotaSummary.self, forKey: .quotas) {
+            quotas = decoded
+        } else {
+            quotas = QuotaSummary(
+                standard: QuotaWindow(used: 0, limit: 3, remaining: 3, isUnlimited: false, resetsAt: nil),
+                premium: QuotaWindow(used: 0, limit: 1, remaining: 1, isUnlimited: false, resetsAt: nil),
+                periodStartedAt: ISO8601DateFormatter().string(from: Date()),
+                periodEndsAt: nil
+            )
+        }
         profileLimit = try container.decodeIfPresent(Int.self, forKey: .profileLimit) ?? 0
         profilesUsed = try container.decodeIfPresent(Int.self, forKey: .profilesUsed) ?? 0
         catalog = try container.decode([BillingCatalogProduct].self, forKey: .catalog)
     }
 
     var canStartLiveInterview: Bool {
-        featureFlags["live_interview"] == true &&
-        (hasActiveSubscription || sandboxFullAccess || interviewsRemaining > 0 || monthlyInterviewsRemaining > 0)
+        guard featureFlags["live_interview"] == true else { return false }
+        if hasActiveSubscription || sandboxFullAccess { return true }
+        return quotas.standard.remaining > 0 ||
+               quotas.premium.remaining > 0 ||
+               quotas.standard.isUnlimited ||
+               quotas.premium.isUnlimited
     }
 
     var hasVoicePrep: Bool {
@@ -147,8 +209,12 @@ struct BillingEntitlement: Codable, Sendable {
         featureFlags["priority_models"] == true
     }
 
+    var hasPostSessionAnalysis: Bool {
+        featureFlags["post_session_analysis"] == true
+    }
+
     var hasUnlimitedInterviews: Bool {
-        hasActiveSubscription || sandboxFullAccess
+        hasActiveSubscription || sandboxFullAccess || tier.hasUnlimitedQuota
     }
 
     var trialInterviewsRemaining: Int {
@@ -163,19 +229,33 @@ struct BillingEntitlement: Codable, Sendable {
         hasResumePersonalization && profilesUsed < profileLimit
     }
 
-    var isInTrial: Bool { tier == "trial" }
-    var isFreeTier: Bool { tier == "free" }
-
-    var planTitle: String {
-        switch tier {
-        case "sandbox": return "Sandbox"
-        case "pro": return "Pro"
-        case "plus": return "Plus"
-        case "trial": return "Trial"
-        case "free": return "Free"
-        default: return "Free"
-        }
+    /// True when the user has at least one slot left for the requested quality.
+    /// Sandbox always returns true. Used by the SessionSetup quality picker
+    /// to disable+paywall the cell rather than letting claim attempt the call.
+    func canStart(quality: InterviewQuality) -> Bool {
+        if sandboxFullAccess { return true }
+        let window = quotas.window(for: quality)
+        if window.isUnlimited { return true }
+        return window.remaining > 0
     }
+
+    /// True when a quality button should still render but be locked behind
+    /// a paywall (i.e. limit > 0 and exhausted, OR limit == 0 meaning the
+    /// tier doesn't include this dimension at all).
+    func requiresPaywall(for quality: InterviewQuality) -> Bool {
+        guard !sandboxFullAccess else { return false }
+        let window = quotas.window(for: quality)
+        if window.isUnlimited { return false }
+        return window.remaining <= 0
+    }
+
+    var displayTier: SubscriptionTier { tier.canonicalDisplayTier }
+
+    var isInTrial: Bool { tier == .trial }
+    var isFreeTier: Bool { tier == .free }
+    var isPremium: Bool { displayTier == .premium }
+
+    var planTitle: String { displayTier.planTitle }
 
     var statusDetail: String {
         if sandboxFullAccess {
@@ -190,7 +270,11 @@ struct BillingEntitlement: Codable, Sendable {
             return "\(days) day\(days == 1 ? "" : "s") left in your free trial"
         }
 
-        return "\(monthlyInterviewsRemaining) of \(monthlyInterviewLimit) free interviews remaining this month"
+        let std = quotas.standard
+        if std.isUnlimited {
+            return "Unlimited interviews this month."
+        }
+        return "\(std.remaining) of \(std.limit) free interviews remaining this month"
     }
 
     private func formattedDate(_ iso8601: String) -> String {
@@ -203,7 +287,8 @@ struct BillingAccessClaim: Codable, Sendable {
     let sessionClientId: String
     let sessionMode: String
     let accessSource: String
-    let accessTier: String
+    let accessTier: SubscriptionTier
+    let quality: InterviewQuality
     let consumedTrial: Bool
     let trialInterviewNumber: Int?
     let entitlement: BillingEntitlement
@@ -212,7 +297,7 @@ struct BillingAccessClaim: Codable, Sendable {
 struct SubscriptionStoreProduct: Identifiable, Sendable {
     let id: String
     let productId: String
-    let tier: String
+    let tier: SubscriptionTier
     let displayName: String
     let displayPrice: String
     let billingLabel: String
@@ -231,6 +316,15 @@ private struct BillingAccessClaimEnvelope: Codable {
 private struct PaymentAPIError: Decodable {
     let error: String?
     let message: String?
+    let requiredFeature: String?
+    let requiredTier: String?
+    let quality: String?
+    let remaining: QuotaRemainder?
+
+    struct QuotaRemainder: Decodable {
+        let standard: Int?
+        let premium: Int?
+    }
 }
 
 @MainActor
@@ -264,9 +358,9 @@ final class SubscriptionService {
         UserDefaults.standard.removeObject(forKey: entitlementCacheKey)
     }
 
-    var currentEntitlement: BillingEntitlement? {
-        developerOverrideEntitlement(from: entitlement)
-    }
+    /// Backing entitlement is the source of truth — sandbox/dev access is now
+    /// granted by the backend so no client-side override is applied here.
+    var currentEntitlement: BillingEntitlement? { entitlement }
 
     func refresh(forceStoreKitSync: Bool = true) async {
         guard AuthService.shared.isAuthenticated else {
@@ -295,44 +389,29 @@ final class SubscriptionService {
         } catch let error as BillingClientError {
             if case .unauthenticated = error {
                 reset()
-            } else if hasDeveloperFullAccess {
-                entitlement = developerOverrideEntitlement(from: entitlement)
-                errorMessage = nil
             } else {
                 errorMessage = error.localizedDescription
             }
         } catch {
-            if hasDeveloperFullAccess {
-                entitlement = developerOverrideEntitlement(from: entitlement)
-                errorMessage = nil
-            } else {
-                errorMessage = error.localizedDescription
-            }
+            errorMessage = error.localizedDescription
         }
     }
 
+    /// Claim a per-quality interview slot from the backend. The server is the
+    /// authority on quota — there is no client-side fast-path. A 402 means
+    /// "exhausted at this quality"; the caller should drive a paywall.
     func claimInterviewAccess(
         sessionClientId: UUID,
-        sessionMode: SessionMode
+        sessionMode: SessionMode,
+        quality: InterviewQuality
     ) async throws -> BillingAccessClaim {
-        if let entitlement = currentEntitlement, hasDeveloperFullAccess {
-            return BillingAccessClaim(
-                sessionClientId: sessionClientId.uuidString,
-                sessionMode: sessionMode.rawValue,
-                accessSource: "developer_override",
-                accessTier: entitlement.tier,
-                consumedTrial: false,
-                trialInterviewNumber: nil,
-                entitlement: entitlement
-            )
-        }
-
         let response: BillingAccessClaimEnvelope = try await sendAuthenticatedRequest(
             path: "/api/v1/billing/access-claims",
             method: "POST",
             body: [
                 "sessionClientId": sessionClientId.uuidString,
                 "sessionMode": sessionMode.rawValue,
+                "quality": quality.rawValue,
             ]
         )
 
@@ -503,9 +582,14 @@ final class SubscriptionService {
         case 401:
             return .unauthenticated
         case 402:
-            return .paymentRequired(message)
+            // Backend sends `quality: "PREMIUM"|"STANDARD"` on quota errors;
+            // `requiredFeature` is set on feature-gated rejections.
+            let required: InterviewQuality? = decoded?.quality.flatMap { InterviewQuality(rawValue: $0) }
+            return .paymentRequired(message: message, quality: required, feature: decoded?.requiredFeature)
         case 403:
-            return .featureUnavailable(message)
+            return .featureUnavailable(message: message, feature: decoded?.requiredFeature)
+        case 409:
+            return .qualityConflict(message)
         default:
             return .server(message)
         }
@@ -531,61 +615,6 @@ final class SubscriptionService {
         }
     }
 
-    private var hasDeveloperFullAccess: Bool {
-        AuthService.shared.hasDeveloperFullAccess
-    }
-
-    private func developerOverrideEntitlement(from base: BillingEntitlement?) -> BillingEntitlement? {
-        guard hasDeveloperFullAccess else { return base }
-
-        let appAccountToken = base?.appAccountToken
-            ?? AuthService.shared.currentUser?.appAccountToken
-            ?? UUID().uuidString
-
-        var featureFlags = base?.featureFlags ?? [:]
-        featureFlags["live_interview"] = true
-        featureFlags["voice_prep"] = true
-        featureFlags["priority_models"] = true
-        featureFlags["resume_personalization"] = true
-
-        let features = Array(
-            Set((base?.features ?? []) + [
-                "Unlimited live interviews",
-                "Voice prep",
-                "Priority models",
-                "Developer full access"
-            ])
-        ).sorted()
-
-        return BillingEntitlement(
-            tier: "sandbox",
-            status: "active",
-            accessSource: "developer_override",
-            product: "developer_override",
-            productId: base?.productId,
-            features: features,
-            featureFlags: featureFlags,
-            sandboxFullAccess: true,
-            trialInterviewLimit: base?.trialInterviewLimit ?? 0,
-            trialInterviewsUsed: base?.trialInterviewsUsed ?? 0,
-            interviewsRemaining: max(base?.interviewsRemaining ?? 0, 9_999),
-            hasActiveSubscription: true,
-            paywallRequired: false,
-            appAccountToken: appAccountToken,
-            currentPeriodEndsAt: base?.currentPeriodEndsAt,
-            gracePeriodEndsAt: base?.gracePeriodEndsAt,
-            trialDaysRemaining: nil,
-            responseQuality: "premium",
-            modelConfig: ModelConfig(defaultModel: "gpt-4.1", technicalModel: "gpt-4.1", codingModel: "o4-mini", maxTokens: 480),
-            monthlyInterviewsUsed: 0,
-            monthlyInterviewLimit: 999,
-            monthlyInterviewsRemaining: 999,
-            profileLimit: 10,
-            profilesUsed: base?.profilesUsed ?? 0,
-            catalog: base?.catalog ?? []
-        )
-    }
-
     private func cacheEntitlement(_ entitlement: BillingEntitlement) {
         if let data = try? JSONEncoder().encode(entitlement) {
             UserDefaults.standard.set(data, forKey: entitlementCacheKey)
@@ -598,10 +627,11 @@ final class SubscriptionService {
     }
 }
 
-enum BillingClientError: LocalizedError {
+enum BillingClientError: LocalizedError, Equatable {
     case unauthenticated
-    case paymentRequired(String)
-    case featureUnavailable(String)
+    case paymentRequired(message: String, quality: InterviewQuality?, feature: String?)
+    case featureUnavailable(message: String, feature: String?)
+    case qualityConflict(String)
     case invalidResponse
     case storeKit(String)
     case server(String)
@@ -610,9 +640,11 @@ enum BillingClientError: LocalizedError {
         switch self {
         case .unauthenticated:
             return "Please sign in again."
-        case .paymentRequired(let message):
+        case .paymentRequired(let message, _, _):
             return message
-        case .featureUnavailable(let message):
+        case .featureUnavailable(let message, _):
+            return message
+        case .qualityConflict(let message):
             return message
         case .invalidResponse:
             return "Invalid billing response."
@@ -620,6 +652,15 @@ enum BillingClientError: LocalizedError {
             return message
         case .server(let message):
             return message
+        }
+    }
+
+    /// True when this error should drive the user to the paywall vs. just
+    /// surfacing an inline error.
+    var shouldPresentPaywall: Bool {
+        switch self {
+        case .paymentRequired, .featureUnavailable: return true
+        default: return false
         }
     }
 }

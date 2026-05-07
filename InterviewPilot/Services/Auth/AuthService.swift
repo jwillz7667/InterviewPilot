@@ -291,12 +291,6 @@ final class AuthService {
         }
     }
 
-    var hasDeveloperFullAccess: Bool {
-        AppEnvironment.hasDeveloperFullAccess(
-            email: currentUser?.email ?? KeychainService.load(key: .userEmail)
-        )
-    }
-
     private func clearAuthData() {
         _ = KeychainService.delete(key: .accessToken)
         _ = KeychainService.delete(key: .refreshToken)

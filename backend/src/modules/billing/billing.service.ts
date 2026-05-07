@@ -13,6 +13,7 @@ import {
   AccessSource,
   AppStoreEnvironment,
   BillingProvider,
+  InterviewQuality,
   Prisma,
   SessionMode,
   SubscriptionProduct,
@@ -24,29 +25,42 @@ import { getEnv } from '../../config/env.js';
 import { getPrisma, withDatabaseRetry, type DatabaseClient } from '../../config/database.js';
 import { ensureAppAccountToken } from '../users/app-account-token.js';
 import {
+  ConflictError,
   ForbiddenError,
   NotFoundError,
   PaymentRequiredError,
   ValidationError,
 } from '../../utils/errors.js';
+import { getLogger } from '../../utils/logger.js';
 import {
   FEATURE_KEYS,
   findCatalogItemByProductId,
   getSubscriptionCatalog,
   isSubscriptionActive,
+  isUnlimitedQuota,
   resolveFeatureSet,
   SESSION_MODE_FEATURE,
   TIER_MODEL_CONFIG,
   TIER_PROFILE_LIMITS,
+  TIER_QUOTA,
   TIER_RESPONSE_QUALITY,
+  requiredTierForQuality,
+  selectModel,
+  tierMeetsRequirement,
+  tierRank,
   type FeatureKey,
   type ModelConfig,
+  type ModelChoice,
+  type QuestionRouting,
   type ResponseQuality,
 } from './billing.constants.js';
 import {
   getCachedBillingSummary,
   setCachedBillingSummary,
   invalidateBillingCache,
+  type CachedBillingSummary,
+  type QuotaSummaryDTO,
+  type QuotaWindowDTO,
 } from './billing.cache.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -54,6 +68,10 @@ const APPLE_ROOT_CERT_PATHS = [
   path.resolve(__dirname, '../../../certs/apple/AppleRootCA-G2.cer'),
   path.resolve(__dirname, '../../../certs/apple/AppleRootCA-G3.cer'),
 ];
+
+const QUOTA_PERIOD_MS = 30 * 24 * 60 * 60 * 1000;
+
+const log = getLogger().child({ module: 'billing' });
 
 type BillingContext = {
   user: {
@@ -75,46 +93,14 @@ type VerifiedAppStoreTransaction = {
   signedTransaction: string;
 };
 
-export type BillingSummary = {
-  tier: string;
-  status: string;
-  accessSource: string;
-  product: string;
-  productId: string | null;
-  features: FeatureKey[];
-  featureFlags: Record<FeatureKey, boolean>;
-  sandboxFullAccess: boolean;
-  trialInterviewLimit: number;
-  trialInterviewsUsed: number;
-  interviewsRemaining: number;
-  hasActiveSubscription: boolean;
-  paywallRequired: boolean;
-  appAccountToken: string;
-  currentPeriodEndsAt: string | null;
-  gracePeriodEndsAt: string | null;
-  trialDaysRemaining: number | null;
-  responseQuality: ResponseQuality;
-  modelConfig: ModelConfig;
-  monthlyInterviewsUsed: number;
-  monthlyInterviewLimit: number;
-  profileLimit: number;
-  profilesUsed: number;
-  monthlyInterviewsRemaining: number;
-  catalog: Array<{
-    product: string;
-    productId: string;
-    tier: string;
-    displayName: string;
-    billingLabel: string;
-    features: FeatureKey[];
-  }>;
-};
+export type BillingSummary = CachedBillingSummary;
 
 export type AccessClaimResult = {
   sessionClientId: string;
   sessionMode: string;
   accessSource: string;
   accessTier: string;
+  quality: InterviewQuality;
   consumedTrial: boolean;
   trialInterviewNumber: number | null;
   entitlement: BillingSummary;
@@ -186,25 +172,11 @@ function toDate(epochMs?: number): Date | null {
   return typeof epochMs === 'number' ? new Date(epochMs) : null;
 }
 
-function rankTier(tier: SubscriptionTier): number {
-  switch (tier) {
-    case SubscriptionTier.SANDBOX:
-      return 4;
-    case SubscriptionTier.PRO:
-      return 3;
-    case SubscriptionTier.PLUS:
-      return 2;
-    case SubscriptionTier.TRIAL:
-      return 1;
-    case SubscriptionTier.FREE:
-    default:
-      return 0;
-  }
-}
-
-function getNextMonthlyReset(): Date {
-  const now = new Date();
-  return new Date(now.getFullYear(), now.getMonth() + 1, 1);
+function isDeveloperFullAccessEmail(email: string): boolean {
+  const raw = getEnv().DEVELOPER_FULL_ACCESS_EMAILS;
+  if (!raw) return false;
+  const allowed = raw.split(',').map((e) => e.trim().toLowerCase()).filter(Boolean);
+  return allowed.includes(email.trim().toLowerCase());
 }
 
 function isSandboxTesterEmail(email: string): boolean {
@@ -233,8 +205,11 @@ async function ensureBillingContext(
     throw new NotFoundError('User');
   }
 
-  // Auto-promote users whose email is in SANDBOX_TESTER_EMAILS
-  if (!user.isSandboxTester && isSandboxTesterEmail(user.email)) {
+  // Auto-promote users whose email is in SANDBOX_TESTER_EMAILS or DEVELOPER_FULL_ACCESS_EMAILS.
+  // Server-authoritative — moves the dev override from the iOS bundle to backend env so a patched
+  // client cannot self-promote.
+  const isPromotedTester = isSandboxTesterEmail(user.email) || isDeveloperFullAccessEmail(user.email);
+  if (!user.isSandboxTester && isPromotedTester) {
     user.isSandboxTester = true;
     await (prisma as BillingDbClient).user.update({
       where: { id: userId },
@@ -247,15 +222,29 @@ async function ensureBillingContext(
     const env = getEnv();
     const trialStartedAt = new Date();
     const trialEndsAt = new Date(trialStartedAt.getTime() + env.TRIAL_DURATION_DAYS * 24 * 60 * 60 * 1000);
+    const now = new Date();
+    const tier = isPromotedTester ? SubscriptionTier.SANDBOX : SubscriptionTier.FREE;
+    const status = isPromotedTester ? SubscriptionStatus.SANDBOX : SubscriptionStatus.FREE;
+    const quota = TIER_QUOTA[tier];
     entitlement = await prisma.userEntitlement.create({
       data: {
         userId,
+        tier,
+        status,
+        sandboxFullAccess: isPromotedTester,
         trialInterviewLimit: env.TRIAL_INTERVIEW_LIMIT,
         trialStartedAt,
         trialEndsAt,
+        monthlyStandardLimit: quota.standardMonthly,
+        monthlyPremiumLimit: quota.premiumMonthly,
+        quotaPeriodStartedAt: now,
+        quotaPeriodEndsAt: new Date(now.getTime() + QUOTA_PERIOD_MS),
       },
     });
   }
+
+  // Quota window roll-over: stateless reset for any caller.
+  entitlement = await maybeResetQuotaWindow(prisma as BillingDbClient, entitlement);
 
   const profilesUsed = await (prisma as BillingDbClient).interviewProfile.count({
     where: { userId, deletedAt: null },
@@ -273,22 +262,95 @@ async function ensureBillingContext(
   };
 }
 
+async function maybeResetQuotaWindow(
+  prisma: BillingDbClient,
+  entitlement: UserEntitlement
+): Promise<UserEntitlement> {
+  const now = Date.now();
+  const endsAt = entitlement.quotaPeriodEndsAt?.getTime();
+
+  if (endsAt && endsAt > now) {
+    return entitlement;
+  }
+
+  const newStart = new Date();
+  const newEnd = new Date(newStart.getTime() + QUOTA_PERIOD_MS);
+
+  // Best-effort race-safe reset: only the row whose endsAt matches what we observed gets reset.
+  // Concurrent callers either win the WHERE-conditional or read the freshly reset row on retry.
+  await prisma.userEntitlement.updateMany({
+    where: {
+      id: entitlement.id,
+      OR: [
+        { quotaPeriodEndsAt: null },
+        { quotaPeriodEndsAt: entitlement.quotaPeriodEndsAt ?? undefined },
+      ],
+    },
+    data: {
+      monthlyStandardUsed: 0,
+      monthlyPremiumUsed: 0,
+      monthlyInterviewsUsed: 0,
+      quotaPeriodStartedAt: newStart,
+      quotaPeriodEndsAt: newEnd,
+      monthlyInterviewsResetAt: newEnd,
+    },
+  });
+
+  await invalidateBillingCache(entitlement.userId).catch(() => {});
+
+  const refreshed = await prisma.userEntitlement.findUnique({
+    where: { id: entitlement.id },
+  });
+  return refreshed ?? entitlement;
+}
+
+function buildQuotaWindow(used: number, limit: number, endsAt: Date | null): QuotaWindowDTO {
+  const unlimited = isUnlimitedQuota(limit);
+  return {
+    used,
+    limit,
+    remaining: unlimited ? Number.MAX_SAFE_INTEGER : Math.max(limit - used, 0),
+    isUnlimited: unlimited,
+    resetsAt: serializeDate(endsAt),
+  };
+}
+
+function buildQuotaSummary(entitlement: UserEntitlement, effectiveTier: SubscriptionTier): QuotaSummaryDTO {
+  // Effective tier governs limit (sandbox/expired-trial overrides), counters are always read from
+  // the persisted row to preserve audit trail integrity.
+  const policy = TIER_QUOTA[effectiveTier];
+  const standardLimit = policy.standardMonthly;
+  const premiumLimit = policy.premiumMonthly;
+  const endsAt = entitlement.quotaPeriodEndsAt;
+
+  return {
+    standard: buildQuotaWindow(entitlement.monthlyStandardUsed, standardLimit, endsAt),
+    premium: buildQuotaWindow(entitlement.monthlyPremiumUsed, premiumLimit, endsAt),
+    periodStartedAt: entitlement.quotaPeriodStartedAt.toISOString(),
+    periodEndsAt: serializeDate(endsAt),
+  };
+}
+
 function buildSummary(context: BillingContext): BillingSummary {
   const sandboxFullAccess =
     context.user.isSandboxTester || context.entitlement.sandboxFullAccess;
 
-  // Detect expired trial — user's stored tier is TRIAL but the trial window has closed
-  const isTrialExpired = context.entitlement.tier === SubscriptionTier.TRIAL
-    && context.entitlement.trialEndsAt !== null
-    && context.entitlement.trialEndsAt.getTime() < Date.now();
+  const isTrialExpired =
+    context.entitlement.tier === SubscriptionTier.TRIAL &&
+    context.entitlement.trialEndsAt !== null &&
+    context.entitlement.trialEndsAt.getTime() < Date.now();
 
   const effectiveTier = sandboxFullAccess
     ? SubscriptionTier.SANDBOX
-    : (isTrialExpired ? SubscriptionTier.FREE : context.entitlement.tier);
+    : isTrialExpired
+      ? SubscriptionTier.FREE
+      : context.entitlement.tier;
 
   const effectiveStatus = sandboxFullAccess
     ? SubscriptionStatus.SANDBOX
-    : (isTrialExpired ? SubscriptionStatus.FREE : context.entitlement.status);
+    : isTrialExpired
+      ? SubscriptionStatus.FREE
+      : context.entitlement.status;
 
   const hasPaidSubscription =
     !sandboxFullAccess &&
@@ -308,28 +370,29 @@ function buildSummary(context: BillingContext): BillingSummary {
       : AccessSource.TRIAL;
   const features = resolveFeatureSet(effectiveTier, sandboxFullAccess);
 
-  // Trial days remaining (only for users still in an active trial)
-  const trialDaysRemaining = context.entitlement.tier === SubscriptionTier.TRIAL
-    && context.entitlement.trialEndsAt !== null
-    && !isTrialExpired
-    ? Math.ceil((context.entitlement.trialEndsAt.getTime() - Date.now()) / (24 * 60 * 60 * 1000))
-    : null;
+  const trialDaysRemaining =
+    context.entitlement.tier === SubscriptionTier.TRIAL &&
+    context.entitlement.trialEndsAt !== null &&
+    !isTrialExpired
+      ? Math.ceil((context.entitlement.trialEndsAt.getTime() - Date.now()) / (24 * 60 * 60 * 1000))
+      : null;
 
-  // Monthly interview limits for FREE tier
-  const monthlyLimit = getEnv().FREE_MONTHLY_INTERVIEW_LIMIT;
-  const monthlyUsed = context.entitlement.monthlyInterviewsUsed;
-  const monthlyRemaining = effectiveTier === SubscriptionTier.FREE
-    ? Math.max(monthlyLimit - monthlyUsed, 0)
-    : Number.MAX_SAFE_INTEGER;
+  const quotas = buildQuotaSummary(context.entitlement, effectiveTier);
 
-  // For FREE tier, use monthly remaining; for active trial, use trial-based remaining
-  const interviewsRemaining = hasPaidSubscription || sandboxFullAccess
+  // Legacy aggregate counter fields for older iOS clients still on the pre-quotas shape.
+  // They reflect the standard-quality window only; premium activity is invisible to legacy UI.
+  const monthlyUsed = quotas.standard.used;
+  const monthlyLimit = quotas.standard.limit;
+  const monthlyRemaining = quotas.standard.isUnlimited
     ? Number.MAX_SAFE_INTEGER
-    : effectiveTier === SubscriptionTier.FREE
-      ? monthlyRemaining
-      : Math.max(context.entitlement.trialInterviewLimit - context.entitlement.trialInterviewsUsed, 0);
+    : quotas.standard.remaining;
+  const interviewsRemaining =
+    quotas.standard.isUnlimited || quotas.premium.isUnlimited
+      ? Number.MAX_SAFE_INTEGER
+      : quotas.standard.remaining + quotas.premium.remaining;
 
-  const paywallRequired = !sandboxFullAccess && !hasPaidSubscription && interviewsRemaining === 0;
+  const paywallRequired =
+    !sandboxFullAccess && !hasPaidSubscription && interviewsRemaining === 0;
 
   return {
     tier: serializeEnum(effectiveTier),
@@ -361,6 +424,7 @@ function buildSummary(context: BillingContext): BillingSummary {
     monthlyInterviewsUsed: monthlyUsed,
     monthlyInterviewLimit: monthlyLimit,
     monthlyInterviewsRemaining: monthlyRemaining,
+    quotas,
     catalog: getSubscriptionCatalog().map((item) => ({
       product: serializeEnum(item.product),
       productId: item.productId,
@@ -382,12 +446,12 @@ function chooseBestTransaction(
       const rightCatalog = findCatalogItemByProductId(right.payload.productId ?? '');
       const leftTier = left.environment === AppStoreEnvironment.SANDBOX
         ? SubscriptionTier.SANDBOX
-        : leftCatalog?.tier ?? SubscriptionTier.TRIAL;
+        : leftCatalog?.tier ?? SubscriptionTier.FREE;
       const rightTier = right.environment === AppStoreEnvironment.SANDBOX
         ? SubscriptionTier.SANDBOX
-        : rightCatalog?.tier ?? SubscriptionTier.TRIAL;
+        : rightCatalog?.tier ?? SubscriptionTier.FREE;
 
-      const tierDelta = rankTier(rightTier) - rankTier(leftTier);
+      const tierDelta = tierRank(rightTier) - tierRank(leftTier);
       if (tierDelta !== 0) {
         return tierDelta;
       }
@@ -529,6 +593,9 @@ async function writeEntitlementFromTransaction(
   const status = sandboxFullAccess
     ? SubscriptionStatus.SANDBOX
     : deriveSubscriptionStatus(transaction.payload, transaction.renewalInfo, eventType);
+  const quota = TIER_QUOTA[tier];
+
+  const previousTier = context.entitlement.tier;
 
   const entitlement = await prisma.userEntitlement.update({
     where: { userId: context.user.id },
@@ -539,6 +606,8 @@ async function writeEntitlementFromTransaction(
       product,
       productId,
       featuresOverride: Prisma.JsonNull,
+      monthlyStandardLimit: quota.standardMonthly,
+      monthlyPremiumLimit: quota.premiumMonthly,
       currentPeriodStartedAt:
         toDate(transaction.payload.originalPurchaseDate) ??
         toDate(transaction.payload.purchaseDate) ??
@@ -579,8 +648,29 @@ async function writeEntitlementFromTransaction(
         expiresDate: transaction.payload.expiresDate ?? null,
         appAccountToken: appAccountToken ?? null,
       } satisfies Prisma.JsonObject,
+      quotaDelta: {
+        reason: 'tier_change',
+        fromTier: previousTier,
+        toTier: tier,
+        standardLimit: quota.standardMonthly,
+        premiumLimit: quota.premiumMonthly,
+      } satisfies Prisma.JsonObject,
     },
   });
+
+  if (previousTier !== tier) {
+    log.info(
+      {
+        event: 'billing.tier.changed',
+        userId: context.user.id,
+        fromTier: previousTier,
+        toTier: tier,
+        product,
+        productId,
+      },
+      'Subscription tier changed'
+    );
+  }
 
   await invalidateBillingCache(context.user.id);
 
@@ -595,10 +685,97 @@ async function writeEntitlementFromTransaction(
   });
 }
 
+function quotaFieldsForQuality(quality: InterviewQuality): {
+  usedField: 'monthlyStandardUsed' | 'monthlyPremiumUsed';
+  limitField: 'monthlyStandardLimit' | 'monthlyPremiumLimit';
+} {
+  return quality === InterviewQuality.PREMIUM
+    ? { usedField: 'monthlyPremiumUsed', limitField: 'monthlyPremiumLimit' }
+    : { usedField: 'monthlyStandardUsed', limitField: 'monthlyStandardLimit' };
+}
+
+async function consumeQuotaAtomically(
+  prisma: BillingDbClient,
+  entitlementId: string,
+  quality: InterviewQuality,
+  effectiveTier: SubscriptionTier
+): Promise<{ consumed: boolean; usedAfter: number; limit: number }> {
+  const policy = TIER_QUOTA[effectiveTier];
+  const limit =
+    quality === InterviewQuality.PREMIUM ? policy.premiumMonthly : policy.standardMonthly;
+  const { usedField, limitField } = quotaFieldsForQuality(quality);
+
+  if (isUnlimitedQuota(limit)) {
+    // No counter increment; surface a synthetic remaining=∞ for the caller's audit log.
+    const row = await prisma.userEntitlement.findUnique({
+      where: { id: entitlementId },
+      select: { [usedField]: true } as Record<string, boolean>,
+    });
+    const used = ((row as Record<string, number> | null)?.[usedField] ?? 0) + 0;
+    return { consumed: true, usedAfter: used, limit };
+  }
+
+  // Atomic per-quality decrement: only the row whose used < effective limit (using the smaller of
+  // the persisted limit and the tier policy limit) gets the increment. This is the linchpin of
+  // the quota gate — `updateMany` with a WHERE-conditional is race-safe under Postgres
+  // READ COMMITTED isolation because each row-level UPDATE re-checks the predicate.
+  const updated = await prisma.userEntitlement.updateMany({
+    where: {
+      id: entitlementId,
+      [usedField]: { lt: limit },
+      // Defence in depth: also enforce the persisted limit so a stale TIER_QUOTA constant
+      // can never grant more than what a billing event committed.
+      [limitField]: { gte: limit },
+    },
+    data: {
+      [usedField]: { increment: 1 },
+      monthlyInterviewsUsed: { increment: 1 },
+    },
+  });
+
+  if (updated.count !== 1) {
+    return { consumed: false, usedAfter: limit, limit };
+  }
+
+  const row = await prisma.userEntitlement.findUnique({
+    where: { id: entitlementId },
+    select: { [usedField]: true } as Record<string, boolean>,
+  });
+  const usedAfter = (row as Record<string, number> | null)?.[usedField] ?? limit;
+  return { consumed: true, usedAfter, limit };
+}
+
+function quotaExhaustedError(
+  quality: InterviewQuality,
+  tier: SubscriptionTier,
+  limit: number
+): PaymentRequiredError {
+  const requiredTier = requiredTierForQuality(quality);
+  const message =
+    quality === InterviewQuality.PREMIUM
+      ? `You've used your ${limit === 0 ? 'available' : limit} Premium interview${limit === 1 ? '' : 's'} this period. Upgrade to Premium for unlimited.`
+      : `You've used all ${limit} Standard interviews this period. Upgrade for more.`;
+  return new PaymentRequiredError(message, {
+    quality,
+    currentTier: tier,
+    requiredTier,
+    remaining: { standard: 0, premium: 0 },
+  });
+}
+
+function featureGatedError(feature: FeatureKey, message: string): PaymentRequiredError {
+  return new PaymentRequiredError(message, {
+    requiredFeature: feature,
+    currentTier: null,
+    requiredTier: SubscriptionTier.PREMIUM,
+  });
+}
+
 async function withSessionAccessGrant(
   userId: string,
   sessionClientId: string,
-  sessionMode: SessionMode
+  sessionMode: SessionMode,
+  quality: InterviewQuality
 ): Promise<AccessClaimResult> {
   try {
     return await getPrisma().$transaction(async (prisma) => {
@@ -610,137 +787,109 @@ async function withSessionAccessGrant(
         if (existingGrant.userId !== userId) {
           throw new ForbiddenError('This session access grant belongs to another user');
         }
-
+        if (existingGrant.quality !== quality) {
+          throw new ConflictError(
+            `Session ${sessionClientId} was already claimed at ${existingGrant.quality} quality; resubmit with the original quality.`
+          );
+        }
         const context = await ensureBillingContext(prisma, userId);
         return {
           sessionClientId: existingGrant.sessionClientId,
           sessionMode: serializeEnum(existingGrant.sessionMode),
           accessSource: serializeEnum(existingGrant.accessSource),
           accessTier: serializeEnum(existingGrant.accessTier),
+          quality: existingGrant.quality,
           consumedTrial: existingGrant.consumedTrial,
           trialInterviewNumber: existingGrant.trialInterviewNumber ?? null,
           entitlement: buildSummary(context),
         };
       }
 
-      let context = await ensureBillingContext(prisma, userId);
+      const context = await ensureBillingContext(prisma, userId);
       const summary = buildSummary(context);
       const requiredFeature = SESSION_MODE_FEATURE[sessionMode];
 
       if (!summary.featureFlags[requiredFeature]) {
-        throw new PaymentRequiredError(
+        throw featureGatedError(
+          requiredFeature,
           sessionMode === SessionMode.VOICE_PREP
-            ? 'Voice Prep requires an active Pro subscription'
-            : 'Upgrade required to start this interview session',
-          { requiredFeature }
+            ? 'Voice Prep requires an active Premium subscription'
+            : 'Upgrade required to start this interview session'
         );
       }
 
-      let accessSource: AccessSource = AccessSource.SUBSCRIPTION;
-      let accessTier: SubscriptionTier = context.entitlement.tier;
-      let consumedTrial = false;
-      let trialInterviewNumber: number | null = null;
-      let nextContext = context;
+      const sandboxFullAccess = summary.sandboxFullAccess;
 
-      if (summary.sandboxFullAccess) {
-        accessSource = AccessSource.SANDBOX;
-        accessTier = SubscriptionTier.SANDBOX;
-      } else if (summary.hasActiveSubscription) {
-        accessSource = AccessSource.SUBSCRIPTION;
-        accessTier = context.entitlement.tier;
-      } else {
-        if (sessionMode !== SessionMode.LIVE_INTERVIEW) {
-          throw new PaymentRequiredError('Voice Prep requires an active Pro subscription');
-        }
+      const isTrialExpired =
+        context.entitlement.tier === SubscriptionTier.TRIAL &&
+        context.entitlement.trialEndsAt !== null &&
+        context.entitlement.trialEndsAt.getTime() < Date.now();
+      const effectiveTier = sandboxFullAccess
+        ? SubscriptionTier.SANDBOX
+        : isTrialExpired
+          ? SubscriptionTier.FREE
+          : context.entitlement.tier;
 
-        // Determine effective tier (expired trials become FREE)
-        const isTrialExpired = context.entitlement.tier === SubscriptionTier.TRIAL
-          && context.entitlement.trialEndsAt !== null
-          && context.entitlement.trialEndsAt.getTime() < Date.now();
-        const effectiveTier = isTrialExpired ? SubscriptionTier.FREE : context.entitlement.tier;
-
-        if (effectiveTier === SubscriptionTier.FREE) {
-          // FREE tier: monthly interview limits
-          // Reset monthly counter if the reset window has passed
-          const resetAt = context.entitlement.monthlyInterviewsResetAt;
-          if (resetAt && resetAt.getTime() < Date.now()) {
-            await prisma.userEntitlement.update({
-              where: { id: context.entitlement.id },
-              data: {
-                monthlyInterviewsUsed: 0,
-                monthlyInterviewsResetAt: getNextMonthlyReset(),
-              },
-            });
-            context = await ensureBillingContext(prisma, userId);
-          }
-
-          const limit = getEnv().FREE_MONTHLY_INTERVIEW_LIMIT;
-          if (context.entitlement.monthlyInterviewsUsed >= limit) {
-            throw new PaymentRequiredError(
-              `You've used all ${limit} free interviews this month. Upgrade for unlimited access.`,
-              { requiredTier: 'plus' }
-            );
-          }
-
-          const updated = await prisma.userEntitlement.updateMany({
-            where: {
-              id: context.entitlement.id,
-              monthlyInterviewsUsed: { lt: limit },
-            },
-            data: {
-              monthlyInterviewsUsed: { increment: 1 },
-              monthlyInterviewsResetAt: context.entitlement.monthlyInterviewsResetAt ?? getNextMonthlyReset(),
-            },
-          });
-
-          if (updated.count !== 1) {
-            throw new PaymentRequiredError(
-              `You've used all ${limit} free interviews this month. Upgrade for unlimited access.`,
-              { requiredTier: 'plus' }
-            );
-          }
-
-          await invalidateBillingCache(userId);
-          const refreshed = await ensureBillingContext(prisma, userId);
-          nextContext = refreshed;
-          accessSource = AccessSource.TRIAL; // Reuse TRIAL access source for compatibility
-          accessTier = SubscriptionTier.FREE;
-          consumedTrial = false;
-          trialInterviewNumber = null;
-        } else {
-          // Active trial: use trial-based interview limits
-          if (summary.interviewsRemaining <= 0) {
-            throw new PaymentRequiredError('Your free trial interviews are complete', {
-              requiredTier: 'plus',
-            });
-          }
-
-          const updated = await prisma.userEntitlement.updateMany({
-            where: {
-              id: context.entitlement.id,
-              trialInterviewsUsed: { lt: context.entitlement.trialInterviewLimit },
-            },
-            data: {
-              trialInterviewsUsed: { increment: 1 },
-            },
-          });
-
-          if (updated.count !== 1) {
-            throw new PaymentRequiredError('Your free trial interviews are complete', {
-              requiredTier: 'plus',
-            });
-          }
-
-          await invalidateBillingCache(userId);
-
-          const refreshed = await ensureBillingContext(prisma, userId);
-          nextContext = refreshed;
-          accessSource = AccessSource.TRIAL;
-          accessTier = SubscriptionTier.TRIAL;
-          consumedTrial = true;
-          trialInterviewNumber = refreshed.entitlement.trialInterviewsUsed;
-        }
+      // Premium-quality gate: every tier has a non-zero premium quota EXCEPT users who already
+      // exhausted theirs — those go to the paywall with explicit reason.
+      const requiredTier = requiredTierForQuality(quality);
+      if (
+        quality === InterviewQuality.PREMIUM &&
+        !sandboxFullAccess &&
+        !tierMeetsRequirement(effectiveTier, requiredTier) &&
+        TIER_QUOTA[effectiveTier].premiumMonthly === 0
+      ) {
+        throw quotaExhaustedError(quality, effectiveTier, 0);
       }
+
+      const policy = TIER_QUOTA[effectiveTier];
+      const limit =
+        quality === InterviewQuality.PREMIUM ? policy.premiumMonthly : policy.standardMonthly;
+
+      const consumption = await consumeQuotaAtomically(
+        prisma,
+        context.entitlement.id,
+        quality,
+        effectiveTier
+      );
+
+      if (!consumption.consumed) {
+        log.warn(
+          {
+            event: 'billing.quota.exhausted',
+            userId,
+            quality,
+            tier: effectiveTier,
+            limit,
+          },
+          'Quota exhausted'
+        );
+        throw quotaExhaustedError(quality, effectiveTier, limit);
+      }
+
+      log.info(
+        {
+          event: 'billing.quota.consumed',
+          userId,
+          sessionClientId,
+          quality,
+          tier: effectiveTier,
+          usedAfter: consumption.usedAfter,
+          limit,
+        },
+        'Quota consumed'
+      );
+
+      const accessSource = sandboxFullAccess
+        ? AccessSource.SANDBOX
+        : summary.hasActiveSubscription
+          ? AccessSource.SUBSCRIPTION
+          : AccessSource.TRIAL;
+
+      // Refresh post-consumption so the snapshot reflects the latest counter values.
+      await invalidateBillingCache(userId).catch(() => {});
+      const refreshedContext = await ensureBillingContext(prisma, userId);
+      const refreshedSummary = buildSummary(refreshedContext);
 
       const grant = await prisma.sessionAccessGrant.create({
         data: {
@@ -748,12 +897,31 @@ async function withSessionAccessGrant(
           sessionClientId,
           sessionMode,
           accessSource,
-          accessTier,
-          consumedTrial,
-          trialInterviewNumber: trialInterviewNumber ?? undefined,
+          accessTier: effectiveTier,
+          quality,
+          consumedTrial: !summary.hasActiveSubscription && !sandboxFullAccess,
+          trialInterviewNumber: refreshedContext.entitlement.trialInterviewsUsed,
           featureSnapshot: {
-            features: buildSummary(nextContext).features,
-            status: buildSummary(nextContext).status,
+            features: refreshedSummary.features,
+            status: refreshedSummary.status,
+            quality,
+          } satisfies Prisma.JsonObject,
+        },
+      });
+
+      await prisma.billingEvent.create({
+        data: {
+          userId,
+          entitlementId: refreshedContext.entitlement.id,
+          provider: BillingProvider.INTERNAL,
+          eventType: 'QUOTA_CONSUMED',
+          product: SubscriptionProduct.NONE,
+          quotaDelta: {
+            reason: 'session_claim',
+            quality,
+            standardConsumed: quality === InterviewQuality.STANDARD ? 1 : 0,
+            premiumConsumed: quality === InterviewQuality.PREMIUM ? 1 : 0,
+            sessionClientId,
           } satisfies Prisma.JsonObject,
         },
       });
@@ -763,9 +931,10 @@ async function withSessionAccessGrant(
         sessionMode: serializeEnum(grant.sessionMode),
         accessSource: serializeEnum(grant.accessSource),
         accessTier: serializeEnum(grant.accessTier),
+        quality: grant.quality,
         consumedTrial: grant.consumedTrial,
         trialInterviewNumber: grant.trialInterviewNumber ?? null,
-        entitlement: buildSummary(nextContext),
+        entitlement: refreshedSummary,
       };
     });
   } catch (error) {
@@ -773,6 +942,7 @@ async function withSessionAccessGrant(
       error instanceof Prisma.PrismaClientKnownRequestError &&
       error.code === 'P2002'
     ) {
+      // Race: a concurrent caller created the grant between our check and insert.
       const existingGrant = await withDatabaseRetry((prisma) =>
         prisma.sessionAccessGrant.findUnique({
           where: { sessionClientId },
@@ -780,12 +950,18 @@ async function withSessionAccessGrant(
       );
 
       if (existingGrant && existingGrant.userId === userId) {
+        if (existingGrant.quality !== quality) {
+          throw new ConflictError(
+            `Session ${sessionClientId} was already claimed at ${existingGrant.quality} quality; resubmit with the original quality.`
+          );
+        }
         const summary = await getBillingSummary(userId);
         return {
           sessionClientId: existingGrant.sessionClientId,
           sessionMode: serializeEnum(existingGrant.sessionMode),
           accessSource: serializeEnum(existingGrant.accessSource),
           accessTier: serializeEnum(existingGrant.accessTier),
+          quality: existingGrant.quality,
           consumedTrial: existingGrant.consumedTrial,
           trialInterviewNumber: existingGrant.trialInterviewNumber ?? null,
           entitlement: summary,
@@ -815,67 +991,52 @@ export async function getBillingSummary(userId: string): Promise<BillingSummary>
 export async function claimInterviewAccess(
   userId: string,
   sessionClientId: string,
-  sessionMode: SessionMode
+  sessionMode: SessionMode,
+  quality: InterviewQuality
 ): Promise<AccessClaimResult> {
-  return withSessionAccessGrant(userId, sessionClientId, sessionMode);
+  return withSessionAccessGrant(userId, sessionClientId, sessionMode, quality);
 }
 
 export async function getSessionAccessGrant(
   userId: string,
-  sessionClientId: string,
-  sessionMode: SessionMode
+  sessionClientId: string
 ): Promise<{
   accessSource: AccessSource;
   accessTier: SubscriptionTier;
+  quality: InterviewQuality;
   trialInterviewNumber: number | null;
 }> {
-  const grant = await withSessionAccessGrant(userId, sessionClientId, sessionMode);
+  const grant = await withDatabaseRetry((prisma) =>
+    prisma.sessionAccessGrant.findUnique({ where: { sessionClientId } })
+  );
+  if (!grant || grant.userId !== userId) {
+    throw new NotFoundError('Session access grant');
+  }
   return {
-    accessSource:
-      grant.accessSource === 'sandbox'
-        ? AccessSource.SANDBOX
-        : grant.accessSource === 'subscription'
-          ? AccessSource.SUBSCRIPTION
-          : AccessSource.TRIAL,
-    accessTier:
-      grant.accessTier === 'sandbox'
-        ? SubscriptionTier.SANDBOX
-        : grant.accessTier === 'pro'
-          ? SubscriptionTier.PRO
-          : grant.accessTier === 'plus'
-            ? SubscriptionTier.PLUS
-            : grant.accessTier === 'free'
-              ? SubscriptionTier.FREE
-              : SubscriptionTier.TRIAL,
-    trialInterviewNumber: grant.trialInterviewNumber,
+    accessSource: grant.accessSource,
+    accessTier: grant.accessTier,
+    quality: grant.quality,
+    trialInterviewNumber: grant.trialInterviewNumber ?? null,
+  };
+}
+
+export async function authorizeAiCall(
+  userId: string,
+  sessionClientId: string,
+  routing: QuestionRouting = 'default'
+): Promise<{ model: ModelChoice; quality: InterviewQuality; tier: SubscriptionTier }> {
+  const grant = await getSessionAccessGrant(userId, sessionClientId);
+  return {
+    model: selectModel(grant.quality, routing),
+    quality: grant.quality,
+    tier: grant.accessTier,
   };
 }
 
 export async function canAccessRuntimeAiConfig(userId: string): Promise<boolean> {
-  // Reset monthly counter if needed before checking access
-  await withDatabaseRetry(async (prisma) => {
-    const context = await ensureBillingContext(prisma, userId);
-    const resetAt = context.entitlement.monthlyInterviewsResetAt;
-    if (resetAt && resetAt.getTime() < Date.now()) {
-      await prisma.userEntitlement.update({
-        where: { id: context.entitlement.id },
-        data: {
-          monthlyInterviewsUsed: 0,
-          monthlyInterviewsResetAt: getNextMonthlyReset(),
-        },
-      });
-      // Invalidate cached summary so getBillingSummary reads fresh data
-      await invalidateBillingCache(userId).catch(() => {});
-    }
-  });
-
   const summary = await getBillingSummary(userId);
-  return (
-    summary.sandboxFullAccess ||
-    summary.hasActiveSubscription ||
-    summary.interviewsRemaining > 0 ||
-    summary.monthlyInterviewsRemaining > 0
-  );
+  if (summary.sandboxFullAccess || summary.hasActiveSubscription) return true;
+  return summary.quotas.standard.remaining > 0 || summary.quotas.premium.remaining > 0;
 }
 
 export async function syncAppStoreTransactions(

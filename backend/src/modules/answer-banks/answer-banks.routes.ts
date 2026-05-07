@@ -3,6 +3,7 @@ import { authenticate } from '../../middleware/authenticate.js';
 import { getPrisma, withDatabaseRetry } from '../../config/database.js';
 import { getEnv } from '../../config/env.js';
 import { canAccessRuntimeAiConfig, getBillingSummary } from '../billing/billing.service.js';
+import { MODEL_BY_QUALITY, selectModel } from '../billing/billing.constants.js';
 import { PaymentRequiredError, ValidationError } from '../../utils/errors.js';
 import { z } from 'zod';
 
@@ -86,18 +87,17 @@ export async function answerBanksRoutes(app: FastifyInstance) {
       return reply.send({ bank: existingBank, fromCache: true });
     }
 
-    const settings = await withDatabaseRetry((prisma) =>
-      prisma.userSettings.findUnique({
-        where: { userId: request.user.sub },
-        select: { maxPreComputedQs: true },
-      })
-    );
+    // Question count is governed by quality, not by user setting: Standard = 25, Premium = 50.
+    // We deliberately do NOT honour `userSettings.maxPreComputedQs` here so a free user cannot
+    // bump it to 200 client-side and burn premium tokens at standard prices.
+    const quality = input.responseQualityMode === 'premium' ? 'PREMIUM' : 'STANDARD';
+    const maxQuestions = MODEL_BY_QUALITY[quality].preGenAnswerBank;
 
     const generatedAnswers = await generatePrepAnswers({
       resumeText: input.resumeText,
       jobDescription: input.jobDescription,
       interviewType: input.interviewType,
-      maxQuestions: settings?.maxPreComputedQs ?? 25,
+      maxQuestions,
       responseQualityMode: input.responseQualityMode,
     });
 
@@ -212,6 +212,9 @@ async function generatePrepAnswers(input: {
     throw new ValidationError('OPENAI_API_KEY is not configured on the server.');
   }
 
+  const quality = input.responseQualityMode === 'premium' ? 'PREMIUM' : 'STANDARD';
+  const modelChoice = selectModel(quality, 'default');
+
   const response = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -219,9 +222,9 @@ async function generatePrepAnswers(input: {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      model: 'gpt-4.1',
-      max_tokens: 4000,
-      temperature: 0.65,
+      model: modelChoice.model,
+      max_completion_tokens: 4000,
+      temperature: modelChoice.temperature,
       frequency_penalty: 0.15,
       messages: [
         {

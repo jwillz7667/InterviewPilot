@@ -14,7 +14,7 @@ struct UpgradeBannerView: View {
 
     @ViewBuilder
     private func bannerContent(_ entitlement: BillingEntitlement) -> some View {
-        if entitlement.tier == "trial" {
+        if entitlement.isInTrial {
             trialBanner(entitlement)
         } else {
             freeBanner(entitlement)
@@ -63,7 +63,15 @@ struct UpgradeBannerView: View {
     // MARK: - Free Banner
 
     private func freeBanner(_ entitlement: BillingEntitlement) -> some View {
-        let remaining = entitlement.monthlyInterviewsRemaining
+        let std = entitlement.quotas.standard
+        let prem = entitlement.quotas.premium
+        let subtitle: String = {
+            if std.isUnlimited { return "Unlimited Standard interviews this month" }
+            let stdLine = "\(std.remaining) of \(std.limit) Standard left"
+            if prem.isUnlimited { return "\(stdLine) · Unlimited Premium" }
+            let premLine = "\(prem.remaining) of \(prem.limit) Premium left"
+            return "\(stdLine) · \(premLine)"
+        }()
 
         return IAPanel(tone: .secondary) {
             HStack(spacing: IATheme.spacing12) {
@@ -81,7 +89,7 @@ struct UpgradeBannerView: View {
                         .font(IATypography.headlineSmall)
                         .foregroundStyle(IATheme.textPrimary)
 
-                    Text("\(remaining) of 3 free interviews remaining this month")
+                    Text(subtitle)
                         .font(IATypography.bodySmall)
                         .foregroundStyle(IATheme.textSecondary)
                 }

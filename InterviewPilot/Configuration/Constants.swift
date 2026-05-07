@@ -1,14 +1,18 @@
 import Foundation
 
 enum APIConfig {
-    // Models — all modes use the best available models
+    // Model identifiers below are DISPLAY-ONLY metadata. They are never sent
+    // to OpenAI from the client — the chat-stream proxy strips any client
+    // `model` field with a 422 and looks up the actual model in
+    // `MODEL_BY_QUALITY[quality][routing]` server-side. Keep these strings in
+    // sync with backend/billing.constants.ts so any in-app surfaces showing
+    // "powered by GPT-4.1" stay accurate.
     static let defaultResponseModel = "gpt-4.1-mini"
     static let technicalResponseModel = "gpt-4.1"
     static let codingResponseModel = "o4-mini"
     static let premiumResponseModel = "gpt-4.1"
     static let premiumTechnicalResponseModel = "gpt-4.1"
     static let premiumCodingResponseModel = "o4-mini"
-    static let prepModel = "gpt-4.1"
 
     // Deepgram
     static let deepgramModel = "nova-3"
@@ -38,8 +42,6 @@ enum APIConfig {
     static let freeResponseTokens = 320
     static let maxResponseTokens = 400
     static let maxPremiumResponseTokens = 480
-    static let maxPreComputedQuestions = 25
     static let responseFrequencyPenalty = 0.15
     static let responsePresencePenalty = 0.05
-    static let answerBankTemperature = 0.65
 }

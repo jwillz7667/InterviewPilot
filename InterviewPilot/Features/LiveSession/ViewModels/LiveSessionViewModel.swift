@@ -56,7 +56,7 @@ final class LiveSessionViewModel {
     private var currentExchangeStart: Date?
     private var exchanges: [Exchange] = []
     private var persistedSession: InterviewSession?
-    private var modelsUsed: Set<String> = []
+    private var routingsUsed: Set<ChatRouting> = []
     private var syncTask: Task<Void, Never>?
     private var pendingExchangeMetrics = PendingExchangeMetrics()
 
@@ -488,7 +488,7 @@ final class LiveSessionViewModel {
             speechEndedWhileBuffering = false
             currentExchangeStart = currentExchangeStart ?? Date()
             pendingExchangeMetrics.questionStartedAt = pendingExchangeMetrics.questionStartedAt ?? currentExchangeStart
-            modelsUsed.insert(currentSessionModelName)
+            routingsUsed.insert(ChatRouting(for: classification.type))
             bufferCachedAnswer(cachedAnswer)
             return
         }
@@ -523,15 +523,16 @@ final class LiveSessionViewModel {
         }
 
         let classification = questionType
-        let model = selectModel(for: classification)
+        let chatRouting = ChatRouting(for: classification?.type)
         let normalizedQuestion = question.trimmingCharacters(in: .whitespacesAndNewlines)
         if !normalizedQuestion.isEmpty {
             accumulatedTranscript = normalizedQuestion
             interviewerTranscript = normalizedQuestion
         }
-        modelsUsed.insert(model)
+        routingsUsed.insert(chatRouting)
 
         responseGenerator.generateResponse(
+            sessionClientId: sessionId,
             question: question,
             cachedBasePrompt: cachedBasePrompt,
             questionType: classification?.type,
@@ -539,8 +540,7 @@ final class LiveSessionViewModel {
             emphasis: responseEmphasis,
             exchangeHistory: recentExchangeHistory(),
             qualityMode: responseQualityMode,
-            tone: responseTone,
-            model: model
+            tone: responseTone
         )
     }
 
@@ -582,43 +582,11 @@ final class LiveSessionViewModel {
         return nil
     }
 
-    private func selectModel(for classification: QuestionClassification?) -> String {
-        // Use server-provided model config if available
-        if let config = modelConfig {
-            switch classification?.type {
-            case .coding:
-                return config.codingModel
-            case .technical, .systemDesign:
-                return config.technicalModel
-            default:
-                return config.defaultModel
-            }
-        }
-
-        // Fallback to hardcoded config
-        if responseQualityMode == .premium {
-            switch classification?.type {
-            case .coding:
-                return APIConfig.premiumCodingResponseModel
-            case .technical, .systemDesign:
-                return APIConfig.premiumTechnicalResponseModel
-            default:
-                return APIConfig.premiumResponseModel
-            }
-        }
-
-        if responseQualityMode == .free {
-            return APIConfig.defaultResponseModel
-        }
-
-        switch classification?.type {
-        case .technical, .systemDesign:
-            return APIConfig.technicalResponseModel
-        case .coding:
-            return APIConfig.codingResponseModel
-        default:
-            return APIConfig.defaultResponseModel
-        }
+    /// Server is authoritative on the actual OpenAI model. The client only
+    /// declares its routing slot (default/technical/coding) and the backend
+    /// looks up the model in `MODEL_BY_QUALITY[quality][routing]`.
+    private func routing(for classification: QuestionClassification?) -> ChatRouting {
+        ChatRouting(for: classification?.type)
     }
 
     func resetForNewQuestion() {
@@ -695,11 +663,12 @@ final class LiveSessionViewModel {
         }
 
         let classification = questionType
-        let model = selectModel(for: classification)
-        modelsUsed.insert(model)
+        let chatRouting = routing(for: classification)
+        routingsUsed.insert(chatRouting)
 
         // Start generation in background — tokens go to predictiveBuffer, not display
         responseGenerator.generateResponse(
+            sessionClientId: sessionId,
             question: question,
             cachedBasePrompt: cachedBasePrompt,
             questionType: classification?.type,
@@ -707,8 +676,7 @@ final class LiveSessionViewModel {
             emphasis: responseEmphasis,
             exchangeHistory: recentExchangeHistory(),
             qualityMode: responseQualityMode,
-            tone: responseTone,
-            model: model
+            tone: responseTone
         )
     }
 
@@ -1091,14 +1059,18 @@ final class LiveSessionViewModel {
         return accumulatedTranscript.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
+    /// Persisted analytics label. Server picks the actual OpenAI model per
+    /// quality + routing, so we store a stable client-side label combining
+    /// the locked-in quality with the routing(s) used during the session.
     private var currentSessionModelName: String {
-        switch modelsUsed.count {
+        let qualityLabel = responseQualityMode == .premium ? "premium" : "standard"
+        switch routingsUsed.count {
         case 0:
-            return APIConfig.defaultResponseModel
+            return "\(qualityLabel)/default"
         case 1:
-            return modelsUsed.first ?? APIConfig.defaultResponseModel
+            return "\(qualityLabel)/\(routingsUsed.first?.rawValue ?? "default")"
         default:
-            return "mixed"
+            return "\(qualityLabel)/mixed"
         }
     }
 

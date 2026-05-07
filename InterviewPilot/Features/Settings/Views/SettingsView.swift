@@ -37,6 +37,7 @@ struct SettingsView: View {
                 ScrollView {
                     VStack(spacing: IATheme.spacing20) {
                         profilePreviewSection
+                        quotaSummarySection
                         accountSettingsSection
                         supportSection
                         logoutSection
@@ -121,6 +122,79 @@ struct SettingsView: View {
             }
         }
         .buttonStyle(.plain)
+    }
+
+    // MARK: - Quota Summary
+
+    @ViewBuilder
+    private var quotaSummarySection: some View {
+        if let entitlement = currentEntitlement, !entitlement.sandboxFullAccess {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("This Month")
+                    .font(IATypography.headlineSmall)
+                    .foregroundStyle(IATheme.textPrimary)
+                    .padding(.leading, 4)
+
+                HStack(spacing: 10) {
+                    quotaTile(
+                        title: "Standard",
+                        symbol: "bolt.fill",
+                        tint: IATheme.accent,
+                        window: entitlement.quotas.standard
+                    )
+                    quotaTile(
+                        title: "Premium",
+                        symbol: "sparkles",
+                        tint: IATheme.tertiary,
+                        window: entitlement.quotas.premium
+                    )
+                }
+
+                Button(action: { showPaywall = true }) {
+                    Text("Manage subscription")
+                        .font(IATypography.labelLarge)
+                        .foregroundStyle(IATheme.accent)
+                }
+                .padding(.top, 4)
+                .padding(.leading, 4)
+            }
+        }
+    }
+
+    private func quotaTile(title: String, symbol: String, tint: Color, window: QuotaWindow) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 6) {
+                Image(systemName: symbol)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(tint)
+                Text(title)
+                    .font(IATypography.labelMedium)
+                    .foregroundStyle(IATheme.textSecondary)
+            }
+
+            if window.isUnlimited {
+                Text("Unlimited")
+                    .font(IATypography.headlineMedium)
+                    .foregroundStyle(IATheme.textPrimary)
+            } else {
+                Text("\(window.remaining)/\(window.limit)")
+                    .font(IATypography.headlineMedium)
+                    .foregroundStyle(window.remaining <= 0 ? IATheme.error : IATheme.textPrimary)
+            }
+
+            Text(window.isUnlimited
+                 ? "No cap on this engine"
+                 : (window.remaining <= 0 ? "Used all available" : "left this period"))
+                .font(IATypography.labelSmall)
+                .foregroundStyle(IATheme.textTertiary)
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(IATheme.surfaceWhite, in: RoundedRectangle(cornerRadius: IATheme.radiusLarge, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: IATheme.radiusLarge, style: .continuous)
+                .stroke(IATheme.outlineVariant, lineWidth: 1)
+        }
     }
 
     // MARK: - Account Settings
@@ -271,22 +345,39 @@ struct SettingsView: View {
             displayName: "Jordan",
             appAccountToken: UUID().uuidString
         ),
-        previewEntitlement: settingsPreviewEntitlement(tier: "pro")
+        previewEntitlement: settingsPreviewEntitlement(tier: .pro)
     )
 }
 
-private func settingsPreviewEntitlement(tier: String) -> BillingEntitlement {
-    BillingEntitlement(
+private func settingsPreviewEntitlement(tier: SubscriptionTier) -> BillingEntitlement {
+    let isPremium = tier.canonicalDisplayTier == .premium
+    let stdWindow = QuotaWindow(
+        used: isPremium ? 0 : 5,
+        limit: tier.defaultStandardQuota,
+        remaining: tier.defaultStandardQuota < 0 ? 9_999 : max(tier.defaultStandardQuota - 5, 0),
+        isUnlimited: tier.defaultStandardQuota < 0,
+        resetsAt: nil
+    )
+    let premWindow = QuotaWindow(
+        used: 0,
+        limit: tier.defaultPremiumQuota,
+        remaining: tier.defaultPremiumQuota < 0 ? 9_999 : tier.defaultPremiumQuota,
+        isUnlimited: tier.defaultPremiumQuota < 0,
+        resetsAt: nil
+    )
+
+    return BillingEntitlement(
         tier: tier,
         status: "active",
         accessSource: "preview",
-        product: tier,
-        productId: tier,
+        product: tier.rawValue,
+        productId: tier.rawValue,
         features: ["live_interview", "session_history"],
         featureFlags: [
             "live_interview": true,
-            "voice_prep": tier == "pro",
-            "priority_models": tier == "pro",
+            "voice_prep": isPremium,
+            "priority_models": tier.rank >= SubscriptionTier.pro.rank,
+            "post_session_analysis": isPremium,
         ],
         sandboxFullAccess: false,
         trialInterviewLimit: 5,
@@ -298,10 +389,16 @@ private func settingsPreviewEntitlement(tier: String) -> BillingEntitlement {
         currentPeriodEndsAt: ISO8601DateFormatter().string(from: .now.addingTimeInterval(60 * 60 * 24 * 30)),
         gracePeriodEndsAt: nil,
         trialDaysRemaining: nil,
-        responseQuality: tier == "pro" ? "premium" : "enhanced",
-        monthlyInterviewsUsed: 5,
-        monthlyInterviewLimit: tier == "pro" ? 999 : 15,
-        monthlyInterviewsRemaining: tier == "pro" ? 994 : 10,
+        responseQuality: isPremium ? "premium" : "enhanced",
+        monthlyInterviewsUsed: stdWindow.used,
+        monthlyInterviewLimit: stdWindow.limit,
+        monthlyInterviewsRemaining: stdWindow.remaining,
+        quotas: QuotaSummary(
+            standard: stdWindow,
+            premium: premWindow,
+            periodStartedAt: ISO8601DateFormatter().string(from: .now),
+            periodEndsAt: nil
+        ),
         catalog: []
     )
 }

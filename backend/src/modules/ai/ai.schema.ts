@@ -1,10 +1,12 @@
 import { z } from 'zod';
 
+// Voice Prep / Realtime: model is server-selected. The client may NOT supply a model field.
+// Strict mode rejects unknown keys → 422 with a clear validation error.
 export const realtimeSessionSchema = z
   .object({
+    sessionClientId: z.string().uuid(),
     instructions: z.string().min(1).max(20000),
     voice: z.string().min(1).max(64).default('alloy'),
-    model: z.string().min(1).max(128).optional(),
     inputAudioFormat: z.enum(['pcm16', 'g711_ulaw', 'g711_alaw']).default('pcm16'),
     outputAudioFormat: z.enum(['pcm16', 'g711_ulaw', 'g711_alaw']).default('pcm16'),
     inputAudioTranscription: z
@@ -57,12 +59,13 @@ export const chatMessageSchema = z
   })
   .strict();
 
+const routingSchema = z.enum(['default', 'technical', 'coding']).default('default');
+
 const baseChatSchema = z
   .object({
-    model: z.string().min(1).max(128),
+    sessionClientId: z.string().uuid(),
+    routing: routingSchema,
     messages: z.array(chatMessageSchema).min(1).max(64),
-    max_tokens: z.number().int().min(1).max(8000).optional(),
-    max_completion_tokens: z.number().int().min(1).max(8000).optional(),
     temperature: z.number().min(0).max(2).optional(),
     top_p: z.number().min(0).max(1).optional(),
     frequency_penalty: z.number().min(-2).max(2).optional(),

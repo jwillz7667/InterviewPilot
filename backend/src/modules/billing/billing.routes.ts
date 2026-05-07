@@ -4,6 +4,7 @@ import {
   accessClaimSchema,
   appStoreNotificationSchema,
   appStoreSyncSchema,
+  toPrismaQuality,
   toPrismaSessionMode,
 } from './billing.schema.js';
 import {
@@ -49,7 +50,8 @@ export async function billingRoutes(app: FastifyInstance) {
         const claim = await claimInterviewAccess(
           request.user.sub,
           input.sessionClientId,
-          toPrismaSessionMode(input.sessionMode)
+          toPrismaSessionMode(input.sessionMode),
+          toPrismaQuality(input.quality)
         );
         reply.status(201).send({ claim });
       }

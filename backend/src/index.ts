@@ -25,6 +25,7 @@ import { billingRoutes } from './modules/billing/billing.routes.js';
 import { uploadsRoutes } from './modules/uploads/uploads.routes.js';
 import { aiRoutes } from './modules/ai/ai.routes.js';
 import { requestIdPlugin } from './plugins/request-id.js';
+import entitlementPlugin from './plugins/entitlement.js';
 import { AppError } from './utils/errors.js';
 import { ZodError } from 'zod';
 
@@ -80,6 +81,7 @@ await app.register(rateLimit, {
 });
 
 await app.register(requestIdPlugin);
+await app.register(entitlementPlugin);
 
 // Health check
 app.get('/health', async () => {

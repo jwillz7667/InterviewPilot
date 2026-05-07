@@ -31,6 +31,9 @@ jobs:
       - name: TypeScript Build
         run: npm run build
 
+      - name: Unit Tests
+        run: npm test
+
   ios-build:
     runs-on: macos-15
     steps:

@@ -2,6 +2,8 @@ import SwiftUI
 
 struct SessionReviewView: View {
     @State var viewModel: SessionReviewViewModel
+    @State private var showPaywall = false
+    @State private var subscriptionService = SubscriptionService.shared
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -32,6 +34,14 @@ struct SessionReviewView: View {
                 .iaScrollablePage()
             }
             .toolbar(.hidden, for: .navigationBar)
+            .sheet(isPresented: $showPaywall, onDismiss: {
+                // The paywall sheet may have completed a purchase. Re-evaluate
+                // entitlement via a refresh, then re-attempt the analyze call
+                // if the user is now Premium.
+                Task { await retryAnalysisAfterPossibleUpgrade() }
+            }) {
+                SubscriptionPaywallView(reason: .featureGated(feature: "post_session_analysis"))
+            }
             .task {
                 if viewModel.serverId == nil {
                     await viewModel.resolveServerIdFromRemote()
@@ -40,6 +50,15 @@ struct SessionReviewView: View {
                     await viewModel.fetchAnalysis()
                 }
             }
+        }
+    }
+
+    private func retryAnalysisAfterPossibleUpgrade() async {
+        guard viewModel.requiresPremiumForAnalysis else { return }
+        await subscriptionService.refresh()
+        if subscriptionService.currentEntitlement?.hasPostSessionAnalysis == true {
+            viewModel.requiresPremiumForAnalysis = false
+            await viewModel.fetchAnalysis()
         }
     }
 
@@ -137,7 +156,9 @@ struct SessionReviewView: View {
 
     private var aiAnalysisSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            if viewModel.isAnalyzing {
+            if viewModel.requiresPremiumForAnalysis {
+                premiumUpsellCard
+            } else if viewModel.isAnalyzing {
                 IAPanel(tone: .secondary, padding: 22, cornerRadius: 28) {
                     HStack(spacing: 14) {
                         ProgressView()
@@ -263,6 +284,36 @@ struct SessionReviewView: View {
                         )
                         ExchangeDetailView(exchange: exchange, feedback: viewModel.feedbackForExchange(at: index))
                     }
+                }
+            }
+        }
+    }
+
+    private var premiumUpsellCard: some View {
+        IAPanel(tone: .secondary, padding: 22, cornerRadius: 28) {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack(spacing: 10) {
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 20, weight: .semibold))
+                        .foregroundStyle(IATheme.accent)
+
+                    Text("AI analysis is a Premium feature")
+                        .font(IATypography.headlineSmall)
+                        .foregroundStyle(IATheme.textPrimary)
+                }
+
+                Text("Upgrade to Premium to unlock per-exchange grading, calibrated technical / communication / confidence scores, and evidence-backed strengths and improvements.")
+                    .font(IATypography.bodyMedium)
+                    .foregroundStyle(IATheme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                HStack(spacing: 12) {
+                    Spacer()
+
+                    Button("Upgrade to Premium") {
+                        showPaywall = true
+                    }
+                    .buttonStyle(IAPrimaryButtonStyle())
                 }
             }
         }

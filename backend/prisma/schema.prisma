@@ -12,6 +12,7 @@ enum SubscriptionTier {
   TRIAL
   PLUS
   PRO
+  PREMIUM
   SANDBOX
 }
 
@@ -37,7 +38,14 @@ enum SubscriptionProduct {
   PLUS_YEARLY
   PRO_MONTHLY
   PRO_YEARLY
+  PREMIUM_MONTHLY
+  PREMIUM_YEARLY
   SANDBOX_FULL_ACCESS
+}
+
+enum InterviewQuality {
+  STANDARD
+  PREMIUM
 }
 
 enum AppStoreEnvironment {
@@ -153,6 +161,12 @@ model UserEntitlement {
   trialEndsAt                  DateTime?
   monthlyInterviewsUsed        Int                 @default(0)
   monthlyInterviewsResetAt     DateTime?
+  monthlyStandardUsed          Int                 @default(0)
+  monthlyPremiumUsed           Int                 @default(0)
+  monthlyStandardLimit         Int                 @default(3)
+  monthlyPremiumLimit          Int                 @default(1)
+  quotaPeriodStartedAt         DateTime            @default(now())
+  quotaPeriodEndsAt            DateTime?
   currentPeriodStartedAt       DateTime            @default(now())
   currentPeriodEndsAt          DateTime?
   gracePeriodEndsAt            DateTime?
@@ -189,6 +203,7 @@ model BillingEvent {
   expiresAt                    DateTime?
   payload                      Json?
   payloadDigest                String?
+  quotaDelta                   Json?
   createdAt                    DateTime            @default(now())
 
   @@index([userId, createdAt(sort: Desc)])
@@ -205,6 +220,7 @@ model SessionAccessGrant {
   sessionMode        SessionMode      @default(LIVE_INTERVIEW)
   accessSource       AccessSource
   accessTier         SubscriptionTier
+  quality            InterviewQuality @default(STANDARD)
   featureSnapshot    Json?
   consumedTrial      Boolean          @default(false)
   trialInterviewNumber Int?
@@ -269,6 +285,7 @@ model InterviewSession {
   sessionMode     SessionMode @default(LIVE_INTERVIEW)
   accessSource    AccessSource @default(TRIAL)
   accessTier      SubscriptionTier @default(TRIAL)
+  quality         InterviewQuality @default(STANDARD)
   trialInterviewNumber Int?
 
   startedAt       DateTime

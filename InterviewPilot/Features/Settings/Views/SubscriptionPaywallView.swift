@@ -6,9 +6,30 @@ struct SubscriptionPaywallView: View {
     @State private var billingPeriod: BillingPeriod = .monthly
     @State private var isPurchasing = false
 
+    /// Why the paywall is being shown. Drives hero copy and which card is
+    /// emphasized so the user lands on the upgrade that resolves their trigger.
+    let reason: PaywallReason
+
+    init(reason: PaywallReason = .upgradeBrowse) {
+        self.reason = reason
+    }
+
     enum BillingPeriod: String, CaseIterable {
         case monthly = "Monthly"
         case yearly = "Yearly"
+    }
+
+    enum PaywallReason: Equatable {
+        /// User tapped Upgrade with no specific exhausted-state trigger.
+        case upgradeBrowse
+        /// Standard quota for the period is gone; Pro restores it.
+        case standardExhausted
+        /// Premium quota for the period is gone; Premium tier removes the cap.
+        case premiumExhausted
+        /// A specific feature (voice prep, post-session analysis, etc.) requires
+        /// a higher tier; `feature` is the backend feature flag that gated the
+        /// request and is shown in the hero subtitle.
+        case featureGated(feature: String)
     }
 
     var body: some View {
@@ -104,6 +125,17 @@ struct SubscriptionPaywallView: View {
     }
 
     private var heroSubtitle: String {
+        switch reason {
+        case .standardExhausted:
+            return "You've used all your standard interviews this month. Upgrade to Pro for 25 standard + 10 premium per month."
+        case .premiumExhausted:
+            return "You've used your premium interviews this month. Premium gives you unlimited GPT-4.1 sessions."
+        case .featureGated(let feature):
+            return "\(featureLabel(feature)) is a Premium feature. Upgrade to unlock it now."
+        case .upgradeBrowse:
+            break
+        }
+
         guard let ent = currentEntitlement else {
             return "Start with 3 free interviews per month, or upgrade for unlimited access with premium AI."
         }
@@ -114,6 +146,30 @@ struct SubscriptionPaywallView: View {
             return "You're on the \(ent.planTitle) plan. Upgrade anytime for more features."
         }
         return "Start with 3 free interviews per month, or upgrade for unlimited access with premium AI."
+    }
+
+    private func featureLabel(_ feature: String) -> String {
+        switch feature {
+        case "voice_prep": return "Voice prep"
+        case "post_session_analysis": return "Post-session AI analysis"
+        case "priority_models": return "Priority models"
+        case "live_interview": return "Live interview assist"
+        default:
+            return feature
+                .replacingOccurrences(of: "_", with: " ")
+                .capitalized
+        }
+    }
+
+    /// Which tier card should the highlight ring + scroll position favor.
+    private var emphasizedTier: SubscriptionTier {
+        switch reason {
+        case .standardExhausted: return .pro
+        case .premiumExhausted, .featureGated: return .premium
+        case .upgradeBrowse:
+            // Default emphasis: nudge users toward Premium unless they're already there.
+            return currentTier == .premium || currentTier == .sandbox ? .pro : .premium
+        }
     }
 
     // MARK: - Error
@@ -185,15 +241,15 @@ struct SubscriptionPaywallView: View {
     private var tierCardsSection: some View {
         VStack(spacing: 12) {
             freeTierCard
-            plusTierCard
             proTierCard
+            premiumTierCard
         }
     }
 
     // FREE
 
     private var freeTierCard: some View {
-        let isCurrent = currentTier == "free" || currentTier == "trial"
+        let isCurrent = currentTier == .free
 
         return VStack(alignment: .leading, spacing: 12) {
             HStack {
@@ -207,12 +263,13 @@ struct SubscriptionPaywallView: View {
             }
 
             VStack(alignment: .leading, spacing: 6) {
-                freeFeatureRow("3 interviews per month", included: true)
+                freeFeatureRow("3 standard interviews / month", included: true)
+                freeFeatureRow("1 premium interview / month", included: true)
                 freeFeatureRow("Standard AI (GPT-4.1 Mini)", included: true)
                 freeFeatureRow("Recent session history", included: true)
-                freeFeatureRow("Resume personalization", included: false)
-                freeFeatureRow("Unlimited interviews", included: false)
-                freeFeatureRow("Premium AI models", included: false)
+                freeFeatureRow("Premium AI models (GPT-4.1)", included: false)
+                freeFeatureRow("Coding AI (o4-mini)", included: false)
+                freeFeatureRow("Voice prep sessions", included: false)
             }
 
             if isCurrent {
@@ -227,64 +284,11 @@ struct SubscriptionPaywallView: View {
         }
     }
 
-    // PLUS
-
-    private var plusTierCard: some View {
-        let isCurrent = currentTier == "plus"
-
-        return VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text("Plus")
-                    .font(IATypography.headlineMedium)
-                    .foregroundStyle(IATheme.textPrimary)
-                Spacer()
-                VStack(alignment: .trailing, spacing: 2) {
-                    Text(plusPrice)
-                        .font(IATypography.headlineMedium)
-                        .foregroundStyle(IATheme.textPrimary)
-                    if billingPeriod == .yearly {
-                        Text(plusMonthlyEquivalent)
-                            .font(IATypography.labelSmall)
-                            .foregroundStyle(IATheme.textTertiary)
-                    }
-                }
-            }
-
-            VStack(alignment: .leading, spacing: 6) {
-                tierFeatureRow("Unlimited interviews")
-                tierFeatureRow("Enhanced AI (GPT-4.1)")
-                tierFeatureRow("400 token responses")
-                tierFeatureRow("Resume personalization")
-                tierFeatureRow("All response formats")
-                tierFeatureRow("Full session history")
-            }
-
-            if isCurrent {
-                currentPlanLabel
-            } else {
-                Button(action: { purchasePlan(tier: "plus") }) {
-                    HStack(spacing: 8) {
-                        if isPurchasing { ProgressView().tint(.white) }
-                        Text("Get Plus")
-                    }
-                    .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(IASecondaryButtonStyle())
-                .disabled(isPurchasing)
-            }
-        }
-        .padding(18)
-        .background(IATheme.surfaceWhite, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .stroke(isCurrent ? IATheme.tertiary : IATheme.outlineVariant, lineWidth: isCurrent ? 2 : 1)
-        }
-    }
-
     // PRO
 
     private var proTierCard: some View {
-        let isCurrent = currentTier == "pro"
+        let isCurrent = currentTier == .pro
+        let isRecommended = emphasizedTier == .pro && !isCurrent
 
         return VStack(alignment: .leading, spacing: 12) {
             HStack {
@@ -293,12 +297,14 @@ struct SubscriptionPaywallView: View {
                         .font(IATypography.headlineMedium)
                         .foregroundStyle(IATheme.textPrimary)
 
-                    Text("BEST VALUE")
-                        .font(.system(size: 10, weight: .heavy))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(IATheme.accent, in: Capsule())
+                    if isRecommended {
+                        Text("RECOMMENDED")
+                            .font(.system(size: 10, weight: .heavy))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(IATheme.tertiary, in: Capsule())
+                    }
                 }
                 Spacer()
                 VStack(alignment: .trailing, spacing: 2) {
@@ -314,20 +320,87 @@ struct SubscriptionPaywallView: View {
             }
 
             VStack(alignment: .leading, spacing: 6) {
-                tierFeatureRow("Everything in Plus")
-                tierFeatureRow("Coding AI (o4-mini)")
-                tierFeatureRow("480 token responses")
-                tierFeatureRow("Voice prep sessions")
-                tierFeatureRow("Priority models")
+                tierFeatureRow("25 standard interviews / month")
+                tierFeatureRow("10 premium interviews / month")
+                tierFeatureRow("Premium AI on demand (GPT-4.1)")
+                tierFeatureRow("Resume personalization")
+                tierFeatureRow("All response formats")
+                tierFeatureRow("Full session history")
             }
 
             if isCurrent {
                 currentPlanLabel
             } else {
-                Button(action: { purchasePlan(tier: "pro") }) {
+                Button(action: { purchasePlan(tier: .pro) }) {
                     HStack(spacing: 8) {
                         if isPurchasing { ProgressView().tint(.white) }
                         Text("Get Pro")
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(IASecondaryButtonStyle())
+                .disabled(isPurchasing)
+            }
+        }
+        .padding(18)
+        .background(IATheme.surfaceWhite, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .stroke(
+                    isCurrent || isRecommended ? IATheme.tertiary : IATheme.outlineVariant,
+                    lineWidth: isCurrent || isRecommended ? 2 : 1
+                )
+        }
+    }
+
+    // PREMIUM
+
+    private var premiumTierCard: some View {
+        let isCurrent = currentTier == .premium || currentTier == .sandbox
+
+        return VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                HStack(spacing: 8) {
+                    Text("Premium")
+                        .font(IATypography.headlineMedium)
+                        .foregroundStyle(IATheme.textPrimary)
+
+                    Text("BEST VALUE")
+                        .font(.system(size: 10, weight: .heavy))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(IATheme.accent, in: Capsule())
+                }
+                Spacer()
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text(premiumPrice)
+                        .font(IATypography.headlineMedium)
+                        .foregroundStyle(IATheme.textPrimary)
+                    if billingPeriod == .yearly {
+                        Text(premiumMonthlyEquivalent)
+                            .font(IATypography.labelSmall)
+                            .foregroundStyle(IATheme.textTertiary)
+                    }
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 6) {
+                tierFeatureRow("Unlimited standard + premium")
+                tierFeatureRow("Coding AI (o4-mini)")
+                tierFeatureRow("Voice prep sessions")
+                tierFeatureRow("Post-session AI analysis")
+                tierFeatureRow("50-question prep banks")
+                tierFeatureRow("Priority + dedicated capacity")
+            }
+
+            if isCurrent {
+                currentPlanLabel
+            } else {
+                Button(action: { purchasePlan(tier: .premium) }) {
+                    HStack(spacing: 8) {
+                        if isPurchasing { ProgressView().tint(.white) }
+                        Text("Get Premium")
                     }
                     .frame(maxWidth: .infinity)
                 }
@@ -399,41 +472,42 @@ struct SubscriptionPaywallView: View {
                 // Headers
                 HStack(spacing: 0) {
                     Text("").frame(maxWidth: .infinity, alignment: .leading)
-                    Text("Free").font(IATypography.labelMedium).foregroundStyle(IATheme.textSecondary).frame(width: 50, alignment: .center)
-                    Text("Plus").font(IATypography.labelMedium).foregroundStyle(IATheme.tertiary).frame(width: 50, alignment: .center)
-                    Text("Pro").font(IATypography.labelMedium).foregroundStyle(IATheme.accent).frame(width: 50, alignment: .center)
+                    Text("Free").font(IATypography.labelMedium).foregroundStyle(IATheme.textSecondary).frame(width: 56, alignment: .center)
+                    Text("Pro").font(IATypography.labelMedium).foregroundStyle(IATheme.tertiary).frame(width: 56, alignment: .center)
+                    Text("Premium").font(IATypography.labelMedium).foregroundStyle(IATheme.accent).frame(width: 70, alignment: .center)
                 }
 
                 Divider()
 
-                compareRow("Interviews", free: "3/mo", plus: "\u{221E}", pro: "\u{221E}")
-                compareRow("AI Model", free: "Mini", plus: "4.1", pro: "4.1")
-                compareRow("Tokens", free: "320", plus: "400", pro: "480")
-                compareCheck("Resume AI", free: false, plus: true, pro: true)
-                compareCheck("Formats", free: false, plus: true, pro: true)
-                compareCheck("Coding AI", free: false, plus: false, pro: true)
-                compareCheck("Voice Prep", free: false, plus: false, pro: true)
-                compareCheck("Priority", free: false, plus: false, pro: true)
+                compareRow("Standard / mo", free: "3", pro: "25", premium: "\u{221E}")
+                compareRow("Premium / mo", free: "1", pro: "10", premium: "\u{221E}")
+                compareRow("Live AI", free: "Mini", pro: "Mini", premium: "GPT-4.1")
+                compareRow("Coding AI", free: "Mini", pro: "Mini", premium: "o4-mini")
+                compareRow("Live tokens", free: "320", pro: "320", premium: "600")
+                compareCheck("Voice prep", free: false, pro: false, premium: true)
+                compareCheck("Post-session AI analysis", free: false, pro: false, premium: true)
+                compareCheck("50-question banks", free: false, pro: false, premium: true)
+                compareCheck("Multi-profile (5)", free: false, pro: false, premium: true)
             }
         }
     }
 
-    private func compareRow(_ label: String, free: String, plus: String, pro: String) -> some View {
+    private func compareRow(_ label: String, free: String, pro: String, premium: String) -> some View {
         HStack(spacing: 0) {
             Text(label).font(IATypography.bodySmall).foregroundStyle(IATheme.textPrimary).frame(maxWidth: .infinity, alignment: .leading)
-            Text(free).font(IATypography.labelSmall).foregroundStyle(IATheme.textTertiary).frame(width: 50, alignment: .center)
-            Text(plus).font(IATypography.labelSmall).foregroundStyle(IATheme.tertiary).frame(width: 50, alignment: .center)
-            Text(pro).font(IATypography.labelSmall).foregroundStyle(IATheme.accent).frame(width: 50, alignment: .center)
+            Text(free).font(IATypography.labelSmall).foregroundStyle(IATheme.textTertiary).frame(width: 56, alignment: .center)
+            Text(pro).font(IATypography.labelSmall).foregroundStyle(IATheme.tertiary).frame(width: 56, alignment: .center)
+            Text(premium).font(IATypography.labelSmall).foregroundStyle(IATheme.accent).frame(width: 70, alignment: .center)
         }
         .padding(.vertical, 4)
     }
 
-    private func compareCheck(_ label: String, free: Bool, plus: Bool, pro: Bool) -> some View {
+    private func compareCheck(_ label: String, free: Bool, pro: Bool, premium: Bool) -> some View {
         HStack(spacing: 0) {
             Text(label).font(IATypography.bodySmall).foregroundStyle(IATheme.textPrimary).frame(maxWidth: .infinity, alignment: .leading)
-            checkIcon(free).frame(width: 50, alignment: .center)
-            checkIcon(plus).frame(width: 50, alignment: .center)
-            checkIcon(pro).frame(width: 50, alignment: .center)
+            checkIcon(free).frame(width: 56, alignment: .center)
+            checkIcon(pro).frame(width: 56, alignment: .center)
+            checkIcon(premium).frame(width: 70, alignment: .center)
         }
         .padding(.vertical, 4)
     }
@@ -493,7 +567,11 @@ struct SubscriptionPaywallView: View {
 
     private var currentEntitlement: BillingEntitlement? { subscriptionService.currentEntitlement }
     private var currentProducts: [SubscriptionStoreProduct] { subscriptionService.products }
-    private var currentTier: String { currentEntitlement?.tier ?? "free" }
+    /// The user's tier in canonical post-migration form (legacy `.plus` → `.pro`,
+    /// `.trial` → `.free`) so paywall comparisons line up with the displayed cards.
+    private var currentTier: SubscriptionTier {
+        (currentEntitlement?.tier ?? .free).canonicalDisplayTier
+    }
 
     private var isTrialActive: Bool {
         guard let ent = currentEntitlement else { return false }
@@ -503,54 +581,68 @@ struct SubscriptionPaywallView: View {
     private var trialDaysRemaining: Int { currentEntitlement?.trialDaysRemaining ?? 0 }
     private var tierIcon: String {
         switch currentTier {
-        case "pro": return "star.fill"
-        case "plus": return "bolt.fill"
-        case "sandbox": return "hammer.fill"
-        case "trial": return "clock.fill"
-        default: return "person.fill"
+        case .premium: return "sparkles"
+        case .pro: return "bolt.fill"
+        case .sandbox: return "hammer.fill"
+        case .trial: return "clock.fill"
+        case .plus: return "bolt.fill"
+        case .free: return "person.fill"
         }
     }
     private var tierTint: Color {
         switch currentTier {
-        case "pro": return IATheme.accent
-        case "plus": return IATheme.tertiary
-        case "sandbox": return IATheme.warning
-        case "trial": return IATheme.primaryContainer
-        default: return IATheme.textSecondary
+        case .premium: return IATheme.accent
+        case .pro: return IATheme.tertiary
+        case .sandbox: return IATheme.warning
+        case .trial: return IATheme.primaryContainer
+        case .plus: return IATheme.tertiary
+        case .free: return IATheme.textSecondary
         }
     }
 
     // MARK: - Pricing
 
-    private var plusPrice: String {
-        resolvePrice(tier: "plus", fallbackMonthly: "$9.99/mo", fallbackYearly: "$79.99/yr")
-    }
     private var proPrice: String {
-        resolvePrice(tier: "pro", fallbackMonthly: "$19.99/mo", fallbackYearly: "$149.99/yr")
+        resolvePrice(tier: .pro, fallbackMonthly: "$9.99/mo", fallbackYearly: "$79.99/yr")
     }
-    private var plusMonthlyEquivalent: String { "$6.67/mo" }
-    private var proMonthlyEquivalent: String { "$12.50/mo" }
+    private var premiumPrice: String {
+        resolvePrice(tier: .premium, fallbackMonthly: "$19.99/mo", fallbackYearly: "$149.99/yr")
+    }
+    private var proMonthlyEquivalent: String { "$6.67/mo" }
+    private var premiumMonthlyEquivalent: String { "$12.50/mo" }
 
-    private func resolvePrice(tier: String, fallbackMonthly: String, fallbackYearly: String) -> String {
+    /// Match a store product against a target tier, allowing the legacy
+    /// `.plus` SKU (still vended by App Store Connect under the old product
+    /// ID) to satisfy the new `.pro` slot. Premium needs a true `.premium`
+    /// SKU before it can be purchased.
+    private func productMatches(_ product: SubscriptionStoreProduct, target: SubscriptionTier) -> Bool {
+        switch target {
+        case .pro: return product.tier == .pro || product.tier == .plus
+        case .premium: return product.tier == .premium
+        default: return product.tier == target
+        }
+    }
+
+    private func resolvePrice(tier: SubscriptionTier, fallbackMonthly: String, fallbackYearly: String) -> String {
         let period = billingPeriod == .yearly ? "yearly" : "monthly"
-        if let p = currentProducts.first(where: { $0.tier == tier && $0.productId.contains(period) }) {
+        if let p = currentProducts.first(where: { productMatches($0, target: tier) && $0.productId.contains(period) }) {
             return p.displayPrice
         }
-        if let p = currentProducts.first(where: { $0.tier == tier }) {
+        if let p = currentProducts.first(where: { productMatches($0, target: tier) }) {
             return p.displayPrice
         }
         return billingPeriod == .yearly ? fallbackYearly : fallbackMonthly
     }
 
-    private func storeProductId(for tier: String) -> String? {
+    private func storeProductId(for tier: SubscriptionTier) -> String? {
         let period = billingPeriod == .yearly ? "yearly" : "monthly"
-        return currentProducts.first(where: { $0.tier == tier && $0.productId.contains(period) })?.productId
-            ?? currentProducts.first(where: { $0.tier == tier })?.productId
+        return currentProducts.first(where: { productMatches($0, target: tier) && $0.productId.contains(period) })?.productId
+            ?? currentProducts.first(where: { productMatches($0, target: tier) })?.productId
     }
 
     // MARK: - Actions
 
-    private func purchasePlan(tier: String) {
+    private func purchasePlan(tier: SubscriptionTier) {
         guard let productId = storeProductId(for: tier) else {
             subscriptionService.errorMessage = "Subscription products are not available. Please try again later."
             return

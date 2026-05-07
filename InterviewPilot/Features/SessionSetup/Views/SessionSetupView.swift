@@ -5,6 +5,7 @@ struct SessionSetupView: View {
     @State private var viewModel: SessionSetupViewModel
     @State private var showLiveSession = false
     @State private var showPaywall = false
+    @State private var paywallReason: SubscriptionPaywallView.PaywallReason = .upgradeBrowse
     @State private var preparedSessionId: UUID?
     @State private var subscriptionService = SubscriptionService.shared
     @Environment(\.colorScheme) private var colorScheme
@@ -33,6 +34,7 @@ struct SessionSetupView: View {
                         heroImageSection
                         jobListingSection
                         customContextSection
+                        qualityPickerSection
 
                         if let error = viewModel.errorMessage {
                             errorBanner(error)
@@ -58,7 +60,7 @@ struct SessionSetupView: View {
                 }
             }
             .sheet(isPresented: $showPaywall) {
-                SubscriptionPaywallView()
+                SubscriptionPaywallView(reason: paywallReason)
             }
             .task {
                 if loadDefaultsOnTask {
@@ -292,6 +294,120 @@ struct SessionSetupView: View {
         }
     }
 
+    // MARK: - Quality Picker
+
+    private var qualityPickerSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("Interview Engine")
+                    .font(IATypography.headlineSmall)
+                    .foregroundStyle(IATheme.textPrimary)
+                Spacer()
+            }
+
+            VStack(spacing: 10) {
+                qualityCard(quality: .standard)
+                qualityCard(quality: .premium)
+            }
+        }
+    }
+
+    private func qualityCard(quality: InterviewQuality) -> some View {
+        let window = quotaWindow(for: quality)
+        let isSelected = viewModel.selectedQuality == quality
+        let isDisabled = !canSelect(quality: quality, window: window)
+        let accentTint = quality == .premium ? IATheme.tertiary : IATheme.accent
+
+        return Button {
+            handleQualityTap(quality: quality, window: window)
+        } label: {
+            HStack(alignment: .top, spacing: 14) {
+                Circle()
+                    .fill(accentTint.opacity(0.12))
+                    .frame(width: 38, height: 38)
+                    .overlay {
+                        Image(systemName: quality == .premium ? "sparkles" : "bolt.fill")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(accentTint)
+                    }
+
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 6) {
+                        Text(quality.displayName)
+                            .font(IATypography.headlineSmall)
+                            .foregroundStyle(IATheme.textPrimary)
+                        if quality == .premium {
+                            Text("PRO")
+                                .font(IATypography.labelSmall.bold())
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(accentTint, in: Capsule())
+                        }
+                    }
+                    Text(quality.subtitle)
+                        .font(IATypography.bodySmall)
+                        .foregroundStyle(IATheme.textSecondary)
+                    Text(quotaLabel(for: quality, window: window))
+                        .font(IATypography.labelMedium)
+                        .foregroundStyle(isDisabled ? IATheme.error : IATheme.textTertiary)
+                }
+
+                Spacer()
+
+                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                    .font(.system(size: 22, weight: .semibold))
+                    .foregroundStyle(isSelected ? accentTint : IATheme.outlineVariant)
+            }
+            .padding(14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(IATheme.surfaceWhite, in: RoundedRectangle(cornerRadius: IATheme.radiusLarge, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: IATheme.radiusLarge, style: .continuous)
+                    .stroke(isSelected ? accentTint : IATheme.outlineVariant, lineWidth: isSelected ? 2 : 1)
+            }
+            .opacity(isDisabled ? 0.6 : 1.0)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("\(quality.displayName) interview engine")
+        .accessibilityHint(isDisabled ? "Quota exhausted — tap to upgrade" : quality.subtitle)
+    }
+
+    private func quotaWindow(for quality: InterviewQuality) -> QuotaWindow? {
+        switch quality {
+        case .standard: return subscriptionService.currentEntitlement?.quotas.standard
+        case .premium:  return subscriptionService.currentEntitlement?.quotas.premium
+        }
+    }
+
+    private func quotaLabel(for quality: InterviewQuality, window: QuotaWindow?) -> String {
+        guard let window else {
+            return quality == .premium ? "Premium AI engine" : "Standard AI engine"
+        }
+        if window.isUnlimited {
+            return "Unlimited this month"
+        }
+        if window.remaining <= 0 {
+            return "Used \(window.used) of \(window.limit) this month"
+        }
+        return "\(window.remaining) of \(window.limit) left this month"
+    }
+
+    private func canSelect(quality: InterviewQuality, window: QuotaWindow?) -> Bool {
+        guard let window else { return true } // entitlement still loading; let backend gate
+        if window.isUnlimited { return true }
+        return window.remaining > 0
+    }
+
+    private func handleQualityTap(quality: InterviewQuality, window: QuotaWindow?) {
+        if canSelect(quality: quality, window: window) {
+            viewModel.selectedQuality = quality
+        } else {
+            paywallReason = quality == .premium ? .premiumExhausted : .standardExhausted
+            showPaywall = true
+        }
+    }
+
     // MARK: - Info Cards
 
     private var infoCardsSection: some View {
@@ -455,7 +571,15 @@ struct SessionSetupView: View {
     private func startSession() {
         Task {
             let sessionId = await viewModel.prepareSession()
-            showPaywall = viewModel.shouldPresentPaywall
+            if viewModel.shouldPresentPaywall {
+                // The VM already filtered down to a `.paymentRequired` /
+                // `.featureUnavailable` outcome — pick the reason that matches
+                // the quality the user just tried to claim.
+                paywallReason = viewModel.selectedQuality == .premium
+                    ? .premiumExhausted
+                    : .standardExhausted
+                showPaywall = true
+            }
 
             if let sessionId {
                 preparedSessionId = sessionId

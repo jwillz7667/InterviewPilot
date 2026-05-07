@@ -464,17 +464,17 @@ final class PracticeInterviewViewModel {
         }
 
         answerGenerationTask = Task { [weak self] in
-            guard self != nil else { return }
+            guard let self else { return }
             responseGenerator.generateResponse(
+                sessionClientId: self.sessionId,
                 question: question,
-                cachedBasePrompt: self!.cachedBasePrompt,
+                cachedBasePrompt: self.cachedBasePrompt,
                 questionType: questionType,
                 format: .fullAnswer,
                 emphasis: .technicalDepth,
                 exchangeHistory: recentHistory,
                 qualityMode: .premium,
-                tone: .confident,
-                model: APIConfig.premiumResponseModel
+                tone: .confident
             )
         }
     }

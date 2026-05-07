@@ -44,6 +44,12 @@ final class SessionReviewViewModel {
     var analysis: AIAnalysis?
     var isAnalyzing = false
     var analysisError: String?
+    /// True when the analyze endpoint returned 402 / the user's tier does not
+    /// grant `post_session_analysis`. Drives the upgrade CTA in the report.
+    var requiresPremiumForAnalysis = false
+
+    @ObservationIgnored
+    private let subscriptionService = SubscriptionService.shared
 
     init(
         exchanges: [Exchange],
@@ -62,6 +68,12 @@ final class SessionReviewViewModel {
     }
 
     var hasAnalysis: Bool { analysis != nil }
+
+    /// Whether the user's current entitlement permits an AI analysis call.
+    /// Sandbox / Premium have the flag; anyone else is gated.
+    var canRequestAnalysis: Bool {
+        subscriptionService.currentEntitlement?.hasPostSessionAnalysis == true
+    }
 
     func feedbackForExchange(at index: Int) -> ExchangeFeedbackItem? {
         analysis?.exchangeFeedback.first { $0.sequenceOrder == index }
@@ -95,8 +107,17 @@ final class SessionReviewViewModel {
 
     func fetchAnalysis() async {
         guard let serverId, !isAnalyzing else { return }
+
+        // Avoid burning a useless 402 round-trip when the user clearly is not
+        // entitled. The server still enforces; this is a UX shortcut.
+        if !canRequestAnalysis {
+            requiresPremiumForAnalysis = true
+            return
+        }
+
         isAnalyzing = true
         analysisError = nil
+        requiresPremiumForAnalysis = false
 
         do {
             let envelope: AnalysisEnvelope = try await AuthenticatedAPIClient.shared.post(
@@ -105,6 +126,16 @@ final class SessionReviewViewModel {
                 expectedStatusCodes: [200]
             )
             analysis = envelope.analysis
+        } catch let error as APIClientError {
+            switch error {
+            case .paymentRequired, .forbidden:
+                // Cached entitlement disagreed with the server, or feature was
+                // revoked between launch and analyze. Surface the upgrade CTA.
+                requiresPremiumForAnalysis = true
+                analysisError = nil
+            default:
+                analysisError = error.localizedDescription
+            }
         } catch {
             analysisError = error.localizedDescription
         }

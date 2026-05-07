@@ -1,5 +1,6 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { authenticate } from '../../middleware/authenticate.js';
+import { getBillingSummary } from '../billing/billing.service.js';
 import {
   realtimeSessionSchema,
   transcriptionSessionSchema,
@@ -12,59 +13,126 @@ import {
   chatCompletion,
   chatCompletionStream,
 } from './ai.service.js';
+import { getLogger } from '../../utils/logger.js';
+import { parseOrAudit } from './ai.audit.js';
+
+const log = getLogger().child({ module: 'ai-routes' });
+
+// Per-tier rate limits. Resolved from the cached billing summary (30s TTL — cheap to read).
+// FREE is intentionally lower: live interviews are bursty so 30/min covers a session start
+// + question pre-gen + a few answer streams without burning the limit.
+async function tierAwareMax(req: FastifyRequest): Promise<number> {
+  const userId = req.user?.sub;
+  if (!userId) return 30;
+  try {
+    const summary = await getBillingSummary(userId);
+    if (summary.sandboxFullAccess) return 240;
+    switch (summary.tier) {
+      case 'premium':
+        return 240;
+      case 'pro':
+      case 'plus':
+        return 120;
+      case 'free':
+      case 'trial':
+      default:
+        return 30;
+    }
+  } catch (err) {
+    log.warn({ err, userId }, 'tierAwareMax: defaulting to FREE limit');
+    return 30;
+  }
+}
+
+function userKey(req: FastifyRequest): string {
+  return req.user?.sub ?? req.ip;
+}
 
 export async function aiRoutes(app: FastifyInstance) {
   app.addHook('onRequest', authenticate);
 
-  // Mint an ephemeral OpenAI Realtime client_secret for direct iOS WSS connection.
-  // The returned token is short-lived (~1 minute) and bound to this session only.
+  // Voice Prep / Realtime: gated to Premium inside the service. Strict rate cap (lower than
+  // chat) because each session minted is a new outbound socket to OpenAI Realtime.
   app.post(
     '/api/v1/ai/realtime/session',
-    { config: { rateLimit: { max: 30, timeWindow: '1 minute' } } },
+    {
+      config: {
+        rateLimit: {
+          max: 20,
+          timeWindow: '1 minute',
+          keyGenerator: userKey,
+        },
+      },
+    },
     async (request: FastifyRequest, reply: FastifyReply) => {
-      const input = realtimeSessionSchema.parse(request.body);
+      const input = parseOrAudit(realtimeSessionSchema, request.body, request);
       const session = await createRealtimeSession(request.user.sub, input);
       reply.send(session);
     }
   );
 
-  // Mint a short-lived Deepgram API key (or proxy master key when DEEPGRAM_PROJECT_ID
-  // is not configured — that fallback is a temporary measure).
   app.post(
     '/api/v1/ai/transcription/session',
-    { config: { rateLimit: { max: 30, timeWindow: '1 minute' } } },
+    {
+      config: {
+        rateLimit: {
+          max: 30,
+          timeWindow: '1 minute',
+          keyGenerator: userKey,
+        },
+      },
+    },
     async (request: FastifyRequest, reply: FastifyReply) => {
-      const input = transcriptionSessionSchema.parse(request.body);
+      const input = parseOrAudit(transcriptionSessionSchema, request.body, request);
       const session = await createTranscriptionSession(request.user.sub, input);
       reply.send(session);
     }
   );
 
-  // Non-streaming JSON pass-through to OpenAI Chat Completions.
   app.post(
     '/api/v1/ai/chat',
-    { config: { rateLimit: { max: 60, timeWindow: '1 minute' } } },
+    {
+      config: {
+        rateLimit: {
+          max: tierAwareMax,
+          timeWindow: '1 minute',
+          keyGenerator: userKey,
+        },
+      },
+    },
     async (request: FastifyRequest, reply: FastifyReply) => {
-      const input = chatSchema.parse(request.body);
+      const input = parseOrAudit(chatSchema, request.body, request);
       const data = await chatCompletion(request.user.sub, input);
       reply.send(data);
     }
   );
 
-  // SSE pass-through to OpenAI Chat Completions streaming.
-  // Forwards the raw event stream byte-for-byte; iOS parses `data: {...}` lines.
   app.post(
     '/api/v1/ai/chat/stream',
-    { config: { rateLimit: { max: 60, timeWindow: '1 minute' } } },
+    {
+      config: {
+        rateLimit: {
+          max: tierAwareMax,
+          timeWindow: '1 minute',
+          keyGenerator: userKey,
+        },
+      },
+    },
     async (request: FastifyRequest, reply: FastifyReply) => {
-      const input = chatStreamSchema.parse(request.body);
-      const upstream = await chatCompletionStream(request.user.sub, input);
+      const input = parseOrAudit(chatStreamSchema, request.body, request);
+      const { upstream, resolvedQuality, resolvedModel } = await chatCompletionStream(
+        request.user.sub,
+        input
+      );
 
       reply.raw.writeHead(200, {
         'Content-Type': 'text/event-stream',
         'Cache-Control': 'no-cache, no-transform',
         Connection: 'keep-alive',
         'X-Accel-Buffering': 'no',
+        // Surface the resolved quality + model for the iOS observability layer.
+        'X-Resolved-Quality': resolvedQuality,
+        'X-Resolved-Model': resolvedModel,
       });
 
       const reader = upstream.body!.getReader();

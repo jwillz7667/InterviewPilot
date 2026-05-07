@@ -5,6 +5,7 @@ struct PracticeInterviewLaunchView: View {
     @State private var profileService = InterviewProfileService.shared
     @State private var showPracticeSession = false
     @State private var showPaywall = false
+    @State private var paywallReason: SubscriptionPaywallView.PaywallReason = .featureGated(feature: "voice_prep")
     @State private var isPreparingSession = false
     @State private var errorMessage: String?
     @State private var preparedSessionId: UUID?
@@ -120,7 +121,7 @@ struct PracticeInterviewLaunchView: View {
                 }
             }
             .sheet(isPresented: $showPaywall) {
-                SubscriptionPaywallView()
+                SubscriptionPaywallView(reason: paywallReason)
             }
             .task {
                 await profileService.fetchProfiles()
@@ -751,18 +752,30 @@ struct PracticeInterviewLaunchView: View {
 
             let sessionId = UUID()
 
-            // Claim interview access
+            // Claim interview access — practice mode is Premium-only.
             do {
                 _ = try await subscriptionService.claimInterviewAccess(
                     sessionClientId: sessionId,
-                    sessionMode: .voicePrep
+                    sessionMode: .voicePrep,
+                    quality: .premium
                 )
             } catch {
                 #if !DEBUG
                 if let billingError = error as? BillingClientError {
                     errorMessage = billingError.localizedDescription
-                    if case .paymentRequired = billingError { showPaywall = true }
-                    if case .featureUnavailable = billingError { showPaywall = true }
+                    switch billingError {
+                    case .paymentRequired:
+                        paywallReason = .premiumExhausted
+                        showPaywall = true
+                    case .featureUnavailable(_, let feature):
+                        paywallReason = .featureGated(feature: feature ?? "voice_prep")
+                        showPaywall = true
+                    case .qualityConflict:
+                        paywallReason = .premiumExhausted
+                        showPaywall = true
+                    default:
+                        break
+                    }
                 } else {
                     errorMessage = error.localizedDescription
                 }

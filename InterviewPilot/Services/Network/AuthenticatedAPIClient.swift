@@ -8,6 +8,8 @@ struct APIClientErrorEnvelope: Decodable {
 enum APIClientError: LocalizedError {
     case invalidURL
     case unauthenticated
+    case paymentRequired(String)
+    case forbidden(String)
     case invalidResponse
     case server(String)
 
@@ -17,6 +19,10 @@ enum APIClientError: LocalizedError {
             return "Invalid server URL."
         case .unauthenticated:
             return "Please sign in again."
+        case .paymentRequired(let message):
+            return message
+        case .forbidden(let message):
+            return message
         case .invalidResponse:
             return "The server returned an invalid response."
         case .server(let message):
@@ -154,9 +160,15 @@ final class AuthenticatedAPIClient {
 
         guard expectedStatusCodes.contains(httpResponse.statusCode) else {
             let apiError = try? decoder.decode(APIClientErrorEnvelope.self, from: data)
-            throw APIClientError.server(
-                apiError?.message ?? apiError?.error ?? "Request failed (\(httpResponse.statusCode))."
-            )
+            let message = apiError?.message ?? apiError?.error ?? "Request failed (\(httpResponse.statusCode))."
+            switch httpResponse.statusCode {
+            case 402:
+                throw APIClientError.paymentRequired(message)
+            case 403:
+                throw APIClientError.forbidden(message)
+            default:
+                throw APIClientError.server(message)
+            }
         }
 
         do {

@@ -113,11 +113,10 @@ export async function sessionsRoutes(app: FastifyInstance) {
       return reply.status(403).send({ error: 'Forbidden', message: 'Session belongs to another user' });
     }
 
-    const accessGrant = await getSessionAccessGrant(
-      request.user.sub,
-      input.clientId,
-      input.sessionMode === 'voicePrep' ? SessionMode.VOICE_PREP : SessionMode.LIVE_INTERVIEW
-    );
+    // The grant must exist (created at quota-claim time, before the session row).
+    // We read it here to seal accessTier/quality into the immutable session record so the
+    // session report can render the right pricing label even if the user upgrades later.
+    const accessGrant = await getSessionAccessGrant(request.user.sub, input.clientId);
 
     const session = await withDatabaseRetry((prisma) =>
       prisma.interviewSession.upsert({
@@ -131,6 +130,7 @@ export async function sessionsRoutes(app: FastifyInstance) {
           userId: request.user.sub,
           accessSource: accessGrant.accessSource,
           accessTier: accessGrant.accessTier,
+          quality: accessGrant.quality,
           trialInterviewNumber: accessGrant.trialInterviewNumber ?? undefined,
           telemetrySummary: input.telemetrySummary,
         },
@@ -178,11 +178,13 @@ export async function sessionsRoutes(app: FastifyInstance) {
     }
   );
 
-  // Analyze session with AI grading
+  // Analyze session with AI grading. Premium-only feature: gated via the
+  // `post_session_analysis` flag which is set on PREMIUM and SANDBOX tiers.
   app.post(
     '/api/v1/sessions/:id/analyze',
     { config: { rateLimit: { max: 5, timeWindow: '1 minute' } } },
     async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+      await request.requireFeature('post_session_analysis');
       const analysis = await analyzeSession(request.params.id, request.user.sub);
       reply.send({ analysis });
     }

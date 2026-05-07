@@ -14,6 +14,10 @@ final class SessionSetupViewModel {
     var positionLevel: PositionLevel?
     var responseFormat: ResponseFormat = .hybrid
     var responseQualityMode: ResponseQualityMode = .standard
+    /// Locked into the SessionAccessGrant on `prepareSession`. Standard burns the
+    /// monthly standard quota, Premium burns the premium quota and unlocks the
+    /// `gpt-4.1`/`o4-mini` engines server-side.
+    var selectedQuality: InterviewQuality = .standard
     var additionalNotes: String = ""
     var showResumeInput: Bool = false
     var shouldPresentPaywall: Bool = false
@@ -641,18 +645,23 @@ final class SessionSetupViewModel {
 
             let sessionId = UUID()
 
-            // Claim interview slot — non-fatal in debug builds
+            // Claim interview slot — non-fatal in debug builds. Backend
+            // enforces per-quality quota (FREE: 3 std + 1 prem, PRO: 25 + 10,
+            // PREMIUM: unlimited) and locks the chosen quality into the
+            // SessionAccessGrant so every downstream AI call inherits it.
             do {
                 _ = try await subscriptionService.claimInterviewAccess(
                     sessionClientId: sessionId,
-                    sessionMode: .liveInterview
+                    sessionMode: .liveInterview,
+                    quality: selectedQuality
                 )
             } catch {
                 #if !DEBUG
                 if let billingError = error as? BillingClientError {
                     errorMessage = billingError.localizedDescription
-                    if case .paymentRequired = billingError { shouldPresentPaywall = true }
-                    if case .featureUnavailable = billingError { shouldPresentPaywall = true }
+                    if billingError.shouldPresentPaywall {
+                        shouldPresentPaywall = true
+                    }
                 } else {
                     errorMessage = error.localizedDescription
                 }
@@ -795,14 +804,22 @@ final class SessionSetupViewModel {
 
     private func missingAccessError() -> BillingClientError {
         if subscriptionService.currentEntitlement?.paywallRequired == true {
-            return .paymentRequired("Your free trial interviews are complete. Upgrade to continue.")
+            return .paymentRequired(
+                message: "Your free interviews are complete. Upgrade to continue.",
+                quality: selectedQuality,
+                feature: nil
+            )
         }
 
         // When entitlement is nil (e.g. after reinstall before sync completes),
         // surface a paywall so the user can restore purchases rather than
         // showing a dead-end error.
         if subscriptionService.currentEntitlement == nil {
-            return .paymentRequired("Unable to verify your subscription. Please restore purchases or sign in again.")
+            return .paymentRequired(
+                message: "Unable to verify your subscription. Please restore purchases or sign in again.",
+                quality: nil,
+                feature: nil
+            )
         }
 
         return .server("Live AI access is not currently available.")

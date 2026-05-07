@@ -1,6 +1,26 @@
 import Foundation
 import Observation
 
+/// Routing slot — tells the backend which model variant to use within the
+/// session's locked-in `InterviewQuality`. The backend's `MODEL_BY_QUALITY`
+/// table is the source of truth; client cannot bypass it by editing IPA.
+enum ChatRouting: String {
+    case `default`
+    case technical
+    case coding
+
+    init(for questionType: QuestionType?) {
+        switch questionType {
+        case .coding:
+            self = .coding
+        case .technical, .systemDesign:
+            self = .technical
+        default:
+            self = .default
+        }
+    }
+}
+
 @Observable
 final class ResponseGeneratorService {
     private var currentTask: Task<Void, Never>?
@@ -21,7 +41,11 @@ final class ResponseGeneratorService {
     func preWarmConnection() {}
 
     /// Fast path: uses a pre-built base prompt and appends per-question context.
+    /// `sessionClientId` ties this generation to the SessionAccessGrant minted at
+    /// quota-claim time — the backend reads `quality` off the grant and never
+    /// trusts a client-supplied model.
     func generateResponse(
+        sessionClientId: UUID,
         question: String,
         cachedBasePrompt: String,
         questionType: QuestionType?,
@@ -29,8 +53,7 @@ final class ResponseGeneratorService {
         emphasis: ResponseEmphasis,
         exchangeHistory: [PromptBuilder.ExchangeSummary] = [],
         qualityMode: ResponseQualityMode,
-        tone: ResponseTone,
-        model: String = APIConfig.defaultResponseModel
+        tone: ResponseTone
     ) {
         let systemPrompt = PromptBuilder.buildFullPrompt(
             basePrompt: cachedBasePrompt,
@@ -39,20 +62,18 @@ final class ResponseGeneratorService {
             emphasis: emphasis,
             exchangeHistory: exchangeHistory
         )
-        let tokenLimit = qualityMode.liveTokenLimit(
-            baseTokens: format.maxTokens(for: emphasis, questionType: questionType)
-        )
         dispatchGeneration(
+            sessionClientId: sessionClientId,
             question: question,
             systemPrompt: systemPrompt,
-            tokenLimit: tokenLimit,
-            tone: tone,
-            model: model
+            routing: ChatRouting(for: questionType),
+            tone: tone
         )
     }
 
     /// Legacy path: builds the full prompt from scratch each time.
     func generateResponse(
+        sessionClientId: UUID,
         question: String,
         resume: String,
         jobDescription: String,
@@ -64,8 +85,7 @@ final class ResponseGeneratorService {
         behavior: ResponseBehavior,
         tone: ResponseTone,
         emphasis: ResponseEmphasis,
-        qualityMode: ResponseQualityMode,
-        model: String = APIConfig.defaultResponseModel
+        qualityMode: ResponseQualityMode
     ) {
         let systemPrompt = PromptBuilder.buildResponsePrompt(
             resume: resume,
@@ -81,24 +101,21 @@ final class ResponseGeneratorService {
             qualityMode: qualityMode,
             includeResume: qualityMode != .free
         )
-        let tokenLimit = qualityMode.liveTokenLimit(
-            baseTokens: format.maxTokens(for: emphasis, questionType: questionType)
-        )
         dispatchGeneration(
+            sessionClientId: sessionClientId,
             question: question,
             systemPrompt: systemPrompt,
-            tokenLimit: tokenLimit,
-            tone: tone,
-            model: model
+            routing: ChatRouting(for: questionType),
+            tone: tone
         )
     }
 
     private func dispatchGeneration(
+        sessionClientId: UUID,
         question: String,
         systemPrompt: String,
-        tokenLimit: Int,
-        tone: ResponseTone,
-        model: String
+        routing: ChatRouting,
+        tone: ResponseTone
     ) {
         currentTask?.cancel()
 
@@ -106,23 +123,22 @@ final class ResponseGeneratorService {
             guard let self else { return }
 
             self.isGenerating = true
-            let isReasoningModel = model.hasPrefix("o1") || model.hasPrefix("o3") || model.hasPrefix("o4")
-            var messageBody: [String: Any] = [
-                "model": model,
+            // Server is authoritative on model + token cap. Client supplies
+            // `sessionClientId` (binds to a SessionAccessGrant) and `routing`
+            // (default/technical/coding). Temperature + penalties are still
+            // permitted client overrides per the chatStreamSchema.
+            let messageBody: [String: Any] = [
+                "sessionClientId": sessionClientId.uuidString,
+                "routing": routing.rawValue,
                 "messages": [
                     ["role": "system", "content": systemPrompt],
                     ["role": "user", "content": "Interview question: \"\(question)\"\n\nGenerate the next answer the candidate should say out loud."]
                 ],
+                "temperature": tone.temperature,
+                "frequency_penalty": APIConfig.responseFrequencyPenalty,
+                "presence_penalty": APIConfig.responsePresencePenalty,
                 "stream_options": ["include_usage": false],
             ]
-            if isReasoningModel {
-                messageBody["max_completion_tokens"] = tokenLimit
-            } else {
-                messageBody["max_tokens"] = tokenLimit
-                messageBody["temperature"] = tone.temperature
-                messageBody["frequency_penalty"] = APIConfig.responseFrequencyPenalty
-                messageBody["presence_penalty"] = APIConfig.responsePresencePenalty
-            }
 
             var lastError: String?
 
@@ -194,7 +210,9 @@ final class ResponseGeneratorService {
     /// Returns true for HTTP status codes that should NOT be retried.
     private static func isNonRetryable(statusCode: Int) -> Bool {
         switch statusCode {
-        case 400, 401, 403, 404:
+        // 402 = quota exhausted (no retry will help)
+        // 422 = Zod validation error (request shape is wrong; retry is futile)
+        case 400, 401, 402, 403, 404, 422:
             return true
         default:
             // Network errors (negative), rate limits (429), server errors (5xx) are retryable
@@ -204,15 +222,25 @@ final class ResponseGeneratorService {
 
     private func parseAPIError(from body: String) -> (message: String?, statusCode: Int?) {
         guard let data = body.data(using: .utf8),
-              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let error = json["error"] as? [String: Any] else {
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             return (body.isEmpty ? nil : String(body.prefix(200)), nil)
         }
-        let message = error["message"] as? String
-        let code = error["code"] as? String
-        // Map known error codes
-        let isAuthError = code == "invalid_api_key" || code == "insufficient_quota"
-        return (message, isAuthError ? 401 : nil)
+
+        // Backend sends `{ message, error?, requiredFeature?, requiredTier? }`.
+        if let message = json["message"] as? String, !message.isEmpty {
+            return (message, nil)
+        }
+
+        // Fall through to OpenAI-style nested error shape (defensive — should
+        // not occur via our proxy but we keep parsing robust).
+        if let error = json["error"] as? [String: Any] {
+            let message = error["message"] as? String
+            let code = error["code"] as? String
+            let isAuthError = code == "invalid_api_key" || code == "insufficient_quota"
+            return (message, isAuthError ? 401 : nil)
+        }
+
+        return (body.isEmpty ? nil : String(body.prefix(200)), nil)
     }
 
     private func streamResponse(body: [String: Any]) async throws -> String {
