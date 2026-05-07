@@ -11,7 +11,7 @@ import {
   isTransientPrismaError,
   reconnectPrisma,
 } from './config/database.js';
-import { disconnectRedis } from './config/redis.js';
+import { disconnectRedis, getRedis } from './config/redis.js';
 import { authRoutes } from './modules/auth/auth.routes.js';
 import { usersRoutes } from './modules/users/users.routes.js';
 import { profileRoutes } from './modules/users/profile.routes.js';
@@ -83,18 +83,36 @@ await app.register(requestIdPlugin);
 
 // Health check
 app.get('/health', async () => {
-  let dbStatus = 'unknown';
-  try {
-    await getPrisma().$queryRaw`SELECT 1`;
-    dbStatus = 'connected';
-  } catch {
-    dbStatus = 'disconnected';
-  }
+  const [dbStatus, redisStatus] = await Promise.all([
+    (async () => {
+      try {
+        await getPrisma().$queryRaw`SELECT 1`;
+        return 'connected';
+      } catch {
+        return 'disconnected';
+      }
+    })(),
+    (async () => {
+      if (!env.REDIS_URL) return 'unconfigured';
+      try {
+        const client = await getRedis();
+        if (!client) return 'unconfigured';
+        const reply = await client.ping();
+        return reply === 'PONG' ? 'connected' : 'disconnected';
+      } catch {
+        return 'disconnected';
+      }
+    })(),
+  ]);
+
+  // Redis is non-critical (cache only) — degraded but not failing if down.
+  const status = dbStatus === 'connected' ? 'ok' : 'degraded';
   return {
-    status: dbStatus === 'connected' ? 'ok' : 'degraded',
+    status,
     timestamp: new Date().toISOString(),
     environment: env.NODE_ENV,
     database: dbStatus,
+    redis: redisStatus,
   };
 });
 
