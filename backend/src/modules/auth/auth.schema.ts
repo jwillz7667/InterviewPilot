@@ -1,12 +1,9 @@
 import { z } from 'zod';
+import { passwordSchema } from '../../shared/validation/password.js';
 
 export const registerSchema = z.object({
   email: z.string().email('Invalid email address'),
-  password: z.string()
-    .min(10, 'Password must be at least 10 characters')
-    .regex(/[A-Z]/, 'Must contain an uppercase letter')
-    .regex(/[a-z]/, 'Must contain a lowercase letter')
-    .regex(/[0-9]/, 'Must contain a number'),
+  password: passwordSchema,
   displayName: z.string().min(1).max(100).optional(),
 }).strict();
 
@@ -37,7 +34,7 @@ export const forgotPasswordSchema = z.object({
 
 export const resetPasswordSchema = z.object({
   token: z.string().min(1),
-  password: z.string().min(10),
+  password: passwordSchema,
 }).strict();
 
 export type RegisterInput = z.infer<typeof registerSchema>;

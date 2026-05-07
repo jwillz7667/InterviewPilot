@@ -3,6 +3,7 @@ import * as argon2 from 'argon2';
 import { getPrisma, withDatabaseRetry } from '../../config/database.js';
 import { sendPasswordResetEmail } from '../../services/email.js';
 import { UnauthorizedError, ValidationError } from '../../utils/errors.js';
+import { passwordSchema } from '../../shared/validation/password.js';
 
 const TOKEN_EXPIRY_HOURS = 1;
 
@@ -40,26 +41,18 @@ export async function requestPasswordReset(email: string): Promise<void> {
 }
 
 /**
- * Reset password using a valid token. Revokes all refresh tokens for security.
+ * Reset password using a valid token. Atomically claims the token to prevent
+ * concurrent reset attempts from succeeding twice. Revokes all refresh tokens.
  */
 export async function resetPassword(token: string, newPassword: string): Promise<void> {
-  if (newPassword.length < 10) {
-    throw new ValidationError('Password must be at least 10 characters');
+  // Defense-in-depth: route schema validates, but the service is also reachable
+  // from internal callers and tests. Re-validate with the canonical schema.
+  const parsed = passwordSchema.safeParse(newPassword);
+  if (!parsed.success) {
+    throw new ValidationError(parsed.error.errors[0]?.message ?? 'Invalid password');
   }
 
   const tokenHash = hashToken(token);
-
-  const resetToken = await withDatabaseRetry((prisma) =>
-    prisma.passwordResetToken.findUnique({
-      where: { tokenHash },
-      select: { id: true, userId: true, expiresAt: true, usedAt: true },
-    })
-  );
-
-  if (!resetToken || resetToken.usedAt || resetToken.expiresAt < new Date()) {
-    throw new UnauthorizedError('Invalid or expired reset token');
-  }
-
   const passwordHash = await argon2.hash(newPassword, {
     type: argon2.argon2id,
     memoryCost: 65536,
@@ -68,21 +61,32 @@ export async function resetPassword(token: string, newPassword: string): Promise
   });
 
   const prisma = getPrisma();
-  await prisma.$transaction([
-    // Mark token as used
-    prisma.passwordResetToken.update({
-      where: { id: resetToken.id },
+  await prisma.$transaction(async (tx) => {
+    // Atomic claim: only one concurrent caller will successfully transition
+    // usedAt: null → now within the unexpired window.
+    const claimed = await tx.passwordResetToken.updateMany({
+      where: { tokenHash, usedAt: null, expiresAt: { gt: new Date() } },
       data: { usedAt: new Date() },
-    }),
-    // Update password and reset lockout
-    prisma.user.update({
-      where: { id: resetToken.userId },
+    });
+    if (claimed.count !== 1) {
+      throw new UnauthorizedError('Invalid or expired reset token');
+    }
+
+    const claimedToken = await tx.passwordResetToken.findUnique({
+      where: { tokenHash },
+      select: { userId: true },
+    });
+    if (!claimedToken) {
+      throw new UnauthorizedError('Invalid or expired reset token');
+    }
+
+    await tx.user.update({
+      where: { id: claimedToken.userId },
       data: { passwordHash, failedLoginAttempts: 0, lockedUntil: null },
-    }),
-    // Revoke all refresh tokens for security
-    prisma.refreshToken.updateMany({
-      where: { userId: resetToken.userId, revokedAt: null },
+    });
+    await tx.refreshToken.updateMany({
+      where: { userId: claimedToken.userId, revokedAt: null },
       data: { revokedAt: new Date() },
-    }),
-  ]);
+    });
+  });
 }

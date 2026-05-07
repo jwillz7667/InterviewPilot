@@ -46,7 +46,7 @@ final class PracticeInterviewViewModel {
 
     // Private
     private var exchanges: [Exchange] = []
-    nonisolated(unsafe) private var timer: Timer?
+    private var elapsedTimerTask: Task<Void, Never>?
     private var sessionStartTime: Date?
     private var isAISpeaking = false
     private var currentAIQuestion = ""
@@ -87,9 +87,9 @@ final class PracticeInterviewViewModel {
         }
     }
 
-    deinit {
-        timer?.invalidate()
-    }
+    // Intentionally no deinit: `elapsedTimerTask`'s loop captures `[weak self]`
+    // and exits naturally once the VM is deallocated. `stopSession()` is the
+    // explicit cancellation path.
 
     init(
         sessionId: UUID,
@@ -326,9 +326,11 @@ final class PracticeInterviewViewModel {
         createPersistedSession(startedAt: startedAt)
         persistSessionSnapshot()
 
-        timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
-            Task { @MainActor [weak self] in
-                guard let self, let start = self.sessionStartTime else { return }
+        elapsedTimerTask?.cancel()
+        elapsedTimerTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(1))
+                guard !Task.isCancelled, let self, let start = self.sessionStartTime else { return }
                 self.elapsedTime = Date().timeIntervalSince(start)
             }
         }
@@ -347,8 +349,8 @@ final class PracticeInterviewViewModel {
         audioCapture.stopCapture()
         audioPlayback.stop()
         syncTask?.cancel()
-        timer?.invalidate()
-        timer = nil
+        elapsedTimerTask?.cancel()
+        elapsedTimerTask = nil
 
         persistSessionSnapshot(endedAt: endedAt)
         sessionState = .ended

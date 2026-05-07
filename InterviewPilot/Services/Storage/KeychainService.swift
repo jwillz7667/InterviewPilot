@@ -16,26 +16,33 @@ enum KeychainKey: String {
 }
 
 struct KeychainService {
+    /// Atomically writes `value` for `key`. Updates in place if the entry already exists,
+    /// otherwise creates a new entry. Avoids the brief window where the prior delete-then-add
+    /// sequence had nothing on disk between calls (and the lock-state edge case where the
+    /// add could fail without a way to recover the deleted value).
     static func save(key: KeychainKey, value: String) -> Bool {
         guard let data = value.data(using: .utf8) else { return false }
 
-        // Delete existing item first
-        let deleteQuery: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrAccount as String: key.rawValue
-        ]
-        SecItemDelete(deleteQuery as CFDictionary)
-
-        // Add new item
-        let addQuery: [String: Any] = [
+        let lookup: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrAccount as String: key.rawValue,
+        ]
+        let attributes: [String: Any] = [
             kSecValueData as String: data,
-            kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlockedThisDeviceOnly
         ]
 
-        let status = SecItemAdd(addQuery as CFDictionary, nil)
-        return status == errSecSuccess
+        let updateStatus = SecItemUpdate(lookup as CFDictionary, attributes as CFDictionary)
+        if updateStatus == errSecSuccess {
+            return true
+        }
+        if updateStatus != errSecItemNotFound {
+            return false
+        }
+
+        var addQuery = lookup
+        addQuery[kSecValueData as String] = data
+        addQuery[kSecAttrAccessible as String] = kSecAttrAccessibleWhenUnlockedThisDeviceOnly
+        return SecItemAdd(addQuery as CFDictionary, nil) == errSecSuccess
     }
 
     static func load(key: KeychainKey) -> String? {

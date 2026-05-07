@@ -61,14 +61,24 @@ export async function apiKeysRoutes(app: FastifyInstance) {
     }
   );
 
-  // Decrypt and return key
+  // Decrypt and return key. Rate-limited tightly because every successful
+  // call exposes a long-lived secret in plaintext over the response body.
   app.get(
     '/api/v1/api-keys/:provider/decrypt',
+    {
+      config: {
+        rateLimit: {
+          max: 5,
+          timeWindow: '1 hour',
+        },
+      },
+    },
     async (request: FastifyRequest<{ Params: { provider: string } }>, reply: FastifyReply) => {
       const { provider } = providerParam.parse(request.params);
       const key = await withDatabaseRetry((prisma) =>
         prisma.userApiKey.findUnique({
           where: { userId_provider: { userId: request.user.sub, provider } },
+          select: { id: true, encryptedKey: true, keyIv: true, keyTag: true },
         })
       );
 
@@ -77,6 +87,10 @@ export async function apiKeysRoutes(app: FastifyInstance) {
       }
 
       const decrypted = decryptApiKey(key.encryptedKey, key.keyIv, key.keyTag);
+      request.log.info(
+        { userId: request.user.sub, provider, keyId: key.id, event: 'api_key.decrypt' },
+        'User-stored API key decrypted'
+      );
       reply.send({ provider, apiKey: decrypted });
     }
   );

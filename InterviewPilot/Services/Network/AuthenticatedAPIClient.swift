@@ -28,6 +28,18 @@ enum APIClientError: LocalizedError {
 final class AuthenticatedAPIClient {
     static let shared = AuthenticatedAPIClient()
 
+    /// Dedicated session so timeouts apply only to authenticated REST traffic
+    /// without affecting `URLSession.shared` (which is still used for streaming
+    /// AI calls that legitimately run longer than 30s).
+    private static let session: URLSession = {
+        let config = URLSessionConfiguration.default
+        config.timeoutIntervalForRequest = 15
+        config.timeoutIntervalForResource = 30
+        config.waitsForConnectivity = false
+        config.httpAdditionalHeaders = ["Accept": "application/json"]
+        return URLSession(configuration: config)
+    }()
+
     private let authService: AuthService
     private let baseURL: String
     private let encoder: JSONEncoder
@@ -121,7 +133,7 @@ final class AuthenticatedAPIClient {
         expectedStatusCodes: Set<Int>,
         retryingUnauthorized: Bool = true
     ) async throws -> Response {
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await Self.session.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse else {
             throw APIClientError.invalidResponse
         }

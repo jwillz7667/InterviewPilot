@@ -328,7 +328,9 @@ final class AuthService {
         body: [String: String],
         token: String? = nil
     ) async throws -> T {
-        let url = URL(string: "\(baseURL)\(path)")!
+        guard let url = URL(string: "\(baseURL)\(path)") else {
+            throw AuthError.invalidConfiguration
+        }
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -405,11 +407,14 @@ final class AuthService {
 
 enum AuthError: LocalizedError {
     case serverError(String)
+    case invalidConfiguration
 
     var errorDescription: String? {
         switch self {
         case .serverError(let message):
             return message
+        case .invalidConfiguration:
+            return "Authentication is misconfigured. Update the app and try again."
         }
     }
 }

@@ -38,21 +38,25 @@ export async function usersRoutes(app: FastifyInstance) {
     reply.send({ user });
   });
 
-  app.patch('/api/v1/users/me', async (request: FastifyRequest, reply: FastifyReply) => {
-    const input = updateProfileSchema.parse(request.body);
-    const user = await withDatabaseRetry((prisma) =>
-      prisma.user.update({
-        where: { id: request.user.sub },
-        data: input,
-        select: { id: true, email: true, displayName: true, avatarUrl: true },
-      })
-    );
-    reply.send({ user });
-  });
+  app.patch(
+    '/api/v1/users/me',
+    { bodyLimit: 4 * 1024 },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const input = updateProfileSchema.parse(request.body);
+      const user = await withDatabaseRetry((prisma) =>
+        prisma.user.update({
+          where: { id: request.user.sub },
+          data: input,
+          select: { id: true, email: true, displayName: true, avatarUrl: true },
+        })
+      );
+      reply.send({ user });
+    }
+  );
 
   app.delete('/api/v1/users/me', async (request: FastifyRequest, reply: FastifyReply) => {
     await withDatabaseRetry((prisma) =>
-      prisma.user.deleteMany({ where: { id: request.user.sub } })
+      prisma.user.delete({ where: { id: request.user.sub } })
     );
     reply.send({ success: true });
   });

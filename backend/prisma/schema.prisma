@@ -119,7 +119,6 @@ model RefreshToken {
   revokedAt DateTime?
 
   @@index([userId])
-  @@index([tokenHash])
   @@index([expiresAt])
   @@map("refresh_tokens")
 }

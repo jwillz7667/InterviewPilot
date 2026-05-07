@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+# pre-commit: scan staged changes for committed secrets with gitleaks.
+#
+# Activate by running .githooks/install.sh (sets core.hooksPath = .githooks).
+# This runs in protect mode, which only inspects staged content (not history),
+# keeping the hook fast enough for routine commits.
+
+set -euo pipefail
+
+if ! command -v gitleaks >/dev/null 2>&1; then
+  cat >&2 <<'MSG'
+warning: gitleaks not installed — skipping secret scan.
+
+Install with one of:
+  brew install gitleaks                     # macOS
+  go install github.com/gitleaks/gitleaks/v8@latest
+
+Bypass once with: git commit --no-verify  (use sparingly)
+MSG
+  exit 0
+fi
+
+# --redact masks any matched secret in the diff output, so the value never
+# leaks into terminal logs or CI archives.
+if ! gitleaks protect --staged --redact --no-banner; then
+  cat >&2 <<'MSG'
+
+A staged change appears to contain a secret. The diff above shows the
+finding (value redacted). To proceed:
+  1. Remove the secret from the staged change.
+  2. If it was already committed historically, rotate it immediately.
+  3. Re-stage and re-commit.
+
+If gitleaks flagged a false positive, add an exception to .gitleaks.toml.
+Bypass once with: git commit --no-verify
+MSG
+  exit 1
+fi

@@ -17,6 +17,8 @@ import {
 import type { AppleLoginInput, LoginInput, RegisterInput } from './auth.schema.js';
 
 const REFRESH_TOKEN_EXPIRY_DAYS = 30;
+const MAX_FAILED_LOGIN_ATTEMPTS = 5;
+const LOGIN_LOCKOUT_DURATION_MS = 15 * 60 * 1000;
 const APPLE_ISSUER = 'https://appleid.apple.com';
 const appleJwks = createRemoteJWKSet(new URL('https://appleid.apple.com/auth/keys'));
 
@@ -214,36 +216,48 @@ export async function loginUser(input: LoginInput) {
 
   const validPassword = await argon2.verify(user.passwordHash, input.password);
   if (!validPassword) {
-    const attempts = (user.failedLoginAttempts ?? 0) + 1;
-    const lockData: { failedLoginAttempts: number; lockedUntil?: Date } = { failedLoginAttempts: attempts };
-    if (attempts >= 5) {
-      lockData.lockedUntil = new Date(Date.now() + 15 * 60 * 1000); // 15 min
-    }
-    await withDatabaseRetry((prisma) =>
-      prisma.user.update({ where: { id: user.id }, data: lockData })
+    // Atomic increment + conditional lock — prevents two concurrent failed
+    // attempts from each reading the same count and only incrementing once.
+    const incremented = await withDatabaseRetry((prisma) =>
+      prisma.user.update({
+        where: { id: user.id },
+        data: { failedLoginAttempts: { increment: 1 } },
+        select: { failedLoginAttempts: true },
+      })
     );
+    if (incremented.failedLoginAttempts >= MAX_FAILED_LOGIN_ATTEMPTS) {
+      await withDatabaseRetry((prisma) =>
+        prisma.user.update({
+          where: { id: user.id },
+          data: { lockedUntil: new Date(Date.now() + LOGIN_LOCKOUT_DURATION_MS) },
+        })
+      );
+    }
     throw new UnauthorizedError('Invalid email or password');
   }
 
-  if (user.failedLoginAttempts > 0) {
-    await withDatabaseRetry((prisma) =>
-      prisma.user.update({ where: { id: user.id }, data: { failedLoginAttempts: 0, lockedUntil: null } })
-    );
+  // Single update on success: stamp last login, clear lockout state if any,
+  // and lazily mint an appAccountToken for legacy rows that never got one.
+  const appAccountToken = user.appAccountToken ?? randomUUID();
+  const successData: {
+    lastLoginAt: Date;
+    failedLoginAttempts?: number;
+    lockedUntil?: null;
+    appAccountToken?: string;
+  } = { lastLoginAt: new Date() };
+  if (user.failedLoginAttempts > 0 || user.lockedUntil) {
+    successData.failedLoginAttempts = 0;
+    successData.lockedUntil = null;
+  }
+  if (!user.appAccountToken) {
+    successData.appAccountToken = appAccountToken;
   }
 
-  const appAccountToken = user.appAccountToken ?? randomUUID();
   const updated = await withDatabaseRetry((prisma) =>
     prisma.user.update({
       where: { id: user.id },
-      data: {
-        lastLoginAt: new Date(),
-        ...(user.appAccountToken ? {} : { appAccountToken }),
-      },
-      select: {
-        id: true,
-        email: true,
-        displayName: true,
-      },
+      data: successData,
+      select: { id: true, email: true, displayName: true },
     })
   );
 
