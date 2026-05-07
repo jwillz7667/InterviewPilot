@@ -32,3 +32,8 @@ logs.md
 # Screenshots & misc
 *.png
 !InterviewPilot/Assets.xcassets/**/*.png
+
+# Internal-only docs and scratch directories — never commit
+CLAUDE.md
+new-design-plan/
+audit-report/
