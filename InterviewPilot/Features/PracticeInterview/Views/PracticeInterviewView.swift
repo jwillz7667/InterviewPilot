@@ -528,8 +528,7 @@ private func previewPracticeViewModel(state: PracticeInterviewViewModel.Practice
         jobListingUrl: nil,
         profileId: nil,
         companyName: "Stripe",
-        positionTitle: "Senior iOS Engineer",
-        openAIKey: ""
+        positionTitle: "Senior iOS Engineer"
     )
     viewModel.sessionState = state
     viewModel.elapsedTime = 245

@@ -673,17 +673,13 @@ struct ProfileEditorView: View {
 
     private func extractProfileFromResume() {
         guard !resumeText.isEmpty else { return }
-        guard let apiKey = KeychainService.load(key: .openAIAPIKey), !apiKey.isEmpty else {
-            errorMessage = "API key not available. Start an interview session first to configure keys."
-            return
-        }
 
         isExtractingProfile = true
         errorMessage = nil
 
         Task {
             do {
-                let extracted = try await ResumeProfileExtractor.extract(from: resumeText, apiKey: apiKey)
+                let extracted = try await ResumeProfileExtractor.extract(from: resumeText)
 
                 if let role = extracted.currentRole, currentRole.isEmpty {
                     currentRole = role

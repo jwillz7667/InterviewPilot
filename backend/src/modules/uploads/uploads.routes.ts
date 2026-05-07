@@ -1,7 +1,11 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { authenticate } from '../../middleware/authenticate.js';
 import { z } from 'zod';
-import { generateUploadPresignedUrl, generateDownloadPresignedUrl } from '../../services/storage.js';
+import {
+  generateUploadPresignedUrl,
+  generateDownloadPresignedUrl,
+  isKeyOwnedBy,
+} from '../../services/storage.js';
 
 const presignedUrlSchema = z.object({
   filename: z.string().min(1).max(255),
@@ -33,7 +37,16 @@ export async function uploadsRoutes(app: FastifyInstance) {
   app.get(
     '/api/v1/uploads/:key/url',
     async (request: FastifyRequest<{ Params: { key: string } }>, reply: FastifyReply) => {
-      const url = await generateDownloadPresignedUrl(decodeURIComponent(request.params.key));
+      const key = decodeURIComponent(request.params.key);
+
+      if (!isKeyOwnedBy(key, request.user.sub)) {
+        return reply.status(403).send({
+          error: 'FORBIDDEN',
+          message: 'Access denied',
+        });
+      }
+
+      const url = await generateDownloadPresignedUrl(key);
 
       if (!url) {
         return reply.status(503).send({

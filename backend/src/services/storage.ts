@@ -2,6 +2,10 @@ import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } fro
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { getEnv } from '../config/env.js';
 
+const UPLOAD_KEY_PREFIX = 'resumes';
+const UPLOAD_URL_TTL_SECONDS = 600;
+const DOWNLOAD_URL_TTL_SECONDS = 300;
+
 let _client: S3Client | undefined;
 
 function getS3Client(): S3Client | undefined {
@@ -24,6 +28,18 @@ function getS3Client(): S3Client | undefined {
   return _client;
 }
 
+export function buildUploadKey(userId: string, filename: string): string {
+  const sanitized = filename.replace(/[^a-zA-Z0-9._-]/g, '_');
+  return `${UPLOAD_KEY_PREFIX}/${userId}/${Date.now()}-${sanitized}`;
+}
+
+export function isKeyOwnedBy(key: string, userId: string): boolean {
+  // Reject path traversal and cross-user access. Key must literally start with
+  // `resumes/<userId>/` and contain no `..` segments.
+  if (key.includes('..')) return false;
+  return key.startsWith(`${UPLOAD_KEY_PREFIX}/${userId}/`);
+}
+
 export async function generateUploadPresignedUrl(
   userId: string,
   filename: string,
@@ -33,8 +49,7 @@ export async function generateUploadPresignedUrl(
   if (!client) return null;
 
   const env = getEnv();
-  const sanitized = filename.replace(/[^a-zA-Z0-9._-]/g, '_');
-  const key = `resumes/${userId}/${Date.now()}-${sanitized}`;
+  const key = buildUploadKey(userId, filename);
 
   const command = new PutObjectCommand({
     Bucket: env.R2_BUCKET_NAME,
@@ -42,7 +57,7 @@ export async function generateUploadPresignedUrl(
     ContentType: contentType,
   });
 
-  const url = await getSignedUrl(client, command, { expiresIn: 3600 });
+  const url = await getSignedUrl(client, command, { expiresIn: UPLOAD_URL_TTL_SECONDS });
   return { url, key };
 }
 
@@ -56,7 +71,7 @@ export async function generateDownloadPresignedUrl(key: string): Promise<string 
     Key: key,
   });
 
-  return getSignedUrl(client, command, { expiresIn: 3600 });
+  return getSignedUrl(client, command, { expiresIn: DOWNLOAD_URL_TTL_SECONDS });
 }
 
 export async function deleteObject(key: string): Promise<void> {

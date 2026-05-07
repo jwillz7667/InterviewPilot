@@ -2,8 +2,6 @@ import Foundation
 import Security
 
 enum KeychainKey: String {
-    case deepgramAPIKey = "com.res.jobhopperAI.deepgram-api-key"
-    case openAIAPIKey = "com.res.jobhopperAI.openai-api-key"
     case accessToken = "com.res.jobhopperAI.access-token"
     case refreshToken = "com.res.jobhopperAI.refresh-token"
     case userEmail = "com.res.jobhopperAI.user-email"
@@ -12,6 +10,9 @@ enum KeychainKey: String {
     case appAccountToken = "com.res.jobhopperAI.app-account-token"
     case linkedInURL = "com.res.jobhopperAI.linkedin-url"
     case deviceId = "com.res.jobhopperAI.device-id"
+    // Legacy items — purged at launch to remove any cached AI master keys.
+    case legacyDeepgramAPIKey = "com.res.jobhopperAI.deepgram-api-key"
+    case legacyOpenAIAPIKey = "com.res.jobhopperAI.openai-api-key"
 }
 
 struct KeychainService {

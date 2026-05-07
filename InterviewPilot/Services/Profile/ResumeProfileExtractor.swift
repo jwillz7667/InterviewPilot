@@ -75,15 +75,7 @@ struct ExtractedAchievement: Codable, Sendable {
 }
 
 enum ResumeProfileExtractor {
-    static func extract(from resumeText: String, apiKey: String) async throws -> ExtractedProfile {
-        let url = URL(string: "https://api.openai.com/v1/chat/completions")!
-
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.timeoutInterval = 30
-
+    static func extract(from resumeText: String) async throws -> ExtractedProfile {
         let systemPrompt = """
         Extract a complete professional profile from the following resume. Return ONLY valid JSON with this exact schema:
         {
@@ -160,17 +152,14 @@ enum ResumeProfileExtractor {
             "response_format": ["type": "json_object"]
         ]
 
-        request.httpBody = try JSONSerialization.data(withJSONObject: body)
-
-        let (data, response) = try await URLSession.shared.data(for: request)
-
-        guard let httpResponse = response as? HTTPURLResponse,
-              httpResponse.statusCode == 200 else {
+        let json: [String: Any]
+        do {
+            json = try await AIClient.shared.chat(body: body)
+        } catch {
             throw ProfileExtractionError.apiError
         }
 
-        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let choices = json["choices"] as? [[String: Any]],
+        guard let choices = json["choices"] as? [[String: Any]],
               let message = choices.first?["message"] as? [String: Any],
               let content = message["content"] as? String,
               let contentData = content.data(using: .utf8) else {

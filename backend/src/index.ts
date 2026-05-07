@@ -21,9 +21,9 @@ import { sessionsRoutes } from './modules/sessions/sessions.routes.js';
 import { exchangesRoutes } from './modules/exchanges/exchanges.routes.js';
 import { answerBanksRoutes } from './modules/answer-banks/answer-banks.routes.js';
 import { interviewProfilesRoutes } from './modules/profiles/profiles.routes.js';
-import { configRoutes } from './modules/config/config.routes.js';
 import { billingRoutes } from './modules/billing/billing.routes.js';
 import { uploadsRoutes } from './modules/uploads/uploads.routes.js';
+import { aiRoutes } from './modules/ai/ai.routes.js';
 import { requestIdPlugin } from './plugins/request-id.js';
 import { AppError } from './utils/errors.js';
 import { ZodError } from 'zod';
@@ -31,19 +31,49 @@ import { ZodError } from 'zod';
 const env = loadEnv();
 initSentry();
 
+if (env.CORS_ORIGIN === '*' && env.NODE_ENV === 'production') {
+  console.error(
+    'CORS_ORIGIN must not be wildcard (*) in production. Set CORS_ORIGIN to your iOS/web origin (comma-separated for multiple).'
+  );
+  process.exit(1);
+}
+
 const app = Fastify({
   logger: {
     level: env.NODE_ENV === 'production' ? 'info' : 'debug',
+    redact: {
+      paths: [
+        'req.headers.authorization',
+        'req.headers.cookie',
+        'req.headers["x-api-key"]',
+        'req.body.password',
+        'req.body.identityToken',
+        'req.body.authorizationCode',
+        'req.body.refreshToken',
+        'req.body.appleSignInToken',
+        'req.body.apiKey',
+        'req.body.openaiApiKey',
+        'req.body.deepgramApiKey',
+        '*.password',
+        '*.token',
+        '*.apiKey',
+      ],
+      censor: '[REDACTED]',
+    },
   },
 });
 
 // Plugins
-await app.register(cors, { origin: env.CORS_ORIGIN });
-if (env.CORS_ORIGIN === '*' && env.NODE_ENV === 'production') {
-  app.log.warn('CORS_ORIGIN is set to wildcard (*) in production — restrict this to your domain');
-}
+const corsOrigins = env.CORS_ORIGIN.split(',').map((s) => s.trim()).filter(Boolean);
+await app.register(cors, {
+  origin: corsOrigins.length === 1 && corsOrigins[0] === '*' ? '*' : corsOrigins,
+});
 await app.register(helmet, { contentSecurityPolicy: false });
-await app.register(jwt, { secret: env.JWT_SECRET });
+await app.register(jwt, {
+  secret: env.JWT_SECRET,
+  sign: { iss: env.JWT_ISSUER, aud: env.JWT_AUDIENCE },
+  verify: { allowedIss: env.JWT_ISSUER, allowedAud: env.JWT_AUDIENCE },
+});
 await app.register(rateLimit, {
   max: 100,
   timeWindow: '1 minute',
@@ -127,9 +157,9 @@ await app.register(sessionsRoutes);
 await app.register(exchangesRoutes);
 await app.register(answerBanksRoutes);
 await app.register(interviewProfilesRoutes);
-await app.register(configRoutes);
 await app.register(billingRoutes);
 await app.register(uploadsRoutes);
+await app.register(aiRoutes);
 
 function scheduleDatabaseReconnect(delayMs = 5_000) {
   const timer = setTimeout(() => {

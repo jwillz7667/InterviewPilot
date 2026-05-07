@@ -392,9 +392,7 @@ private func previewLiveViewModel(state: LiveSessionViewModel.SessionState) -> L
         responseTone: .confident,
         responseEmphasis: .technicalDepth,
         responseQualityMode: .standard,
-        preComputedAnswers: [],
-        deepgramKey: "",
-        openAIKey: ""
+        preComputedAnswers: []
     )
     viewModel.sessionState = state
     viewModel.elapsedTime = 387

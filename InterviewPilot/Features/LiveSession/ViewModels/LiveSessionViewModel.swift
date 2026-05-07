@@ -46,8 +46,6 @@ final class LiveSessionViewModel {
     // Private state
     private var accumulatedTranscript: String = ""  // Finalized segments only
     private var currentPartial: String = ""          // Current interim partial
-    private let hasDeepgramAPIKey: Bool
-    private let hasOpenAIAPIKey: Bool
     private var postResponseAccumulatedTranscript: String = ""
     private var postResponseCurrentPartial: String = ""
     private var responseReadyAt: Date?
@@ -132,9 +130,7 @@ final class LiveSessionViewModel {
         responseQualityMode: ResponseQualityMode,
         preComputedAnswers: [PreComputedAnswer],
         modelConfig: ModelConfig? = nil,
-        communicationStyle: String? = nil,
-        deepgramKey: String,
-        openAIKey: String
+        communicationStyle: String? = nil
     ) {
         self.sessionId = sessionId
         self.resume = resume
@@ -150,12 +146,10 @@ final class LiveSessionViewModel {
         self.preComputedAnswers = preComputedAnswers
         self.modelConfig = modelConfig
         self.communicationStyle = communicationStyle
-        self.hasDeepgramAPIKey = !deepgramKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        self.hasOpenAIAPIKey = !openAIKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
 
         self.audioCapture = AudioCaptureService()
-        self.deepgram = DeepgramService(apiKey: deepgramKey)
-        self.responseGenerator = ResponseGeneratorService(apiKey: openAIKey)
+        self.deepgram = DeepgramService()
+        self.responseGenerator = ResponseGeneratorService()
         self.answerBank = AnswerBankService(answers: preComputedAnswers)
         self.classifier = QuestionClassifierService()
 
@@ -393,20 +387,6 @@ final class LiveSessionViewModel {
 
     func startSession() async throws {
         guard sessionState == .idle else { return }
-        guard hasDeepgramAPIKey else {
-            throw NSError(
-                domain: "LiveSessionViewModel",
-                code: -1,
-                userInfo: [NSLocalizedDescriptionKey: "Deepgram API key not configured"]
-            )
-        }
-        guard hasOpenAIAPIKey else {
-            throw NSError(
-                domain: "LiveSessionViewModel",
-                code: -1,
-                userInfo: [NSLocalizedDescriptionKey: "OpenAI API key not configured"]
-            )
-        }
 
         errorMessage = nil
 

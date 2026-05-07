@@ -18,7 +18,7 @@ final class OpenAIRealtimeService {
     @ObservationIgnored var onError: ((String) -> Void)?
     @ObservationIgnored var onReconnected: (() -> Void)?
 
-    private let apiKey: String
+    private let aiClient: AIClient
     private var lastInstructions: String = ""
     private var lastVoice: String = APIConfig.realtimeVoice
     private var reconnectAttempts = 0
@@ -29,17 +29,13 @@ final class OpenAIRealtimeService {
     private static let maxReconnectAttempts = 5
     private static let keepAliveIntervalSeconds: UInt64 = 25
 
-    init(apiKey: String) {
-        self.apiKey = apiKey
+    init(aiClient: AIClient = .shared) {
+        self.aiClient = aiClient
     }
 
     // MARK: - Connection
 
     func connect(instructions: String, voice: String = APIConfig.realtimeVoice) async throws {
-        guard !apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            throw RealtimeServiceError.missingAPIKey
-        }
-
         intentionalDisconnect = false
         reconnectAttempts = 0
         lastInstructions = instructions
@@ -50,13 +46,27 @@ final class OpenAIRealtimeService {
     private func connectInternal(instructions: String, voice: String) async throws {
         cleanupConnection()
 
-        let urlString = "wss://api.openai.com/v1/realtime?model=\(APIConfig.realtimeModel)"
+        // Mint a fresh ephemeral client_secret from the backend. The token
+        // is bound to this session only and expires in ~1 minute.
+        let realtime = try await aiClient.createRealtimeSession(
+            instructions: instructions,
+            voice: voice,
+            model: APIConfig.realtimeModel,
+            transcription: (model: "whisper-1", language: "en"),
+            turnDetection: (
+                threshold: Double(APIConfig.realtimeVadThreshold),
+                prefixPaddingMs: APIConfig.realtimeVadPrefixPaddingMs,
+                silenceDurationMs: APIConfig.realtimeVadSilenceDurationMs
+            )
+        )
+
+        let urlString = "wss://api.openai.com/v1/realtime?model=\(realtime.model)"
         guard let url = URL(string: urlString) else {
             throw RealtimeServiceError.invalidURL
         }
 
         var request = URLRequest(url: url)
-        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("Bearer \(realtime.clientSecret)", forHTTPHeaderField: "Authorization")
         request.setValue("realtime=v1", forHTTPHeaderField: "OpenAI-Beta")
 
         let config = URLSessionConfiguration.default
@@ -141,35 +151,11 @@ final class OpenAIRealtimeService {
     }
 
     // MARK: - Session Update
-
+    // Session config (instructions, voice, VAD, transcription) is set at mint
+    // time on the ephemeral session itself, so no follow-up session.update
+    // is needed after connect. Suppress unused-parameter warning.
     private func sendSessionUpdate(instructions: String, voice: String) async throws {
-        let sessionUpdate: [String: Any] = [
-            "type": "session.update",
-            "session": [
-                "modalities": ["text", "audio"],
-                "instructions": instructions,
-                "voice": voice,
-                "input_audio_format": "pcm16",
-                "output_audio_format": "pcm16",
-                "input_audio_transcription": [
-                    "model": "whisper-1",
-                    "language": "en"
-                ],
-                "turn_detection": [
-                    "type": "server_vad",
-                    "threshold": Double(APIConfig.realtimeVadThreshold),
-                    "prefix_padding_ms": APIConfig.realtimeVadPrefixPaddingMs,
-                    "silence_duration_ms": APIConfig.realtimeVadSilenceDurationMs
-                ] as [String: Any]
-            ] as [String: Any]
-        ]
-
-        let jsonData = try JSONSerialization.data(withJSONObject: sessionUpdate)
-        guard let jsonString = String(data: jsonData, encoding: .utf8) else {
-            throw RealtimeServiceError.encodingFailed
-        }
-
-        try await webSocket?.send(.string(jsonString))
+        _ = (instructions, voice)
     }
 
     // MARK: - Keep-Alive
@@ -375,17 +361,13 @@ final class OpenAIRealtimeService {
 // MARK: - Error Types
 
 enum RealtimeServiceError: LocalizedError {
-    case missingAPIKey
     case invalidURL
     case notConnected
     case handshakeTimeout
     case unexpectedHandshake
-    case encodingFailed
 
     var errorDescription: String? {
         switch self {
-        case .missingAPIKey:
-            return "OpenAI API key not configured"
         case .invalidURL:
             return "Invalid Realtime API URL"
         case .notConnected:
@@ -394,8 +376,6 @@ enum RealtimeServiceError: LocalizedError {
             return "Realtime session handshake timed out"
         case .unexpectedHandshake:
             return "Unexpected handshake response from Realtime API"
-        case .encodingFailed:
-            return "Failed to encode session update"
         }
     }
 }

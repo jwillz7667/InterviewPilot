@@ -99,8 +99,7 @@ final class PracticeInterviewViewModel {
         jobListingUrl: String?,
         profileId: String?,
         companyName: String?,
-        positionTitle: String?,
-        openAIKey: String
+        positionTitle: String?
     ) {
         self.sessionId = sessionId
         self.resume = resume
@@ -116,9 +115,9 @@ final class PracticeInterviewViewModel {
             sessionMode: .voiceChat,
             categoryOptions: [.allowBluetoothHFP, .defaultToSpeaker]
         )
-        self.realtimeService = OpenAIRealtimeService(apiKey: openAIKey)
+        self.realtimeService = OpenAIRealtimeService()
         self.audioPlayback = RealtimeAudioPlaybackService()
-        self.responseGenerator = ResponseGeneratorService(apiKey: openAIKey)
+        self.responseGenerator = ResponseGeneratorService()
 
         // Build the candidate-side prompt for generating ideal answers
         self.cachedBasePrompt = PromptBuilder.buildBasePrompt(
@@ -298,11 +297,6 @@ final class PracticeInterviewViewModel {
 
     func startSession() async throws {
         guard sessionState == .idle else { return }
-
-        let openAIKey = KeychainService.load(key: .openAIAPIKey) ?? ""
-        guard !openAIKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            throw PracticeSessionError.missingAPIKey
-        }
 
         errorMessage = nil
         sessionState = .connecting
@@ -646,13 +640,10 @@ final class PracticeInterviewViewModel {
 // MARK: - Error Types
 
 enum PracticeSessionError: LocalizedError {
-    case missingAPIKey
     case featureGated
 
     var errorDescription: String? {
         switch self {
-        case .missingAPIKey:
-            return "OpenAI API key not configured"
         case .featureGated:
             return "Practice Interview requires an active subscription"
         }

@@ -749,15 +749,6 @@ struct PracticeInterviewLaunchView: View {
                 return
             }
 
-            // Ensure API keys are available
-            await AuthService.shared.fetchAndStoreAPIKeys()
-
-            guard let openAIKey = KeychainService.load(key: .openAIAPIKey),
-                  !openAIKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-                errorMessage = "Could not load API keys. Please try again."
-                return
-            }
-
             let sessionId = UUID()
 
             // Claim interview access
@@ -785,8 +776,6 @@ struct PracticeInterviewLaunchView: View {
     }
 
     private func buildViewModel(sessionId: UUID) -> PracticeInterviewViewModel {
-        let openAIKey = KeychainService.load(key: .openAIAPIKey) ?? ""
-
         return PracticeInterviewViewModel(
             sessionId: sessionId,
             resume: enrichedResume,
@@ -795,8 +784,7 @@ struct PracticeInterviewLaunchView: View {
             jobListingUrl: jobListingURLInput.isEmpty ? nil : jobListingURLInput,
             profileId: selectedProfileId ?? initialProfileId,
             companyName: analyzedCompanyName,
-            positionTitle: analyzedPositionTitle,
-            openAIKey: openAIKey
+            positionTitle: analyzedPositionTitle
         )
     }
 }

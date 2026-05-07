@@ -10,42 +10,15 @@ final class ResponseGeneratorService {
     @ObservationIgnored var onResponseComplete: ((String) -> Void)?
     @ObservationIgnored var onError: ((String) -> Void)?
 
-    private let apiKey: String
+    private let aiClient: AIClient
     private static let maxRetries = 3
 
-    /// Dedicated URLSession with long timeouts for streaming during extended interviews.
-    @ObservationIgnored private var _streamingSession: URLSession?
-    private var streamingSession: URLSession {
-        if let session = _streamingSession { return session }
-        let config = URLSessionConfiguration.default
-        config.timeoutIntervalForRequest = 15
-        config.timeoutIntervalForResource = 120
-        config.waitsForConnectivity = false
-        config.allowsConstrainedNetworkAccess = true
-        config.allowsExpensiveNetworkAccess = true
-        config.httpShouldUsePipelining = true
-        config.httpMaximumConnectionsPerHost = 2
-        let session = URLSession(configuration: config)
-        _streamingSession = session
-        return session
+    init(aiClient: AIClient = .shared) {
+        self.aiClient = aiClient
     }
 
-    init(apiKey: String) {
-        self.apiKey = apiKey
-    }
-
-    /// Pre-warm the HTTP connection to OpenAI. Call at session start to eliminate
-    /// TCP + TLS handshake latency from the first generation request.
-    func preWarmConnection() {
-        _ = streamingSession // Force lazy init
-        Task {
-            var request = URLRequest(url: URL(string: "https://api.openai.com/v1/models")!)
-            request.httpMethod = "HEAD"
-            request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-            request.timeoutInterval = 5
-            _ = try? await streamingSession.data(for: request)
-        }
-    }
+    /// No-op: connection pre-warming is handled by the backend SSE proxy.
+    func preWarmConnection() {}
 
     /// Fast path: uses a pre-built base prompt and appends per-question context.
     func generateResponse(
@@ -128,23 +101,19 @@ final class ResponseGeneratorService {
         model: String
     ) {
         currentTask?.cancel()
-        guard !apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            onError?("OpenAI API key not configured")
-            return
-        }
 
         currentTask = Task { [weak self] in
             guard let self else { return }
 
             self.isGenerating = true
-            let url = URL(string: "https://api.openai.com/v1/chat/completions")!
             let isReasoningModel = model.hasPrefix("o1") || model.hasPrefix("o3") || model.hasPrefix("o4")
             var messageBody: [String: Any] = [
                 "model": model,
                 "messages": [
                     ["role": "system", "content": systemPrompt],
                     ["role": "user", "content": "Interview question: \"\(question)\"\n\nGenerate the next answer the candidate should say out loud."]
-                ]
+                ],
+                "stream_options": ["include_usage": false],
             ]
             if isReasoningModel {
                 messageBody["max_completion_tokens"] = tokenLimit
@@ -163,7 +132,6 @@ final class ResponseGeneratorService {
                     return
                 }
 
-                // Exponential backoff on retries: 0s, 1.5s, 3s
                 if attempt > 0 {
                     let delay = 1.5 * Double(attempt)
                     try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
@@ -174,10 +142,7 @@ final class ResponseGeneratorService {
                 }
 
                 do {
-                    let streamedResponse = try await self.streamResponse(
-                        url: url,
-                        body: messageBody
-                    )
+                    let streamedResponse = try await self.streamResponse(body: messageBody)
 
                     if Task.isCancelled {
                         self.isGenerating = false
@@ -191,7 +156,6 @@ final class ResponseGeneratorService {
                     }
 
                     lastError = "Response was empty"
-                    // Empty response — retry
                     continue
 
                 } catch let error as NSError {
@@ -203,14 +167,12 @@ final class ResponseGeneratorService {
                     let statusCode = error.code
                     lastError = error.localizedDescription
 
-                    // Non-retryable errors: auth failures, invalid requests
                     if Self.isNonRetryable(statusCode: statusCode) {
                         self.onError?(error.localizedDescription)
                         self.isGenerating = false
                         return
                     }
 
-                    // Retryable: rate limits (429), server errors (500, 502, 503), timeouts, network errors
                     continue
                 }
             }
@@ -227,12 +189,7 @@ final class ResponseGeneratorService {
         isGenerating = false
     }
 
-    /// Invalidates the dedicated streaming URLSession and releases its resources.
-    /// Call when the live session ends to prevent connection leaks.
-    func tearDown() {
-        _streamingSession?.invalidateAndCancel()
-        _streamingSession = nil
-    }
+    func tearDown() {}
 
     /// Returns true for HTTP status codes that should NOT be retried.
     private static func isNonRetryable(statusCode: Int) -> Bool {
@@ -258,27 +215,8 @@ final class ResponseGeneratorService {
         return (message, isAuthError ? 401 : nil)
     }
 
-    private func streamResponse(url: URL, body: [String: Any]) async throws -> String {
-        var payload = body
-        payload["stream"] = true
-        payload["stream_options"] = ["include_usage": false]
-
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.timeoutInterval = 15
-        request.httpBody = try JSONSerialization.data(withJSONObject: payload)
-
-        let (bytes, response) = try await streamingSession.bytes(for: request)
-
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw NSError(
-                domain: "ResponseGeneratorService",
-                code: -1,
-                userInfo: [NSLocalizedDescriptionKey: "No HTTP response received"]
-            )
-        }
+    private func streamResponse(body: [String: Any]) async throws -> String {
+        let (bytes, httpResponse) = try await aiClient.chatStream(body: body)
 
         guard httpResponse.statusCode == 200 else {
             var errorBody = ""

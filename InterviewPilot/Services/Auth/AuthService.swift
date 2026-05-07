@@ -18,11 +18,6 @@ struct TokenRefreshResponse: Codable, Sendable {
     let refreshToken: String
 }
 
-struct APIKeysResponse: Codable, Sendable {
-    let deepgramApiKey: String
-    let openaiApiKey: String
-}
-
 @Observable
 final class AuthService {
     static let shared = AuthService()
@@ -35,7 +30,16 @@ final class AuthService {
     private var activeRefreshTask: Task<String?, Never>?
 
     private init() {
+        purgeLegacyKeychainItems()
         restoreSession()
+    }
+
+    /// Removes any locally-cached AI master keys carried over from previous
+    /// builds. The AI proxy now mints ephemeral credentials on demand, so
+    /// these entries must not survive an upgrade.
+    private func purgeLegacyKeychainItems() {
+        _ = KeychainService.delete(key: .legacyDeepgramAPIKey)
+        _ = KeychainService.delete(key: .legacyOpenAIAPIKey)
     }
 
     private func restoreSession() {
@@ -53,8 +57,7 @@ final class AuthService {
             appAccountToken: appAccountToken
         )
         isAuthenticated = true
-
-        Task { await fetchAndStoreAPIKeys(token: token) }
+        _ = token
     }
 
     func register(email: String, password: String, displayName: String?) async {
@@ -227,45 +230,6 @@ final class AuthService {
         return await task.value
     }
 
-    func fetchAndStoreAPIKeys(token: String? = nil) async {
-        let authToken = token ?? KeychainService.load(key: .accessToken)
-        guard let authToken else { return }
-
-        do {
-            let url = URL(string: "\(baseURL)/api/v1/config/api-keys")!
-            var request = URLRequest(url: url)
-            request.setValue("Bearer \(authToken)", forHTTPHeaderField: "Authorization")
-
-            let (data, response) = try await URLSession.shared.data(for: request)
-            guard let httpResponse = response as? HTTPURLResponse else { return }
-
-            if httpResponse.statusCode == 401 {
-                if let newToken = await refreshTokenIfNeeded() {
-                    await fetchAndStoreAPIKeys(token: newToken)
-                }
-                return
-            }
-
-            if httpResponse.statusCode == 402 || httpResponse.statusCode == 403 {
-                if !applyDeveloperRuntimeKeysFallback() {
-                    clearRuntimeKeys()
-                }
-                return
-            }
-
-            if httpResponse.statusCode >= 400 {
-                throw AuthError.serverError(serverMessage(from: data, fallback: "Request failed (\(httpResponse.statusCode))"))
-            }
-
-            let keys = try JSONDecoder().decode(APIKeysResponse.self, from: data)
-            _ = KeychainService.save(key: .deepgramAPIKey, value: keys.deepgramApiKey)
-            _ = KeychainService.save(key: .openAIAPIKey, value: keys.openaiApiKey)
-        } catch {
-            _ = applyDeveloperRuntimeKeysFallback()
-            // Preserve the last known keys on transient failures.
-        }
-    }
-
     func updateProfile(displayName: String) async throws {
         guard let token = KeychainService.load(key: .accessToken) else {
             throw AuthError.serverError("Not authenticated")
@@ -314,10 +278,6 @@ final class AuthService {
         storeAuthData(response)
         isAuthenticated = true
         currentUser = response.user
-
-        Task {
-            await fetchAndStoreAPIKeys(token: response.accessToken)
-        }
     }
 
     private func storeAuthData(_ response: AuthResponse) {
@@ -331,39 +291,10 @@ final class AuthService {
         }
     }
 
-    private func clearRuntimeKeys() {
-        _ = KeychainService.delete(key: .deepgramAPIKey)
-        _ = KeychainService.delete(key: .openAIAPIKey)
-    }
-
     var hasDeveloperFullAccess: Bool {
         AppEnvironment.hasDeveloperFullAccess(
             email: currentUser?.email ?? KeychainService.load(key: .userEmail)
         )
-    }
-
-    @discardableResult
-    private func applyDeveloperRuntimeKeysFallback() -> Bool {
-        // In DEBUG builds, always try developer keys from build config
-        // so live sessions work during development without a paid subscription.
-        // This does NOT grant sandbox subscription status — only provides API keys.
-        #if DEBUG
-        let canUseFallback = true
-        #else
-        let canUseFallback = hasDeveloperFullAccess
-        #endif
-
-        guard canUseFallback else { return false }
-
-        if let deepgramAPIKey = AppEnvironment.developerDeepgramAPIKey {
-            _ = KeychainService.save(key: .deepgramAPIKey, value: deepgramAPIKey)
-        }
-
-        if let openAIAPIKey = AppEnvironment.developerOpenAIAPIKey {
-            _ = KeychainService.save(key: .openAIAPIKey, value: openAIAPIKey)
-        }
-
-        return KeychainService.hasKey(.deepgramAPIKey) && KeychainService.hasKey(.openAIAPIKey)
     }
 
     private func clearAuthData() {
@@ -373,7 +304,6 @@ final class AuthService {
         _ = KeychainService.delete(key: .userEmail)
         _ = KeychainService.delete(key: .displayName)
         _ = KeychainService.delete(key: .appAccountToken)
-        clearRuntimeKeys()
     }
 
     private func deviceId() -> String {

@@ -53,7 +53,6 @@ final class AnswerBankService {
         jobDescription: String,
         interviewType: InterviewType,
         qualityMode: ResponseQualityMode,
-        apiKey: String,
         onProgress: @escaping (Int, Int) -> Void
     ) async throws {
         isGenerating = true
@@ -66,11 +65,6 @@ final class AnswerBankService {
             qualityMode: qualityMode
         )
 
-        var request = URLRequest(url: URL(string: "https://api.openai.com/v1/chat/completions")!)
-        request.httpMethod = "POST"
-        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-
         let body: [String: Any] = [
             "model": APIConfig.prepModel,
             "max_tokens": 4000,
@@ -82,41 +76,28 @@ final class AnswerBankService {
             ]
         ]
 
-        request.httpBody = try JSONSerialization.data(withJSONObject: body)
-
-        let (data, response) = try await URLSession.shared.data(for: request)
-
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw APIError.invalidResponse("No HTTP response received")
+        let json: [String: Any]
+        do {
+            json = try await AIClient.shared.chat(body: body)
+        } catch let error as AIClientError {
+            switch error {
+            case .server(let statusCode, let message):
+                throw APIError.httpError(statusCode: statusCode, message: message)
+            default:
+                throw APIError.invalidResponse(error.localizedDescription)
+            }
         }
 
-        // Parse error response body for non-200 status codes
-        guard httpResponse.statusCode == 200 else {
-            let errorMessage = parseAPIError(from: data) ?? "Unknown error"
-            throw APIError.httpError(statusCode: httpResponse.statusCode, message: errorMessage)
-        }
-
-        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let choices = json["choices"] as? [[String: Any]],
+        guard let choices = json["choices"] as? [[String: Any]],
               let message = choices.first?["message"] as? [String: Any],
               let content = message["content"] as? String else {
-            let rawBody = String(data: data, encoding: .utf8) ?? "empty"
-            throw APIError.invalidResponse("Could not parse choices from: \(rawBody.prefix(200))")
+            throw APIError.invalidResponse("Could not parse choices from chat response")
         }
 
         let parsed = parseQAPairs(from: content)
         self.answers = parsed
 
         onProgress(parsed.count, parsed.count)
-    }
-
-    private func parseAPIError(from data: Data) -> String? {
-        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let error = json["error"] as? [String: Any],
-              let message = error["message"] as? String else {
-            return String(data: data, encoding: .utf8)
-        }
-        return message
     }
 
     private func parseQAPairs(from content: String) -> [PreComputedAnswer] {

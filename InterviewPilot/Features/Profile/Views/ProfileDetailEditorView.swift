@@ -982,20 +982,8 @@ struct ProfileDetailEditorView: View {
         errorMessage = nil
 
         Task {
-            // Ensure API key is available — fetch from backend if not in Keychain
-            var apiKey = KeychainService.load(key: .openAIAPIKey) ?? ""
-            if apiKey.isEmpty {
-                await AuthService.shared.fetchAndStoreAPIKeys()
-                apiKey = KeychainService.load(key: .openAIAPIKey) ?? ""
-            }
-            guard !apiKey.isEmpty else {
-                errorMessage = "Unable to load API key. Please check your connection and try again."
-                isExtractingProfile = false
-                return
-            }
-
             do {
-                let extracted = try await ResumeProfileExtractor.extract(from: resumeText, apiKey: apiKey)
+                let extracted = try await ResumeProfileExtractor.extract(from: resumeText)
 
                 // Personal info — always overwrite with extracted data
                 if let role = extracted.currentRole {

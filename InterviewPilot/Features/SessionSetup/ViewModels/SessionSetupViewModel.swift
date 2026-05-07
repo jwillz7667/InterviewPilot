@@ -668,8 +668,6 @@ final class SessionSetupViewModel {
     }
 
     func createLiveViewModel(sessionId: UUID) -> LiveSessionViewModel {
-        let deepgramKey = KeychainService.load(key: .deepgramAPIKey) ?? ""
-        let openAIKey = KeychainService.load(key: .openAIAPIKey) ?? ""
         let profile = derivedProfile
 
         return LiveSessionViewModel(
@@ -686,27 +684,17 @@ final class SessionSetupViewModel {
             responseQualityMode: responseQualityMode,
             preComputedAnswers: shouldPreGenerate ? preparedAnswers : [],
             modelConfig: subscriptionService.currentEntitlement?.modelConfig,
-            communicationStyle: selectedProfile?.communicationStyle,
-            deepgramKey: deepgramKey,
-            openAIKey: openAIKey
+            communicationStyle: selectedProfile?.communicationStyle
         )
     }
 
     private func ensureRuntimeKeys() async throws {
-        if KeychainService.load(key: .openAIAPIKey) == nil ||
-            KeychainService.load(key: .deepgramAPIKey) == nil {
-            await authService.fetchAndStoreAPIKeys()
-        }
-
-        // Retry once after a fresh token refresh
-        if KeychainService.load(key: .openAIAPIKey) == nil ||
-            KeychainService.load(key: .deepgramAPIKey) == nil {
-            _ = await authService.refreshTokenIfNeeded()
-            await authService.fetchAndStoreAPIKeys()
-        }
-
-        guard KeychainService.load(key: .openAIAPIKey) != nil,
-              KeychainService.load(key: .deepgramAPIKey) != nil else {
+        // Mint a fresh ephemeral Deepgram key from the backend up-front so a
+        // missing trial / billing entitlement surfaces here rather than after
+        // the user starts the session.
+        do {
+            _ = try await AIClient.shared.currentDeepgramKey(forceRefresh: true)
+        } catch {
             throw missingAccessError()
         }
     }

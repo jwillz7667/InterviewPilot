@@ -14,10 +14,11 @@ enum AppEnvironment {
         return defaultBackendBaseURL
     }
 
-    /// API keys are fetched from the backend after authentication
-    /// and stored in Keychain for direct API access
+    /// All AI calls flow through the backend proxy — no master keys are
+    /// held on-device. Authentication alone determines whether AI features
+    /// are usable; per-feature gating is enforced by `BillingEntitlement`.
     static var isConfigured: Bool {
-        KeychainService.hasKey(.deepgramAPIKey) && KeychainService.hasKey(.openAIAPIKey)
+        AuthService.shared.isAuthenticated
     }
 
     static var isAuthenticated: Bool {
@@ -43,14 +44,6 @@ enum AppEnvironment {
         }
 
         return []
-    }
-
-    static var developerOpenAIAPIKey: String? {
-        configuredString(forInfoDictionaryKey: "DEVELOPER_OPENAI_API_KEY")
-    }
-
-    static var developerDeepgramAPIKey: String? {
-        configuredString(forInfoDictionaryKey: "DEVELOPER_DEEPGRAM_API_KEY")
     }
 
     static func hasDeveloperFullAccess(email: String?) -> Bool {

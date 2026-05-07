@@ -15,7 +15,7 @@ final class DeepgramService {
     @ObservationIgnored var onError: ((String) -> Void)?
     @ObservationIgnored var onReconnected: (() -> Void)?
 
-    private let apiKey: String
+    private let aiClient: AIClient
     private var lastConnectKeywords: [String] = []
     private var reconnectAttempts = 0
     private var intentionalDisconnect = false
@@ -25,19 +25,11 @@ final class DeepgramService {
     private static let maxReconnectAttempts = 5
     private static let keepAliveIntervalSeconds: UInt64 = 8
 
-    init(apiKey: String) {
-        self.apiKey = apiKey
+    init(aiClient: AIClient = .shared) {
+        self.aiClient = aiClient
     }
 
     func connect(keywords: [String] = []) async throws {
-        guard !apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            throw NSError(
-                domain: "DeepgramService",
-                code: -1,
-                userInfo: [NSLocalizedDescriptionKey: "Deepgram API key not configured"]
-            )
-        }
-
         intentionalDisconnect = false
         reconnectAttempts = 0
         lastConnectKeywords = keywords
@@ -47,6 +39,8 @@ final class DeepgramService {
     private func connectInternal(keywords: [String]) async throws {
         // Clean up previous connection
         cleanupConnection()
+
+        let apiKey = try await aiClient.currentDeepgramKey()
 
         var components = URLComponents(string: "wss://api.deepgram.com/v1/listen")!
         components.queryItems = [

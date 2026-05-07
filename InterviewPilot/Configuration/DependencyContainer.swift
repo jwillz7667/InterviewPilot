@@ -14,9 +14,6 @@ enum DependencyContainer {
         responseQualityMode: ResponseQualityMode = .standard,
         preComputedAnswers: [PreComputedAnswer]
     ) -> LiveSessionViewModel {
-        let deepgramKey = KeychainService.load(key: .deepgramAPIKey) ?? ""
-        let openAIKey = KeychainService.load(key: .openAIAPIKey) ?? ""
-
         return LiveSessionViewModel(
             sessionId: UUID(),
             resume: resume,
@@ -30,9 +27,7 @@ enum DependencyContainer {
             responseEmphasis: responseEmphasis,
             responseQualityMode: responseQualityMode,
             preComputedAnswers: preComputedAnswers,
-            modelConfig: SubscriptionService.shared.currentEntitlement?.modelConfig,
-            deepgramKey: deepgramKey,
-            openAIKey: openAIKey
+            modelConfig: SubscriptionService.shared.currentEntitlement?.modelConfig
         )
     }
 }
