@@ -1,0 +1,39 @@
+# gitleaks configuration for InterviewPilot
+# https://github.com/gitleaks/gitleaks/blob/master/config/gitleaks.toml
+#
+# We extend the default ruleset and add a small allowlist for known false
+# positives that are unavoidable in this repository (sample fixtures,
+# documentation, etc.).
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Global allowlist for InterviewPilot"
+
+# Filenames where matches are expected and safe to ignore.
+files = [
+  '''^backend/\.env\.example$''',
+  '''^backend/prisma/seed\.ts$''',
+  '''^docs/.*\.md$''',
+  '''^audit-report/.*$''',
+]
+
+# Paths where vendored or third-party code lives.
+paths = [
+  '''node_modules/''',
+  '''DerivedData/''',
+  '''build/''',
+  '''dist/''',
+  '''Pods/''',
+]
+
+# Regexes that match known-safe placeholder values.
+regexes = [
+  # Common placeholder strings used in `.env.example` and documentation.
+  '''(?i)YOUR[_-]?(API[_-]?KEY|SECRET|TOKEN|PASSWORD)[_-]?HERE''',
+  '''(?i)REPLACE[_-]?ME''',
+  '''(?i)example[_-]?(api[_-]?key|secret|token)''',
+  # Apple App Store-issued test transaction identifiers (not secrets).
+  '''(?i)APPLE_(TEST|SANDBOX)_[A-Z0-9_]+''',
+]

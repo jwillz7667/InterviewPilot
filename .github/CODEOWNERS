@@ -1,0 +1,33 @@
+# CODEOWNERS — https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+#
+# Each line is a file pattern followed by one or more owners.
+# Order matters; the LAST matching pattern wins.
+
+# Default — anything not matched below requires the project lead's review.
+*                              @jwillz7667
+
+# Backend (Fastify, Prisma, infrastructure)
+/backend/                      @jwillz7667
+/backend/prisma/               @jwillz7667
+/backend/src/modules/auth/     @jwillz7667
+/backend/src/modules/billing/  @jwillz7667
+/backend/src/modules/ai/       @jwillz7667
+
+# iOS application
+/InterviewPilot/               @jwillz7667
+/InterviewPilot.xcodeproj/     @jwillz7667
+/InterviewPilot/PrivacyInfo.xcprivacy @jwillz7667
+
+# Build, deployment, and security-sensitive configuration
+/.github/                      @jwillz7667
+/.githooks/                    @jwillz7667
+Dockerfile                     @jwillz7667
+/backend/Dockerfile            @jwillz7667
+docker-compose.yml             @jwillz7667
+railway.json                   @jwillz7667
+/backend/railway.json          @jwillz7667
+
+# Legal & policy documents — owner approval required
+/LICENSE                       @jwillz7667
+/SECURITY.md                   @jwillz7667
+/CHANGELOG.md                  @jwillz7667

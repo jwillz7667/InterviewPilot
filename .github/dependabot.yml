@@ -1,0 +1,73 @@
+# Dependabot configuration
+# https://docs.github.com/en/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
+version: 2
+
+updates:
+  # Backend npm dependencies
+  - package-ecosystem: npm
+    directory: /backend
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: America/New_York
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - backend
+    commit-message:
+      prefix: chore
+      include: scope
+    groups:
+      fastify:
+        patterns:
+          - "@fastify/*"
+          - "fastify"
+      prisma:
+        patterns:
+          - "@prisma/*"
+          - "prisma"
+      aws-sdk:
+        patterns:
+          - "@aws-sdk/*"
+      sentry:
+        patterns:
+          - "@sentry/*"
+      types:
+        patterns:
+          - "@types/*"
+        update-types:
+          - minor
+          - patch
+    ignore:
+      # Block known-incompatible major bumps until a planned upgrade.
+      - dependency-name: "prisma"
+        update-types:
+          - "version-update:semver-major"
+      - dependency-name: "@prisma/client"
+        update-types:
+          - "version-update:semver-major"
+
+  # GitHub Actions used in our workflows
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    labels:
+      - dependencies
+      - ci
+    commit-message:
+      prefix: ci
+      include: scope
+
+  # Dockerfile base images
+  - package-ecosystem: docker
+    directory: /backend
+    schedule:
+      interval: monthly
+    labels:
+      - dependencies
+      - infra
+    commit-message:
+      prefix: build
+      include: scope

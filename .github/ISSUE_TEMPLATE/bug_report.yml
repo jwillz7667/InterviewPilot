@@ -1,0 +1,86 @@
+name: Bug Report
+description: Report a defect in InterviewPilot
+title: "[Bug]: "
+labels:
+  - bug
+  - triage
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for filing a bug report. Please include enough detail for us to reproduce the issue. **Do not include security vulnerabilities here** — see [SECURITY.md](../SECURITY.md) for the disclosure process.
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Affected component
+      options:
+        - iOS application
+        - Backend API
+        - Build / CI
+        - Documentation
+        - Other / unsure
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Version / build
+      description: App version + build number, or backend commit SHA.
+      placeholder: "iOS 1.0.3 (42) / backend a3dfdc5"
+    validations:
+      required: true
+
+  - type: input
+    id: device
+    attributes:
+      label: Device / OS (iOS only)
+      placeholder: "iPhone 15 Pro, iOS 26.1.2"
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: Describe the unexpected behavior you observed.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+      description: Describe what should have happened instead.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: Numbered, minimal steps. Include any required configuration, sample data, or commands.
+      placeholder: |
+        1. Open the Practice Interview tab
+        2. Tap Start with the Sample profile
+        3. ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs and screenshots
+      description: Attach relevant Xcode console logs, backend Pino logs, or screenshots. Redact PII and tokens.
+      render: shell
+
+  - type: checkboxes
+    id: confirmations
+    attributes:
+      label: Confirmations
+      options:
+        - label: I am running the latest released version of the affected component.
+          required: true
+        - label: I have searched existing issues and this is not a duplicate.
+          required: true
+        - label: This report does not contain a security vulnerability.
+          required: true
