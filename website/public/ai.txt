@@ -1,0 +1,30 @@
+# ai.txt — AI training and content-use policy
+# https://interviewace.app/ai.txt
+
+User-Agent: *
+Content-Use: training-allowed: false
+Content-Use: search-indexing-allowed: true
+Content-Use: ai-overviews-allowed: true
+Content-Use: rag-retrieval-allowed: true
+
+# Public blog posts may be cited and linked to in retrieval-augmented and search-overview contexts.
+# Bulk training on Interview Ace's content for foundation-model training is not permitted without a written agreement.
+# Contact: legal@interviewace.app
+
+User-Agent: GPTBot
+Allow: /blog
+Allow: /
+Disallow: /api
+
+User-Agent: ClaudeBot
+Allow: /blog
+Allow: /
+Disallow: /api
+
+User-Agent: PerplexityBot
+Allow: /blog
+Allow: /
+Disallow: /api
+
+User-Agent: CCBot
+Disallow: /

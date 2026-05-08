@@ -1,0 +1,187 @@
+---
+title: "From Junior to Staff: The 12 Interview Questions That Decide Your Level"
+description: "Companies don't have a level for you. They have a level for your answers. Here are the 12 questions that map directly to engineering levels at FAANG and FAANG-adjacent companies, and the answer-shape each level produces."
+publishedAt: "2026-05-03"
+updatedAt: "2026-05-06"
+author: "David Kim"
+authorRole: "Principal Engineer, ex-Google & Meta"
+category: "Career"
+tags: ["staff engineer interview", "senior engineer interview", "engineering levels", "FAANG levels", "L6 interview", "promotion interview"]
+ogTitle: "12 Questions That Decide Your Level"
+ogSubtitle: "The answer-shape that maps to Senior, Staff, and Principal at FAANG"
+---
+
+Engineering levels at large tech companies are not assigned to people — they're assigned to the *shape* of the answers people give in interviews. A candidate who interviews like an L4 will be hired as an L4 regardless of years of experience. A candidate who interviews like an L7 will be hired as an L7 regardless of title at their previous company.
+
+This is not a secret. It's just rarely articulated.
+
+I was a hiring manager at Google for four years and at Meta for three before becoming a Principal Engineer at a Series-D AI company. I've been on probably 400 hiring committees. The most reliable predictor of the level a candidate gets is which of these twelve questions they answered well — and what shape their answer took.
+
+This is the playbook I would have killed for when I was prepping for senior loops. It's organized as twelve canonical questions, each with the answer shape that maps to L4 (mid-level), L5 (senior), L6 (staff), and L7 (principal). The shape matters more than the content.
+
+## The L4 → L7 ladder, briefly
+
+Before the questions, a calibration. The standard ladder at most large tech companies (with minor name variations):
+
+- **L4 — Mid-level engineer.** Owns features. ~3-5 years of post-degree experience.
+- **L5 — Senior engineer.** Owns small systems. ~5-8 years.
+- **L6 — Staff engineer.** Owns large systems and influences a team's strategy. ~8-12 years.
+- **L7 — Principal engineer.** Owns multi-team strategy and influences org direction. ~12+ years.
+
+The progression from L4 to L5 is mostly about **scope**. From L5 to L6 is mostly about **influence**. From L6 to L7 is mostly about **strategy**.
+
+The interview questions in this post are tuned to identify which of those three progressions the candidate has cleared.
+
+## Question 1: "Tell me about a project you'd describe as your most impactful."
+
+This is the bread-and-butter behavioral opener. Almost every senior loop starts here.
+
+The shape that signals each level:
+
+- **L4:** Describes a feature they built. Talks about technical implementation. Impact framed in terms of "the team shipped X."
+- **L5:** Describes a system they owned. Talks about design choices and trade-offs. Impact framed in terms of measurable user or system metrics.
+- **L6:** Describes a system they designed and *influenced others to build*. Talks about cross-team coordination and strategic timing. Impact framed in terms of business metrics over multiple quarters.
+- **L7:** Describes a strategic bet they made that *redefined the team's priorities*. Talks about why this project, not the alternatives. Impact framed in terms of multi-year company direction.
+
+Same project, different framing — and the framing is what determines the level.
+
+## Question 2: "Walk me through how you'd design a [common system]."
+
+The system design opener.
+
+- **L4:** Sketches a three-tier architecture from memory. Has not internalized capacity reasoning. Names AWS services without justifying them.
+- **L5:** Walks through requirements, capacity estimation, data model, API design, and at least one failure mode. Picks specific technologies with one-sentence justifications.
+- **L6:** Walks through requirements **and pushes back on which requirements are actually required**. Designs for the smallest viable version first, then layers complexity as the interviewer probes scale. Names specific failure modes and their mitigation costs.
+- **L7:** Reframes the question. ("Before we design this, let me check — is this the right system to build, or are we papering over a different problem?") Then proceeds to a high-leverage design that solves a category of problems, not just the one asked.
+
+L6 is where most senior engineers cap out, and it's a high bar. L7's reframing move is rare — and it's rare because most candidates don't trust themselves to push back on the prompt.
+
+## Question 3: "Tell me about a time you disagreed with a senior person."
+
+The political-awareness probe.
+
+- **L4:** Describes a disagreement with a peer or junior. Resolved by talking it through.
+- **L5:** Describes a disagreement with a senior peer or manager. Resolved by gathering data and presenting evidence.
+- **L6:** Describes a disagreement with a director or VP. Built credibility through a track record, then used the credibility to push back. Notes that they spent political capital and were aware of the cost.
+- **L7:** Describes a disagreement where they were the senior person being disagreed with by an L5, *and they updated their position*. The signal is intellectual humility scaling with seniority.
+
+Notice the L7 inversion: at the principal level, the question stops being "do you push back on senior people?" and becomes "do you take pushback well from junior people?"
+
+## Question 4: "How do you decide what to work on?"
+
+The prioritization probe.
+
+- **L4:** "I work on what my manager prioritizes." Or: "I work on the most urgent thing."
+- **L5:** "I look at the team's roadmap and pick the highest-impact thing in my area."
+- **L6:** "I have a model for where the team's bottleneck is. I work on what unblocks the team, not what's most fun. I push back on roadmap items that don't move the bottleneck."
+- **L7:** "I look at where the org will be in 18 months and work backwards. The team's quarterly roadmap is mostly noise compared to the multi-quarter direction. My job is to make sure the team isn't optimizing locally while the org is heading off a cliff."
+
+The L7 answer is alarming on first read because it sounds dismissive of quarterly planning. The signal is that an L7's frame of reference is the *org over years*, not the *team over quarters*.
+
+## Question 5: "Tell me about a time you mentored an engineer."
+
+The leverage probe.
+
+- **L4:** Describes onboarding a new hire. Reviewed their PRs, answered questions.
+- **L5:** Describes investing in a junior engineer's growth over months. Specific lessons taught, specific behavior changes observed.
+- **L6:** Describes growing an engineer **from L4 to L5** through deliberate stretch assignments and feedback. Names the specific gaps that needed to close.
+- **L7:** Describes growing **multiple engineers** to senior or staff levels over years, often as a measurable percentage of the team's promotion velocity.
+
+The L7 signal is that mentorship has become a measurable *system* rather than a series of individual relationships.
+
+## Question 6: "Tell me about a project that failed."
+
+The resilience probe.
+
+- **L4:** Describes a project that was canceled. The fault is mostly external — priorities changed, requirements shifted.
+- **L5:** Describes a project that they shipped that didn't achieve its goals. Takes responsibility for one specific decision that contributed to the failure.
+- **L6:** Describes a project where they **chose to kill the project early**, against the team's preference. Identified the failure mode before it became visible to the rest of the company. Recovered the team's trust afterwards.
+- **L7:** Describes a strategic bet that didn't pay off. **Articulates what they learned about their own decision-making process**, not just about the project. Often: "I learned my prior on X was systematically biased."
+
+The senior-engineer pattern is "this project failed and I learned something about projects." The principal pattern is "this project failed and I learned something about how I make decisions."
+
+## Question 7: "What's something you've changed your mind about recently?"
+
+The intellectual-honesty probe.
+
+- **L4:** Often answers with a technical preference shift. ("I used to like NoSQL but now I prefer Postgres for most things.")
+- **L5:** Answers with a more substantive technical re-evaluation. ("I used to think microservices were the default; I now think monoliths-with-modules is the default and you split when you have evidence you need to.")
+- **L6:** Answers with an organizational or process belief change. ("I used to think on-call rotations should be voluntary; I now think they should be load-balanced as a fairness mechanism.")
+- **L7:** Answers with a belief change about **how engineers should think**. ("I used to be religious about test pyramids. I'm now of the view that tests are a means, not an end, and I've stopped advocating for any specific test ratio in favor of advocating for evidence-based testing.")
+
+L7 answers tend to be meta about the discipline itself.
+
+## Question 8: "How do you handle ambiguous requirements?"
+
+The judgment-under-uncertainty probe.
+
+- **L4:** "I ask my PM or TL for clarification."
+- **L5:** "I make a list of ambiguities, prioritize them, and decide which ones I can resolve through a quick decision and which need a stakeholder discussion."
+- **L6:** "I write a one-pager that articulates the requirements I think are *actually* being asked, not the requirements as stated. I socialize it with stakeholders before writing any code, and I treat their reactions as data about the real underlying need."
+- **L7:** "I question whether the project should exist. Most projects with ambiguous requirements have ambiguous requirements *because the underlying problem isn't well-defined*. I push back on the project before we get to requirements."
+
+The L7 move — "should this project exist?" — is the highest-leverage move an engineer can make and the one most candidates are afraid to do because it feels insubordinate. It is not insubordinate. It is the principal-engineer job.
+
+## Question 9: "How do you give difficult feedback?"
+
+The interpersonal-maturity probe.
+
+- **L4:** "I make sure to give feedback in private and frame it constructively."
+- **L5:** "I separate observations from interpretations. I describe specific behavior, the impact it had, and what I'd like to see instead."
+- **L6:** "I think about whether the person can actually act on the feedback. If not, the feedback is for me, not them. I focus my feedback on things they can change."
+- **L7:** "I think about *systemic* feedback as much as individual feedback. If three engineers on the team have the same feedback gap, that's a system problem, not an individual problem, and I escalate to the EM rather than nagging each engineer individually."
+
+L7 feedback patterns scale across teams. L6 patterns scale within a team. L5 patterns are excellent at the 1:1 level.
+
+## Question 10: "Tell me about a time you simplified a complex system."
+
+The discipline probe.
+
+- **L4:** Describes refactoring a piece of code. Cleaner abstractions, better names, more tests.
+- **L5:** Describes deleting a service or merging two services. Specific metrics on operational reduction.
+- **L6:** Describes **deciding not to build something**. Pushed back on a feature that would have added complexity without proportional value.
+- **L7:** Describes simplifying a *strategy* — collapsing two competing approaches into one, or convincing the org to deprecate a multi-year initiative that had outlived its usefulness.
+
+The hierarchy is: simplify code → simplify systems → don't add complexity → simplify strategy. L7 is the rarest because it requires pushing back on momentum.
+
+## Question 11: "How do you stay technical as you grow?"
+
+The credibility probe. Often asked of L6+ candidates.
+
+- **L4:** Not asked at this level.
+- **L5:** "I make sure to keep coding. I block time for deep technical work."
+- **L6:** "I pick one or two areas where I'm the team's expert and I stay deep there. I'm comfortable being intermediate in everything else."
+- **L7:** "I read the team's most important code before I touch any meeting. I keep a list of three to five technical questions I'm currently confused about and I work through one each week."
+
+The L7 signal is *systematic curiosity* — a sustainable practice rather than aspirational time-blocking.
+
+## Question 12: "What's a strong opinion you have that other engineers disagree with?"
+
+The conviction probe.
+
+- **L4:** Often a technical preference that's actually a common opinion. ("I think tabs are better than spaces.")
+- **L5:** A technical opinion that has substance behind it. ("I think most teams over-test by 2x and the marginal test rarely catches a real bug.")
+- **L6:** A team-level opinion. ("I think on-call should be a shared rotation, not specialized to a few engineers, even at the cost of slower MTTR initially.")
+- **L7:** An opinion about **the discipline itself**. ("I think most engineering blogs are noise and reading them makes engineers worse, not better. The good signal is in the working code of the team you're on.")
+
+The L7 conviction is uncomfortable to express because it pushes back on industry norms. That discomfort is the signal.
+
+## How to use this list
+
+Two ways:
+
+**For the candidate.** Identify the level you're aiming for. Rehearse your answer to each of the twelve questions in the *shape* of that level. Don't fake the shape — make sure your underlying experience actually supports it. If you find yourself reaching for the L7 shape but your experience is L5, you'll get caught in the follow-up questions.
+
+**For the interviewer.** When you ask one of these questions, listen to the *shape* of the answer, not just the content. A candidate at the right level will produce the shape naturally. A candidate at a lower level will produce a lower-shaped answer even if the underlying project is impressive.
+
+The most common downleveling pattern I see in committees: a candidate has clearly worked on impressive systems but produces L5-shaped answers about them. The committee correctly downlevels them, even though the projects were L6-scope. The level lives in the shape.
+
+## A note on Interview Ace's role
+
+When I joined Interview Ace as a technical advisor, the question I asked was: can the product help candidates produce the right shape, given the right underlying experience?
+
+The answer turned out to be yes — *if* the candidate has done the underlying work. The product doesn't manufacture experience you don't have. What it does is help you express experience you do have in the shape that matches your target level. The Premium tier's prompt strategy explicitly distinguishes between L5, L6, and L7 framing for behavioral and design questions.
+
+If you're a senior engineer aiming for staff and your experience genuinely supports staff scope, the tool helps you produce staff-shaped answers under interview pressure. If you're aiming above your experience, the tool will not save you from the follow-up gauntlet — and it's not designed to.
+
+Use the list. Find your level honestly. Rehearse the shape. Good luck.

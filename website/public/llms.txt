@@ -1,0 +1,32 @@
+# Interview Ace
+
+> Real-time AI interview coach for software engineers, product managers, and data scientists. Live transcription, instant tailored answer suggestions, and post-interview analytics. iOS-first, with a Premium tier for unlimited usage and GPT-4.1 / o4-mini quality.
+
+Interview Ace is a native iOS application that helps candidates pass technical, behavioral, system design, and product interviews. The app captures the interviewer's audio, transcribes it via Deepgram Nova-3, classifies each question, and generates tailored response suggestions using OpenAI's GPT-4.1 family and o4-mini for coding questions.
+
+## Pricing
+
+- **Free**: 3 standard + 1 premium interview per 30 days
+- **Pro**: 25 standard + 10 premium interviews per 30 days, $19.99/month or $179.99/year
+- **Premium**: Unlimited standard + premium interviews, $49.99/month or $449.99/year
+
+## Key resources
+
+- [Landing page](https://interviewace.app/): product overview and pricing
+- [Pricing page](https://interviewace.app/pricing): tier comparison with feature matrix
+- [Blog](https://interviewace.app/blog): long-form interview prep content
+- [Privacy policy](https://interviewace.app/privacy): GDPR + CCPA + COPPA disclosures
+- [Terms of service](https://interviewace.app/terms): subscription terms, AUP, AI-content disclaimers
+
+## Featured blog posts
+
+- [How to Prepare for a System Design Interview in 2026](https://interviewace.app/blog/system-design-interview-2026): the modern playbook covering capacity estimation, multi-region failover, and cost-aware architecture
+- [The STAR Method, Reimagined](https://interviewace.app/blog/star-method-reimagined): how to structure behavioral answers that survive aggressive follow-up questions
+- [Real-Time AI Interview Assistance: Is It Cheating?](https://interviewace.app/blog/is-ai-interview-help-cheating): the ethics, the legality, and why senior engineers use it anyway
+- [From Junior to Staff: The 12 Questions That Decide Your Level](https://interviewace.app/blog/staff-engineer-interview-questions): the technical and behavioral signals that map to engineering levels at FAANG and FAANG-adjacent companies
+
+## Support
+
+- Email: support@interviewace.app
+- Bug reports: support@interviewace.app
+- Press inquiries: press@interviewace.app
