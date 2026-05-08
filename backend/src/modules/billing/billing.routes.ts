@@ -45,6 +45,7 @@ export async function billingRoutes(app: FastifyInstance) {
 
     protectedApp.post(
       '/api/v1/billing/access-claims',
+      { config: { idempotent: true } },
       async (request: FastifyRequest, reply: FastifyReply) => {
         const input = accessClaimSchema.parse(request.body);
         const claim = await claimInterviewAccess(
@@ -59,6 +60,7 @@ export async function billingRoutes(app: FastifyInstance) {
 
     protectedApp.post(
       '/api/v1/billing/app-store/sync',
+      { config: { idempotent: true } },
       async (request: FastifyRequest, reply: FastifyReply) => {
         const { signedTransactions } = appStoreSyncSchema.parse(request.body);
         const entitlement = await syncAppStoreTransactions(request.user.sub, signedTransactions);

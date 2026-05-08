@@ -99,7 +99,7 @@ export async function sessionsRoutes(app: FastifyInstance) {
   );
 
   // Create session
-  app.post('/api/v1/sessions', async (request: FastifyRequest, reply: FastifyReply) => {
+  app.post('/api/v1/sessions', { config: { idempotent: true } }, async (request: FastifyRequest, reply: FastifyReply) => {
     const input = createSessionSchema.parse(request.body);
 
     // Verify ownership: if a session with this clientId already exists, it must belong to the requesting user

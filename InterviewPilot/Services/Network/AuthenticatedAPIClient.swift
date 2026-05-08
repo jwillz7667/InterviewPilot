@@ -86,27 +86,39 @@ final class AuthenticatedAPIClient {
     func post<Body: Encodable, Response: Decodable>(
         _ path: String,
         body: Body,
-        expectedStatusCodes: Set<Int> = [200]
+        expectedStatusCodes: Set<Int> = [200],
+        idempotencyKey: String? = nil
     ) async throws -> Response {
-        let request = try await makeRequest(path: path, method: "POST", body: body)
+        var request = try await makeRequest(path: path, method: "POST", body: body)
+        if let idempotencyKey {
+            request.setValue(idempotencyKey, forHTTPHeaderField: "Idempotency-Key")
+        }
         return try await perform(request: request, expectedStatusCodes: expectedStatusCodes)
     }
 
     func put<Body: Encodable, Response: Decodable>(
         _ path: String,
         body: Body,
-        expectedStatusCodes: Set<Int> = [200]
+        expectedStatusCodes: Set<Int> = [200],
+        idempotencyKey: String? = nil
     ) async throws -> Response {
-        let request = try await makeRequest(path: path, method: "PUT", body: body)
+        var request = try await makeRequest(path: path, method: "PUT", body: body)
+        if let idempotencyKey {
+            request.setValue(idempotencyKey, forHTTPHeaderField: "Idempotency-Key")
+        }
         return try await perform(request: request, expectedStatusCodes: expectedStatusCodes)
     }
 
     func patch<Body: Encodable, Response: Decodable>(
         _ path: String,
         body: Body,
-        expectedStatusCodes: Set<Int> = [200]
+        expectedStatusCodes: Set<Int> = [200],
+        idempotencyKey: String? = nil
     ) async throws -> Response {
-        let request = try await makeRequest(path: path, method: "PATCH", body: body)
+        var request = try await makeRequest(path: path, method: "PATCH", body: body)
+        if let idempotencyKey {
+            request.setValue(idempotencyKey, forHTTPHeaderField: "Idempotency-Key")
+        }
         return try await perform(request: request, expectedStatusCodes: expectedStatusCodes)
     }
 
