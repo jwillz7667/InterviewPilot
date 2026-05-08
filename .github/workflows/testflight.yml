@@ -1,0 +1,66 @@
+name: TestFlight
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      changelog:
+        description: 'TestFlight changelog (overrides default)'
+        required: false
+        type: string
+
+jobs:
+  testflight:
+    name: Build + upload to TestFlight
+    runs-on: macos-15
+    timeout-minutes: 60
+    env:
+      LC_ALL: en_US.UTF-8
+      LANG: en_US.UTF-8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # fastlane needs git history for changelog generation
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.3'
+          bundler-cache: true
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_16.app/Contents/Developer
+
+      - name: Decode signing key
+        env:
+          API_KEY: ${{ secrets.APP_STORE_CONNECT_API_KEY_CONTENT }}
+        run: |
+          if [ -z "$API_KEY" ]; then
+            echo "::error::APP_STORE_CONNECT_API_KEY_CONTENT secret is not set"
+            exit 1
+          fi
+
+      - name: Run fastlane beta
+        env:
+          APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          APP_STORE_CONNECT_API_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_API_ISSUER_ID }}
+          APP_STORE_CONNECT_API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_API_KEY_CONTENT }}
+          MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+          MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
+          MATCH_GIT_BASIC_AUTHORIZATION: ${{ secrets.MATCH_GIT_BASIC_AUTHORIZATION }}
+          FASTLANE_HIDE_CHANGELOG: 1
+          TESTFLIGHT_CHANGELOG: ${{ inputs.changelog }}
+          SLACK_OPS_WEBHOOK: ${{ secrets.SLACK_OPS_WEBHOOK }}
+        run: bundle exec fastlane beta
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fastlane-output
+          path: |
+            build/fastlane/**/*.ipa
+            build/fastlane/**/*.dSYM.zip
+            fastlane/report.xml
+          retention-days: 14

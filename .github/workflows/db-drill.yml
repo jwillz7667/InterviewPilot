@@ -1,0 +1,41 @@
+name: DB drill (monthly)
+
+on:
+  schedule:
+    # 09:00 UTC on the 1st of every month — Monday-morning-equivalent for US.
+    - cron: '0 9 1 * *'
+  workflow_dispatch:
+
+jobs:
+  drill:
+    name: Backup + restore + audit
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - run: npx prisma generate
+      - name: Run DR drill
+        env:
+          DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
+        run: |
+          chmod +x scripts/backup-restore-drill.sh
+          ./scripts/backup-restore-drill.sh
+      - name: Notify Slack on failure
+        if: failure()
+        uses: slackapi/slack-github-action@v1
+        with:
+          payload: |
+            {
+              "text": "🚨 Monthly DR drill FAILED — see <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|workflow run>"
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_OPS_WEBHOOK }}
+          SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK

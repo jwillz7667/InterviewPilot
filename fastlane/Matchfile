@@ -1,0 +1,9 @@
+# Matchfile — committed shape only. The actual git repo URL is read from
+# the MATCH_GIT_URL env var so we don't accidentally push the location of
+# the encrypted-cert repo to a public GitHub repo.
+
+git_url(ENV['MATCH_GIT_URL']) if ENV['MATCH_GIT_URL']
+storage_mode('git')
+type('appstore')
+app_identifier(['com.res.jobhopperAI'])
+username(ENV['FASTLANE_USER']) if ENV['FASTLANE_USER']

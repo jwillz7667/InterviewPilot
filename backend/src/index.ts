@@ -5,6 +5,10 @@ import rateLimit from '@fastify/rate-limit';
 import helmet from '@fastify/helmet';
 import { loadEnv } from './config/env.js';
 import { initSentry, captureException } from './config/sentry.js';
+// Telemetry must boot before any HTTP/Prisma client is constructed so OTel can
+// patch them. loadEnv runs first so we have OTEL_* vars; initTelemetry no-ops
+// when no exporter endpoint is configured.
+import { initTelemetry } from './config/telemetry.js';
 import {
   disconnectPrisma,
   getPrisma,
@@ -30,6 +34,7 @@ import { AppError } from './utils/errors.js';
 import { ZodError } from 'zod';
 
 const env = loadEnv();
+initTelemetry();
 initSentry();
 
 if (env.CORS_ORIGIN === '*' && env.NODE_ENV === 'production') {
