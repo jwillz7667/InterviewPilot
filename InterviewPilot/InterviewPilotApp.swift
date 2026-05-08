@@ -6,6 +6,10 @@ struct InterviewAceApp: App {
     @State private var versionService = VersionService.shared
     @State private var showSplash = true
 
+    init() {
+        NetworkPathMonitor.shared.start()
+    }
+
     var sharedModelContainer: ModelContainer = {
         let schema = Schema(versionedSchema: SchemaV1.self)
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)

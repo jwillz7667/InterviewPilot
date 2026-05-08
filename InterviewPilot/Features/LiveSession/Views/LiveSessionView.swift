@@ -3,6 +3,7 @@ import SwiftUI
 struct LiveSessionView: View {
     @State var viewModel: LiveSessionViewModel
     @State private var showEndConfirmation = false
+    @State private var network = NetworkPathMonitor.shared
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var colorScheme
     private let autoStartSession: Bool
@@ -18,6 +19,7 @@ struct LiveSessionView: View {
                 .ignoresSafeArea()
 
             VStack(spacing: 0) {
+                OfflineBanner(isOnline: network.isOnline)
                 headerBar
                     .padding(.horizontal, 16)
                     .padding(.top, 12)
@@ -41,6 +43,9 @@ struct LiveSessionView: View {
                             }
                         }
                     }
+                    .accessibilityElement(children: .contain)
+                    .accessibilityLabel("Live transcript and AI suggestion")
+                    .accessibilityAddTraits(.updatesFrequently)
                 }
             }
         }
