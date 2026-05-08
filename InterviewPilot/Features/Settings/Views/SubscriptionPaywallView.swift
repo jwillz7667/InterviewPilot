@@ -547,18 +547,22 @@ struct SubscriptionPaywallView: View {
 
     private var legalSection: some View {
         VStack(spacing: 8) {
-            Text("Payment will be charged to your Apple ID account at confirmation of purchase. Subscription automatically renews unless canceled at least 24 hours before the end of the current period. You can manage and cancel your subscriptions in your App Store account settings.")
+            Text("Payment will be charged to your Apple ID account at confirmation of purchase. Subscription automatically renews unless auto-renew is turned off at least 24 hours before the end of the current period. Your account will be charged for renewal within 24 hours prior to the end of the current period. You can manage and cancel your subscriptions in your App Store account settings.")
                 .font(IATypography.labelSmall)
                 .foregroundStyle(IATheme.textTertiary)
                 .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
 
             HStack(spacing: 14) {
-                Text("Terms of Use")
+                Link("Terms of Use", destination: URL(string: "https://interviewace.app/terms")!)
+                    .accessibilityHint("Opens the Terms of Use in Safari")
                 Text("\u{2022}")
-                Text("Privacy Policy")
+                    .accessibilityHidden(true)
+                Link("Privacy Policy", destination: URL(string: "https://interviewace.app/privacy")!)
+                    .accessibilityHint("Opens the Privacy Policy in Safari")
             }
             .font(IATypography.labelSmall)
-            .foregroundStyle(IATheme.textSecondary)
+            .foregroundStyle(IATheme.accent)
         }
         .padding(.top, 4)
     }
