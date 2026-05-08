@@ -43,6 +43,11 @@ struct OnboardingView: View {
                 )
         }
         .background(IATheme.surfaceWhite.ignoresSafeArea())
+        .onChange(of: viewModel.currentStep) { _, newStep in
+            if newStep == .microphoneAccess {
+                viewModel.refreshMicrophoneStatus()
+            }
+        }
         .fileImporter(
             isPresented: $showFilePicker,
             allowedContentTypes: [.pdf],
@@ -99,6 +104,13 @@ struct OnboardingView: View {
                 resumeText: $viewModel.resumeText,
                 resumeDocumentName: $viewModel.resumeDocumentName,
                 onFilePick: { showFilePicker = true }
+            )
+        case .microphoneAccess:
+            MicrophonePermissionView(
+                status: $viewModel.microphoneStatus,
+                onRequest: {
+                    Task { await viewModel.requestMicrophonePermission() }
+                }
             )
         }
     }

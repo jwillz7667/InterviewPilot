@@ -1,5 +1,7 @@
 import SwiftUI
 import UniformTypeIdentifiers
+import AVFoundation
+import UIKit
 
 @Observable
 final class OnboardingViewModel {
@@ -7,6 +9,7 @@ final class OnboardingViewModel {
         case setGoal = 1
         case connectLinkedIn = 2
         case uploadResume = 3
+        case microphoneAccess = 4
     }
 
     var currentStep: Step = .setGoal
@@ -16,6 +19,7 @@ final class OnboardingViewModel {
     var resumeDocumentName: String?
     var isLoading = false
     var errorMessage: String?
+    var microphoneStatus: AVAuthorizationStatus = AVCaptureDevice.authorizationStatus(for: .audio)
 
     @ObservationIgnored private let profileService = ProfileService.shared
 
@@ -23,7 +27,7 @@ final class OnboardingViewModel {
         switch currentStep {
         case .setGoal:
             return selectedGoal != nil
-        case .connectLinkedIn, .uploadResume:
+        case .connectLinkedIn, .uploadResume, .microphoneAccess:
             return true
         }
     }
@@ -33,7 +37,30 @@ final class OnboardingViewModel {
     }
 
     var isLastStep: Bool {
-        currentStep == .uploadResume
+        currentStep == .microphoneAccess
+    }
+
+    func requestMicrophonePermission() async {
+        let current = AVCaptureDevice.authorizationStatus(for: .audio)
+        switch current {
+        case .notDetermined:
+            let granted = await AVCaptureDevice.requestAccess(for: .audio)
+            microphoneStatus = granted ? .authorized : .denied
+        case .denied, .restricted:
+            await MainActor.run {
+                if let url = URL(string: UIApplication.openSettingsURLString) {
+                    UIApplication.shared.open(url)
+                }
+            }
+        case .authorized:
+            microphoneStatus = .authorized
+        @unknown default:
+            break
+        }
+    }
+
+    func refreshMicrophoneStatus() {
+        microphoneStatus = AVCaptureDevice.authorizationStatus(for: .audio)
     }
 
     func advance() {
