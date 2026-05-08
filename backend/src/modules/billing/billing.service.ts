@@ -49,10 +49,8 @@ import {
   tierMeetsRequirement,
   tierRank,
   type FeatureKey,
-  type ModelConfig,
   type ModelChoice,
   type QuestionRouting,
-  type ResponseQuality,
 } from './billing.constants.js';
 import {
   getCachedBillingSummary,
@@ -243,6 +241,19 @@ async function ensureBillingContext(
     });
   }
 
+  // Self-healing reconciliation: enforce TIER_QUOTA as the canonical source of
+  // truth for limit columns and force `sandboxFullAccess` true for promoted
+  // testers. Drift can occur when (a) a tier change happened before the
+  // per-quality limit columns were added, (b) a transaction sync was partially
+  // applied, or (c) the dev allowlist was extended after a user signed up.
+  // Without this, a Premium subscriber whose row still carries FREE-era limit
+  // columns would see "1 premium left" instead of unlimited.
+  entitlement = await reconcileEntitlementInvariants(
+    prisma as BillingDbClient,
+    entitlement,
+    isPromotedTester
+  );
+
   // Quota window roll-over: stateless reset for any caller.
   entitlement = await maybeResetQuotaWindow(prisma as BillingDbClient, entitlement);
 
@@ -260,6 +271,57 @@ async function ensureBillingContext(
     entitlement,
     profilesUsed,
   };
+}
+
+async function reconcileEntitlementInvariants(
+  prisma: BillingDbClient,
+  entitlement: UserEntitlement,
+  isPromotedTester: boolean
+): Promise<UserEntitlement> {
+  const expected = TIER_QUOTA[entitlement.tier];
+  const expectedSandboxFlag = isPromotedTester || entitlement.sandboxFullAccess;
+
+  const limitsDrift =
+    entitlement.monthlyStandardLimit !== expected.standardMonthly ||
+    entitlement.monthlyPremiumLimit !== expected.premiumMonthly;
+  const sandboxFlagDrift = entitlement.sandboxFullAccess !== expectedSandboxFlag;
+
+  if (!limitsDrift && !sandboxFlagDrift) {
+    return entitlement;
+  }
+
+  const reconciled = await prisma.userEntitlement.update({
+    where: { id: entitlement.id },
+    data: {
+      monthlyStandardLimit: expected.standardMonthly,
+      monthlyPremiumLimit: expected.premiumMonthly,
+      sandboxFullAccess: expectedSandboxFlag,
+    },
+  });
+
+  log.info(
+    {
+      event: 'billing.entitlement.reconciled',
+      userId: entitlement.userId,
+      tier: entitlement.tier,
+      from: {
+        standardLimit: entitlement.monthlyStandardLimit,
+        premiumLimit: entitlement.monthlyPremiumLimit,
+        sandboxFullAccess: entitlement.sandboxFullAccess,
+      },
+      to: {
+        standardLimit: expected.standardMonthly,
+        premiumLimit: expected.premiumMonthly,
+        sandboxFullAccess: expectedSandboxFlag,
+      },
+      isPromotedTester,
+    },
+    'Reconciled persisted entitlement to match policy'
+  );
+
+  await invalidateBillingCache(entitlement.userId).catch(() => {});
+
+  return reconciled;
 }
 
 async function maybeResetQuotaWindow(

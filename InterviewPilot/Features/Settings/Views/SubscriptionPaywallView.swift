@@ -625,10 +625,15 @@ struct SubscriptionPaywallView: View {
 
     private func resolvePrice(tier: SubscriptionTier, fallbackMonthly: String, fallbackYearly: String) -> String {
         let period = billingPeriod == .yearly ? "yearly" : "monthly"
-        if let p = currentProducts.first(where: { productMatches($0, target: tier) && $0.productId.contains(period) }) {
+        // Match by tier + period, rejecting empty `displayPrice` (which signals
+        // StoreKit has not yet returned a localized price for the SKU) so we
+        // fall through to the human-readable fallback rather than showing a
+        // blank or non-price label.
+        let candidates = currentProducts.filter { productMatches($0, target: tier) }
+        if let p = candidates.first(where: { $0.productId.contains(period) && !$0.displayPrice.isEmpty }) {
             return p.displayPrice
         }
-        if let p = currentProducts.first(where: { productMatches($0, target: tier) }) {
+        if let p = candidates.first(where: { !$0.displayPrice.isEmpty }) {
             return p.displayPrice
         }
         return billingPeriod == .yearly ? fallbackYearly : fallbackMonthly

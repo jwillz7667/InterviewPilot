@@ -473,12 +473,17 @@ final class SubscriptionService {
 
             products = catalog.map { item in
                 let product = storeProductsById[item.productId]
+                // displayPrice must remain empty when StoreKit has no localized
+                // price for this product so paywall callers can detect the
+                // unavailable state and substitute their own fallback string —
+                // never the period label, which would render "Monthly" / "Yearly"
+                // in the price slot.
                 return SubscriptionStoreProduct(
                     id: item.productId,
                     productId: item.productId,
                     tier: item.tier,
                     displayName: product?.displayName ?? item.displayName,
-                    displayPrice: product?.displayPrice ?? item.billingLabel,
+                    displayPrice: product?.displayPrice ?? "",
                     billingLabel: item.billingLabel,
                     features: item.features,
                     description: product?.description ?? item.features.joined(separator: ", ")
@@ -492,7 +497,7 @@ final class SubscriptionService {
                     productId: item.productId,
                     tier: item.tier,
                     displayName: item.displayName,
-                    displayPrice: item.billingLabel,
+                    displayPrice: "",
                     billingLabel: item.billingLabel,
                     features: item.features,
                     description: item.features.joined(separator: ", ")
