@@ -1,6 +1,10 @@
-import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
+import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
+
 import { authenticate } from '../../middleware/authenticate.js';
+import { getLogger } from '../../utils/logger.js';
 import { getBillingSummary } from '../billing/billing.service.js';
+
+import { parseOrAudit } from './ai.audit.js';
 import {
   realtimeSessionSchema,
   transcriptionSessionSchema,
@@ -13,8 +17,6 @@ import {
   chatCompletion,
   chatCompletionStream,
 } from './ai.service.js';
-import { getLogger } from '../../utils/logger.js';
-import { parseOrAudit } from './ai.audit.js';
 
 const log = getLogger().child({ module: 'ai-routes' });
 
@@ -135,7 +137,7 @@ export async function aiRoutes(app: FastifyInstance) {
         'X-Resolved-Model': resolvedModel,
       });
 
-      const reader = upstream.body!.getReader();
+      const reader = upstream.body!.getReader() as ReadableStreamDefaultReader<Uint8Array>;
       const onDisconnect = () => {
         void reader.cancel().catch(() => {});
       };

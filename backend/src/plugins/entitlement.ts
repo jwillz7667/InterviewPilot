@@ -1,18 +1,19 @@
-import { FastifyInstance, FastifyRequest } from 'fastify';
+import type { InterviewQuality, SubscriptionTier } from '@prisma/client';
+import type { FastifyInstance, FastifyRequest } from 'fastify';
 import fp from 'fastify-plugin';
-import { InterviewQuality, SubscriptionTier } from '@prisma/client';
-import {
-  authorizeAiCall,
-  getBillingSummary,
-  getSessionAccessGrant,
-  type BillingSummary,
-} from '../modules/billing/billing.service.js';
+
 import {
   type FeatureKey,
   type ModelChoice,
   type QuestionRouting,
   selectModel,
 } from '../modules/billing/billing.constants.js';
+import {
+  authorizeAiCall,
+  getBillingSummary,
+  getSessionAccessGrant,
+  type BillingSummary,
+} from '../modules/billing/billing.service.js';
 import { PaymentRequiredError, UnauthorizedError } from '../utils/errors.js';
 
 declare module 'fastify' {
@@ -31,10 +32,7 @@ declare module 'fastify' {
      * Resolve a model selection by quality alone (no grant lookup). Useful for endpoints that
      * have already verified ownership through another channel (e.g. realtime session bootstrap).
      */
-    resolveAiModel: (
-      quality: InterviewQuality,
-      routing?: QuestionRouting
-    ) => ModelChoice;
+    resolveAiModel: (quality: InterviewQuality, routing?: QuestionRouting) => ModelChoice;
 
     /**
      * Verifies that the caller's tier grants the requested feature flag. Returns the cached
@@ -50,30 +48,33 @@ declare module 'fastify' {
 }
 
 async function entitlementPlugin(app: FastifyInstance) {
-  app.decorateRequest('requireGrantedAiCall', async function (
-    this: FastifyRequest,
-    sessionClientId: string,
-    routing: QuestionRouting = 'default'
-  ) {
-    const userId = this.user?.sub;
-    if (!userId) {
-      throw new UnauthorizedError('Authenticated session required');
+  app.decorateRequest(
+    'requireGrantedAiCall',
+    async function (
+      this: FastifyRequest,
+      sessionClientId: string,
+      routing: QuestionRouting = 'default'
+    ) {
+      const userId = this.user?.sub;
+      if (!userId) {
+        throw new UnauthorizedError('Authenticated session required');
+      }
+      return authorizeAiCall(userId, sessionClientId, routing);
     }
-    return authorizeAiCall(userId, sessionClientId, routing);
-  });
+  );
 
-  app.decorateRequest('resolveAiModel', function (
-    this: FastifyRequest,
-    quality: InterviewQuality,
-    routing: QuestionRouting = 'default'
-  ) {
-    return selectModel(quality, routing);
-  });
+  app.decorateRequest(
+    'resolveAiModel',
+    function (
+      this: FastifyRequest,
+      quality: InterviewQuality,
+      routing: QuestionRouting = 'default'
+    ) {
+      return selectModel(quality, routing);
+    }
+  );
 
-  app.decorateRequest('requireFeature', async function (
-    this: FastifyRequest,
-    feature: FeatureKey
-  ) {
+  app.decorateRequest('requireFeature', async function (this: FastifyRequest, feature: FeatureKey) {
     const userId = this.user?.sub;
     if (!userId) {
       throw new UnauthorizedError('Authenticated session required');

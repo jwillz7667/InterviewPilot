@@ -1,4 +1,5 @@
 import * as Sentry from '@sentry/node';
+
 import { getEnv } from './env.js';
 
 let initialized = false;

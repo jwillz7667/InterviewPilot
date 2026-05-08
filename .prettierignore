@@ -1,0 +1,11 @@
+backend/dist/
+backend/node_modules/
+backend/coverage/
+backend/prisma/migrations/
+website/.next/
+website/node_modules/
+website/out/
+build/
+DerivedData/
+*.xcresult
+*.pbxproj

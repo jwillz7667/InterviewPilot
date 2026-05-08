@@ -1,6 +1,7 @@
 import OpenAI from 'openai';
-import { getEnv } from '../../config/env.js';
+
 import { withDatabaseRetry } from '../../config/database.js';
+import { getEnv } from '../../config/env.js';
 
 interface ExchangeData {
   questionTranscript: string;
@@ -56,8 +57,14 @@ const analysisResponseSchema = {
       ],
       additionalProperties: false,
       properties: {
-        technicalAccuracyScore: { type: 'number', description: '0-100 score for technical accuracy and depth' },
-        communicationScore: { type: 'number', description: '0-100 score for communication quality' },
+        technicalAccuracyScore: {
+          type: 'number',
+          description: '0-100 score for technical accuracy and depth',
+        },
+        communicationScore: {
+          type: 'number',
+          description: '0-100 score for communication quality',
+        },
         confidenceScore: { type: 'number', description: '0-100 score for confidence and delivery' },
         overallScore: { type: 'number', description: '0-100 weighted overall score' },
         aiStrengths: {
@@ -80,7 +87,10 @@ const analysisResponseSchema = {
               sequenceOrder: { type: 'number' },
               score: { type: 'number', description: '0-100 score for this specific exchange' },
               verdict: { type: 'string', enum: ['strong', 'adequate', 'weak'] },
-              feedback: { type: 'string', description: '2-3 sentence specific feedback for this exchange' },
+              feedback: {
+                type: 'string',
+                description: '2-3 sentence specific feedback for this exchange',
+              },
             },
           },
         },
@@ -97,7 +107,9 @@ function buildAnalysisPrompt(session: SessionData): string {
   const exchangeTranscript = session.exchanges
     .sort((a, b) => a.sequenceOrder - b.sequenceOrder)
     .map((e, i) => {
-      const latencyNote = e.wasPreComputed ? '(pre-computed answer)' : `(${e.responseLatencyMs}ms latency)`;
+      const latencyNote = e.wasPreComputed
+        ? '(pre-computed answer)'
+        : `(${e.responseLatencyMs}ms latency)`;
       return [
         `--- Exchange ${i + 1} [${e.questionType}] ${latencyNote} ---`,
         `INTERVIEWER: ${e.questionTranscript}`,
@@ -216,7 +228,7 @@ export async function analyzeSession(sessionId: string, userId: string): Promise
   const env = getEnv();
   const openai = new OpenAI({ apiKey: env.OPENAI_API_KEY });
 
-  const prompt = buildAnalysisPrompt(session as SessionData);
+  const prompt = buildAnalysisPrompt(session);
 
   const completion = await openai.chat.completions.create({
     model: 'gpt-4.1',
@@ -231,10 +243,13 @@ export async function analyzeSession(sessionId: string, userId: string): Promise
     throw new Error('Empty analysis response from AI');
   }
 
-  const analysis: AnalysisResult = JSON.parse(content);
+  const analysis = JSON.parse(content) as AnalysisResult;
 
   // Clamp scores to 0-100
-  analysis.technicalAccuracyScore = Math.max(0, Math.min(100, Math.round(analysis.technicalAccuracyScore)));
+  analysis.technicalAccuracyScore = Math.max(
+    0,
+    Math.min(100, Math.round(analysis.technicalAccuracyScore))
+  );
   analysis.communicationScore = Math.max(0, Math.min(100, Math.round(analysis.communicationScore)));
   analysis.confidenceScore = Math.max(0, Math.min(100, Math.round(analysis.confidenceScore)));
   analysis.overallScore = Math.max(0, Math.min(100, Math.round(analysis.overallScore)));

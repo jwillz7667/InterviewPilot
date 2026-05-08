@@ -1,4 +1,5 @@
 import sgMail from '@sendgrid/mail';
+
 import { getEnv } from '../config/env.js';
 
 let initialized = false;

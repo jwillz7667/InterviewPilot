@@ -1,8 +1,10 @@
-import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
-import { authenticate } from '../../middleware/authenticate.js';
-import { withDatabaseRetry } from '../../config/database.js';
-import { ensureAppAccountToken } from './app-account-token.js';
+import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { z } from 'zod';
+
+import { withDatabaseRetry } from '../../config/database.js';
+import { authenticate } from '../../middleware/authenticate.js';
+
+import { ensureAppAccountToken } from './app-account-token.js';
 
 const updateProfileSchema = z.object({
   displayName: z.string().min(1).max(100).optional(),
@@ -55,9 +57,7 @@ export async function usersRoutes(app: FastifyInstance) {
   );
 
   app.delete('/api/v1/users/me', async (request: FastifyRequest, reply: FastifyReply) => {
-    await withDatabaseRetry((prisma) =>
-      prisma.user.delete({ where: { id: request.user.sub } })
-    );
+    await withDatabaseRetry((prisma) => prisma.user.delete({ where: { id: request.user.sub } }));
     reply.send({ success: true });
   });
 }

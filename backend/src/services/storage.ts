@@ -1,5 +1,11 @@
-import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
+import {
+  S3Client,
+  PutObjectCommand,
+  GetObjectCommand,
+  DeleteObjectCommand,
+} from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+
 import { getEnv } from '../config/env.js';
 
 const UPLOAD_KEY_PREFIX = 'resumes';
@@ -29,7 +35,7 @@ function getS3Client(): S3Client | undefined {
 }
 
 export function buildUploadKey(userId: string, filename: string): string {
-  const sanitized = filename.replace(/[^a-zA-Z0-9._-]/g, '_');
+  const sanitized = filename.replaceAll(/[^a-zA-Z0-9._-]/g, '_');
   return `${UPLOAD_KEY_PREFIX}/${userId}/${Date.now()}-${sanitized}`;
 }
 
@@ -79,8 +85,10 @@ export async function deleteObject(key: string): Promise<void> {
   if (!client) return;
 
   const env = getEnv();
-  await client.send(new DeleteObjectCommand({
-    Bucket: env.R2_BUCKET_NAME,
-    Key: key,
-  }));
+  await client.send(
+    new DeleteObjectCommand({
+      Bucket: env.R2_BUCKET_NAME,
+      Key: key,
+    })
+  );
 }

@@ -3,9 +3,7 @@ import { z } from 'zod';
 
 export const sessionModeSchema = z.enum(['liveInterview', 'voicePrep']);
 
-export const interviewQualitySchema = z
-  .enum(['STANDARD', 'PREMIUM'])
-  .default('STANDARD');
+export const interviewQualitySchema = z.enum(['STANDARD', 'PREMIUM']).default('STANDARD');
 
 export const accessClaimSchema = z
   .object({

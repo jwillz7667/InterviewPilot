@@ -1,4 +1,4 @@
-import { FastifyInstance } from 'fastify';
+import type { FastifyInstance } from 'fastify';
 
 export async function requestIdPlugin(app: FastifyInstance) {
   app.addHook('onRequest', (request, reply, done) => {

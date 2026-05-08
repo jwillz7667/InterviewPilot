@@ -1,15 +1,14 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+
 import dotenv from 'dotenv';
 import { z } from 'zod';
 
-const booleanish = z
-  .union([z.boolean(), z.string()])
-  .transform((value) => {
-    if (typeof value === 'boolean') return value;
-    return ['1', 'true', 'yes', 'on'].includes(value.toLowerCase());
-  });
+const booleanish = z.union([z.boolean(), z.string()]).transform((value) => {
+  if (typeof value === 'boolean') return value;
+  return ['1', 'true', 'yes', 'on'].includes(value.toLowerCase());
+});
 
 const envSchema = z.object({
   DATABASE_URL: z.string().min(1),

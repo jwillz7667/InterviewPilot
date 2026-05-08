@@ -15,7 +15,8 @@ export function buildPaginatedResponse<T extends { id: string }>(
 ): PaginatedResult<T> {
   const hasMore = items.length > limit;
   const data = hasMore ? items.slice(0, limit) : items;
-  const nextCursor = hasMore && data.length > 0 ? data[data.length - 1].id : null;
+  const last = data[data.length - 1];
+  const nextCursor = hasMore && last ? last.id : null;
 
   return { data, nextCursor, hasMore };
 }

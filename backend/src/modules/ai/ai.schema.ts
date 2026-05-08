@@ -81,9 +81,6 @@ export const chatSchema = baseChatSchema;
 export type ChatInput = z.infer<typeof chatSchema>;
 
 export const chatStreamSchema = baseChatSchema.extend({
-  stream_options: z
-    .object({ include_usage: z.boolean().optional() })
-    .strict()
-    .optional(),
+  stream_options: z.object({ include_usage: z.boolean().optional() }).strict().optional(),
 });
 export type ChatStreamInput = z.infer<typeof chatStreamSchema>;

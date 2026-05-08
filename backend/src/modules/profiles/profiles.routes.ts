@@ -1,6 +1,8 @@
-import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
-import { authenticate } from '../../middleware/authenticate.js';
+import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { z } from 'zod';
+
+import { authenticate } from '../../middleware/authenticate.js';
+
 import {
   listProfiles,
   getProfile,
@@ -161,7 +163,11 @@ export async function interviewProfilesRoutes(app: FastifyInstance) {
     '/api/v1/profiles/:id/work-experiences',
     async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
       const { items } = bulkWorkExperiencesSchema.parse(request.body);
-      const workExperiences = await bulkReplaceWorkExperiences(request.user.sub, request.params.id, items);
+      const workExperiences = await bulkReplaceWorkExperiences(
+        request.user.sub,
+        request.params.id,
+        items
+      );
       reply.send({ workExperiences });
     }
   );
@@ -191,7 +197,11 @@ export async function interviewProfilesRoutes(app: FastifyInstance) {
     '/api/v1/profiles/:id/certifications',
     async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
       const { items } = bulkCertificationsSchema.parse(request.body);
-      const certifications = await bulkReplaceCertifications(request.user.sub, request.params.id, items);
+      const certifications = await bulkReplaceCertifications(
+        request.user.sub,
+        request.params.id,
+        items
+      );
       reply.send({ certifications });
     }
   );
@@ -211,7 +221,11 @@ export async function interviewProfilesRoutes(app: FastifyInstance) {
     '/api/v1/profiles/:id/achievements',
     async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
       const { items } = bulkAchievementsSchema.parse(request.body);
-      const achievements = await bulkReplaceAchievements(request.user.sub, request.params.id, items);
+      const achievements = await bulkReplaceAchievements(
+        request.user.sub,
+        request.params.id,
+        items
+      );
       reply.send({ achievements });
     }
   );

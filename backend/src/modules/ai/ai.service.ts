@@ -1,16 +1,15 @@
-import { InterviewQuality } from '@prisma/client';
+import type { InterviewQuality } from '@prisma/client';
+
 import { getEnv } from '../../config/env.js';
-import { AppError, PaymentRequiredError, ValidationError } from '../../utils/errors.js';
+import { AppError, PaymentRequiredError } from '../../utils/errors.js';
+import { getLogger } from '../../utils/logger.js';
+import { type ModelChoice, selectModel } from '../billing/billing.constants.js';
 import {
   authorizeAiCall,
   canAccessRuntimeAiConfig,
   getBillingSummary,
 } from '../billing/billing.service.js';
-import {
-  type ModelChoice,
-  selectModel,
-} from '../billing/billing.constants.js';
-import { getLogger } from '../../utils/logger.js';
+
 import type {
   ChatInput,
   ChatStreamInput,
@@ -25,37 +24,39 @@ const REALTIME_DEFAULT_MODEL = 'gpt-realtime';
 
 const log = getLogger().child({ module: 'ai' });
 
-type OpenAIRealtimeSessionResponse = {
+interface OpenAIRealtimeSessionResponse {
   id: string;
   object: string;
   model: string;
   client_secret: { value: string; expires_at: number };
-};
+}
 
-type DeepgramKeyResponse = {
+interface DeepgramKeyResponse {
   api_key_id: string;
   key: string;
   scopes: string[];
   expiration_date: string | null;
-};
+}
 
-export type RealtimeSessionResult = {
+export interface RealtimeSessionResult {
   sessionId: string;
   model: string;
   clientSecret: string;
   expiresAt: number;
-};
+}
 
-export type TranscriptionSessionResult = {
+export interface TranscriptionSessionResult {
   apiKey: string;
   expiresAt: number | null;
   ephemeral: boolean;
-};
+}
 
 async function ensureBillingAccess(userId: string): Promise<void> {
   const allowed = await canAccessRuntimeAiConfig(userId);
   if (!allowed) {
-    throw new PaymentRequiredError('Your monthly interview quota is exhausted. Upgrade to continue.');
+    throw new PaymentRequiredError(
+      'Your monthly interview quota is exhausted. Upgrade to continue.'
+    );
   }
 }
 

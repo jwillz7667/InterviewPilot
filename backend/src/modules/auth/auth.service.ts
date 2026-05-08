@@ -1,19 +1,12 @@
-import { createHash, randomBytes, randomUUID } from 'crypto';
+import { createHash, randomBytes, randomUUID } from 'node:crypto';
+
 import * as argon2 from 'argon2';
-import {
-  createRemoteJWKSet,
-  importPKCS8,
-  jwtVerify,
-  SignJWT,
-  type JWTPayload,
-} from 'jose';
+import { createRemoteJWKSet, importPKCS8, jwtVerify, SignJWT, type JWTPayload } from 'jose';
+
 import { getPrisma, withDatabaseRetry } from '../../config/database.js';
 import { getEnv } from '../../config/env.js';
-import {
-  ConflictError,
-  UnauthorizedError,
-  ValidationError,
-} from '../../utils/errors.js';
+import { ConflictError, UnauthorizedError, ValidationError } from '../../utils/errors.js';
+
 import type { AppleLoginInput, LoginInput, RegisterInput } from './auth.schema.js';
 
 const REFRESH_TOKEN_EXPIRY_DAYS = 30;
@@ -37,7 +30,7 @@ type AppleIdentityTokenClaims = JWTPayload & {
   nonce?: string;
 };
 
-type AppleTokenResponse = {
+interface AppleTokenResponse {
   access_token?: string;
   expires_in?: number;
   id_token?: string;
@@ -45,7 +38,7 @@ type AppleTokenResponse = {
   token_type?: string;
   error?: string;
   error_description?: string;
-};
+}
 
 function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
@@ -64,16 +57,16 @@ function isEmailVerified(value: AppleIdentityTokenClaims['email_verified']): boo
 }
 
 function normalizeApplePrivateKey(privateKey: string): string {
-  return privateKey.replace(/\\n/g, '\n').trim();
+  return privateKey.replaceAll('\\n', '\n').trim();
 }
 
 function canUseAppleCodeExchange(): boolean {
   const env = getEnv();
   return Boolean(
     env.APPLE_SIGN_IN_TEAM_ID &&
-      env.APPLE_SIGN_IN_KEY_ID &&
-      env.APPLE_SIGN_IN_PRIVATE_KEY &&
-      env.APP_STORE_BUNDLE_ID
+    env.APPLE_SIGN_IN_KEY_ID &&
+    env.APPLE_SIGN_IN_PRIVATE_KEY &&
+    env.APP_STORE_BUNDLE_ID
   );
 }
 
@@ -91,9 +84,9 @@ async function buildAppleClientSecret(): Promise<string> {
   return new SignJWT({})
     .setProtectedHeader({
       alg: 'ES256',
-      kid: env.APPLE_SIGN_IN_KEY_ID!,
+      kid: env.APPLE_SIGN_IN_KEY_ID,
     })
-    .setIssuer(env.APPLE_SIGN_IN_TEAM_ID!)
+    .setIssuer(env.APPLE_SIGN_IN_TEAM_ID)
     .setSubject(env.APP_STORE_BUNDLE_ID)
     .setAudience('https://appleid.apple.com')
     .setIssuedAt(issuedAt)
@@ -206,7 +199,7 @@ export async function loginUser(input: LoginInput) {
     })
   );
 
-  if (!user || !user.passwordHash) {
+  if (!user?.passwordHash) {
     throw new UnauthorizedError('Invalid email or password');
   }
 
@@ -274,13 +267,14 @@ async function verifyAppleIdentityToken(
   nonce: string
 ): Promise<AppleIdentityTokenClaims> {
   const env = getEnv();
-  const audiences = env.APPLE_SIGN_IN_AUDIENCES
-    .split(',')
+  const audiences = env.APPLE_SIGN_IN_AUDIENCES.split(',')
     .map((item) => item.trim())
     .filter(Boolean);
 
   if (audiences.length === 0) {
-    throw new ValidationError('APPLE_SIGN_IN_AUDIENCES must include at least one bundle or service id');
+    throw new ValidationError(
+      'APPLE_SIGN_IN_AUDIENCES must include at least one bundle or service id'
+    );
   }
 
   const verified = await jwtVerify(identityToken, appleJwks, {
@@ -416,7 +410,9 @@ export async function authenticateWithApple(input: AppleLoginInput) {
             status: 'TRIALING',
             trialInterviewLimit: appleEnv.TRIAL_INTERVIEW_LIMIT,
             trialStartedAt: appleNow,
-            trialEndsAt: new Date(appleNow.getTime() + appleEnv.TRIAL_DURATION_DAYS * 24 * 60 * 60 * 1000),
+            trialEndsAt: new Date(
+              appleNow.getTime() + appleEnv.TRIAL_DURATION_DAYS * 24 * 60 * 60 * 1000
+            ),
           },
         },
       },

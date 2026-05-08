@@ -1,9 +1,6 @@
 import { getRedis } from '../../config/redis.js';
-import type {
-  FeatureKey,
-  ModelConfig,
-  ResponseQuality,
-} from './billing.constants.js';
+
+import type { FeatureKey, ModelConfig, ResponseQuality } from './billing.constants.js';
 
 const BILLING_CACHE_PREFIX = 'billing:summary:';
 // 30s TTL keeps clients reasonably fresh on tier upgrades while still absorbing
@@ -53,17 +50,19 @@ export interface CachedBillingSummary {
   quotas: QuotaSummaryDTO;
   profileLimit: number;
   profilesUsed: number;
-  catalog: Array<{
+  catalog: {
     product: string;
     productId: string;
     tier: string;
     displayName: string;
     billingLabel: string;
     features: FeatureKey[];
-  }>;
+  }[];
 }
 
-export async function getCachedBillingSummary(userId: string): Promise<CachedBillingSummary | null> {
+export async function getCachedBillingSummary(
+  userId: string
+): Promise<CachedBillingSummary | null> {
   const redis = await getRedis();
   if (!redis) return null;
 
@@ -80,15 +79,14 @@ export async function getCachedBillingSummary(userId: string): Promise<CachedBil
   }
 }
 
-export async function setCachedBillingSummary(userId: string, summary: CachedBillingSummary): Promise<void> {
+export async function setCachedBillingSummary(
+  userId: string,
+  summary: CachedBillingSummary
+): Promise<void> {
   const redis = await getRedis();
   if (!redis) return;
 
-  await redis.setEx(
-    `${BILLING_CACHE_PREFIX}${userId}`,
-    BILLING_CACHE_TTL,
-    JSON.stringify(summary)
-  );
+  await redis.setEx(`${BILLING_CACHE_PREFIX}${userId}`, BILLING_CACHE_TTL, JSON.stringify(summary));
 }
 
 export async function invalidateBillingCache(userId: string): Promise<void> {

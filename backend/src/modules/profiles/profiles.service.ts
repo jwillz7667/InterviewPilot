@@ -1,14 +1,9 @@
-import { getPrisma, withDatabaseRetry } from '../../config/database.js';
-import { getBillingSummary } from '../billing/billing.service.js';
+import { withDatabaseRetry } from '../../config/database.js';
+import { NotFoundError, PaymentRequiredError, ValidationError } from '../../utils/errors.js';
 import { invalidateBillingCache } from '../billing/billing.cache.js';
-import {
-  ForbiddenError,
-  NotFoundError,
-  PaymentRequiredError,
-  ValidationError,
-} from '../../utils/errors.js';
+import { getBillingSummary } from '../billing/billing.service.js';
 
-type CreateProfileInput = {
+interface CreateProfileInput {
   name: string;
   resumeText?: string | null;
   currentRole?: string | null;
@@ -17,50 +12,50 @@ type CreateProfileInput = {
   linkedinUrl?: string | null;
   summary?: string | null;
   communicationStyle?: string | null;
-};
+}
 
 type UpdateProfileInput = Partial<CreateProfileInput>;
 
-type WorkExperienceItem = {
+interface WorkExperienceItem {
   title: string;
   company: string;
   startYear: number;
   endYear?: number | null;
   description?: string | null;
-};
+}
 
-type SkillItem = {
+interface SkillItem {
   name: string;
   category?: string | null;
-};
+}
 
-type EducationItem = {
+interface EducationItem {
   institution: string;
   degree: string;
   field?: string | null;
   startYear?: number | null;
   endYear?: number | null;
-};
+}
 
-type CertificationItem = {
+interface CertificationItem {
   name: string;
   issuer?: string | null;
   year?: number | null;
-};
+}
 
-type ProjectItem = {
+interface ProjectItem {
   name: string;
   description?: string | null;
   techStack?: string | null;
   url?: string | null;
   year?: number | null;
-};
+}
 
-type AchievementItem = {
+interface AchievementItem {
   description: string;
   metric?: string | null;
   year?: number | null;
-};
+}
 
 async function verifyProfileOwnership(userId: string, profileId: string) {
   const profile = await withDatabaseRetry((prisma) =>
@@ -124,10 +119,9 @@ export async function createProfile(userId: string, data: CreateProfileInput) {
   const billing = await getBillingSummary(userId);
 
   if (!billing.featureFlags.resume_personalization) {
-    throw new PaymentRequiredError(
-      'Resume personalization requires an active subscription.',
-      { requiredFeature: 'resume_personalization' }
-    );
+    throw new PaymentRequiredError('Resume personalization requires an active subscription.', {
+      requiredFeature: 'resume_personalization',
+    });
   }
 
   if (billing.profilesUsed >= billing.profileLimit) {
@@ -183,7 +177,9 @@ export async function updateProfile(userId: string, profileId: string, data: Upd
         ...(data.yearsInRole !== undefined && { yearsInRole: data.yearsInRole }),
         ...(data.linkedinUrl !== undefined && { linkedinUrl: data.linkedinUrl }),
         ...(data.summary !== undefined && { summary: data.summary }),
-        ...(data.communicationStyle !== undefined && { communicationStyle: data.communicationStyle }),
+        ...(data.communicationStyle !== undefined && {
+          communicationStyle: data.communicationStyle,
+        }),
       },
       include: {
         workExperiences: { orderBy: { startYear: 'desc' } },
@@ -208,7 +204,9 @@ export async function deleteProfile(userId: string, profileId: string) {
     );
 
     if (otherCount === 0) {
-      throw new ValidationError('Cannot delete the only default profile. Create another profile first.');
+      throw new ValidationError(
+        'Cannot delete the only default profile. Create another profile first.'
+      );
     }
   }
 
@@ -268,7 +266,11 @@ export async function setDefaultProfile(userId: string, profileId: string) {
   );
 }
 
-export async function bulkReplaceWorkExperiences(userId: string, profileId: string, items: WorkExperienceItem[]) {
+export async function bulkReplaceWorkExperiences(
+  userId: string,
+  profileId: string,
+  items: WorkExperienceItem[]
+) {
   await verifyProfileOwnership(userId, profileId);
 
   return withDatabaseRetry((prisma) =>
@@ -321,7 +323,11 @@ export async function bulkReplaceSkills(userId: string, profileId: string, items
   );
 }
 
-export async function bulkReplaceEducation(userId: string, profileId: string, items: EducationItem[]) {
+export async function bulkReplaceEducation(
+  userId: string,
+  profileId: string,
+  items: EducationItem[]
+) {
   await verifyProfileOwnership(userId, profileId);
 
   return withDatabaseRetry((prisma) =>
@@ -349,7 +355,11 @@ export async function bulkReplaceEducation(userId: string, profileId: string, it
   );
 }
 
-export async function bulkReplaceCertifications(userId: string, profileId: string, items: CertificationItem[]) {
+export async function bulkReplaceCertifications(
+  userId: string,
+  profileId: string,
+  items: CertificationItem[]
+) {
   await verifyProfileOwnership(userId, profileId);
 
   return withDatabaseRetry((prisma) =>
@@ -403,7 +413,11 @@ export async function bulkReplaceProjects(userId: string, profileId: string, ite
   );
 }
 
-export async function bulkReplaceAchievements(userId: string, profileId: string, items: AchievementItem[]) {
+export async function bulkReplaceAchievements(
+  userId: string,
+  profileId: string,
+  items: AchievementItem[]
+) {
   await verifyProfileOwnership(userId, profileId);
 
   return withDatabaseRetry((prisma) =>

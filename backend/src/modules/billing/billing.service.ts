@@ -1,7 +1,8 @@
-import { createHash } from 'crypto';
-import { readFile } from 'fs/promises';
-import path from 'path';
-import { fileURLToPath } from 'url';
+import { createHash } from 'node:crypto';
+import { readFile } from 'node:fs/promises';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
 import {
   Environment,
   SignedDataVerifier,
@@ -21,9 +22,9 @@ import {
   SubscriptionTier,
   type UserEntitlement,
 } from '@prisma/client';
-import { getEnv } from '../../config/env.js';
+
 import { getPrisma, withDatabaseRetry, type DatabaseClient } from '../../config/database.js';
-import { ensureAppAccountToken } from '../users/app-account-token.js';
+import { getEnv } from '../../config/env.js';
 import {
   ConflictError,
   ForbiddenError,
@@ -32,6 +33,16 @@ import {
   ValidationError,
 } from '../../utils/errors.js';
 import { getLogger } from '../../utils/logger.js';
+import { ensureAppAccountToken } from '../users/app-account-token.js';
+
+import {
+  getCachedBillingSummary,
+  setCachedBillingSummary,
+  invalidateBillingCache,
+  type CachedBillingSummary,
+  type QuotaSummaryDTO,
+  type QuotaWindowDTO,
+} from './billing.cache.js';
 import {
   FEATURE_KEYS,
   findCatalogItemByProductId,
@@ -52,14 +63,6 @@ import {
   type ModelChoice,
   type QuestionRouting,
 } from './billing.constants.js';
-import {
-  getCachedBillingSummary,
-  setCachedBillingSummary,
-  invalidateBillingCache,
-  type CachedBillingSummary,
-  type QuotaSummaryDTO,
-  type QuotaWindowDTO,
-} from './billing.cache.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const APPLE_ROOT_CERT_PATHS = [
@@ -71,7 +74,7 @@ const QUOTA_PERIOD_MS = 30 * 24 * 60 * 60 * 1000;
 
 const log = getLogger().child({ module: 'billing' });
 
-type BillingContext = {
+interface BillingContext {
   user: {
     id: string;
     email: string;
@@ -80,20 +83,20 @@ type BillingContext = {
   };
   entitlement: UserEntitlement;
   profilesUsed: number;
-};
+}
 
 type BillingDbClient = DatabaseClient | Prisma.TransactionClient;
 
-type VerifiedAppStoreTransaction = {
+interface VerifiedAppStoreTransaction {
   payload: JWSTransactionDecodedPayload;
   renewalInfo?: JWSRenewalInfoDecodedPayload;
   environment: AppStoreEnvironment;
   signedTransaction: string;
-};
+}
 
 export type BillingSummary = CachedBillingSummary;
 
-export type AccessClaimResult = {
+export interface AccessClaimResult {
   sessionClientId: string;
   sessionMode: string;
   accessSource: string;
@@ -102,7 +105,7 @@ export type AccessClaimResult = {
   consumedTrial: boolean;
   trialInterviewNumber: number | null;
   entitlement: BillingSummary;
-};
+}
 
 let appleRootCAsPromise: Promise<Buffer[]> | undefined;
 const verifierCache = new Map<AppStoreEnvironment, SignedDataVerifier>();
@@ -115,7 +118,9 @@ async function loadAppleRootCAs(): Promise<Buffer[]> {
   return appleRootCAsPromise;
 }
 
-async function getSignedDataVerifier(environment: AppStoreEnvironment): Promise<SignedDataVerifier> {
+async function getSignedDataVerifier(
+  environment: AppStoreEnvironment
+): Promise<SignedDataVerifier> {
   const cached = verifierCache.get(environment);
   if (cached) {
     return cached;
@@ -141,7 +146,9 @@ async function getSignedDataVerifier(environment: AppStoreEnvironment): Promise<
 
 function coerceAppAppleId(value: string | undefined): number {
   if (!value) {
-    throw new ValidationError('APP_STORE_APPLE_ID must be configured for production App Store validation');
+    throw new ValidationError(
+      'APP_STORE_APPLE_ID must be configured for production App Store validation'
+    );
   }
 
   const parsed = Number(value);
@@ -153,9 +160,7 @@ function coerceAppAppleId(value: string | undefined): number {
 }
 
 function serializeEnum(value: string): string {
-  return value
-    .toLowerCase()
-    .replace(/_([a-z])/g, (_match, char: string) => char.toUpperCase());
+  return value.toLowerCase().replaceAll(/_([a-z])/g, (_match, char: string) => char.toUpperCase());
 }
 
 function serializeDate(value?: Date | null): string | null {
@@ -173,14 +178,20 @@ function toDate(epochMs?: number): Date | null {
 function isDeveloperFullAccessEmail(email: string): boolean {
   const raw = getEnv().DEVELOPER_FULL_ACCESS_EMAILS;
   if (!raw) return false;
-  const allowed = raw.split(',').map((e) => e.trim().toLowerCase()).filter(Boolean);
+  const allowed = raw
+    .split(',')
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean);
   return allowed.includes(email.trim().toLowerCase());
 }
 
 function isSandboxTesterEmail(email: string): boolean {
   const raw = getEnv().SANDBOX_TESTER_EMAILS;
   if (!raw) return false;
-  const allowed = raw.split(',').map((e) => e.trim().toLowerCase()).filter(Boolean);
+  const allowed = raw
+    .split(',')
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean);
   return allowed.includes(email.trim().toLowerCase());
 }
 
@@ -206,7 +217,8 @@ async function ensureBillingContext(
   // Auto-promote users whose email is in SANDBOX_TESTER_EMAILS or DEVELOPER_FULL_ACCESS_EMAILS.
   // Server-authoritative — moves the dev override from the iOS bundle to backend env so a patched
   // client cannot self-promote.
-  const isPromotedTester = isSandboxTesterEmail(user.email) || isDeveloperFullAccessEmail(user.email);
+  const isPromotedTester =
+    isSandboxTesterEmail(user.email) || isDeveloperFullAccessEmail(user.email);
   if (!user.isSandboxTester && isPromotedTester) {
     user.isSandboxTester = true;
     await (prisma as BillingDbClient).user.update({
@@ -219,7 +231,9 @@ async function ensureBillingContext(
   if (!entitlement) {
     const env = getEnv();
     const trialStartedAt = new Date();
-    const trialEndsAt = new Date(trialStartedAt.getTime() + env.TRIAL_DURATION_DAYS * 24 * 60 * 60 * 1000);
+    const trialEndsAt = new Date(
+      trialStartedAt.getTime() + env.TRIAL_DURATION_DAYS * 24 * 60 * 60 * 1000
+    );
     const now = new Date();
     const tier = isPromotedTester ? SubscriptionTier.SANDBOX : SubscriptionTier.FREE;
     const status = isPromotedTester ? SubscriptionStatus.SANDBOX : SubscriptionStatus.FREE;
@@ -377,7 +391,10 @@ function buildQuotaWindow(used: number, limit: number, endsAt: Date | null): Quo
   };
 }
 
-function buildQuotaSummary(entitlement: UserEntitlement, effectiveTier: SubscriptionTier): QuotaSummaryDTO {
+function buildQuotaSummary(
+  entitlement: UserEntitlement,
+  effectiveTier: SubscriptionTier
+): QuotaSummaryDTO {
   // Effective tier governs limit (sandbox/expired-trial overrides), counters are always read from
   // the persisted row to preserve audit trail integrity.
   const policy = TIER_QUOTA[effectiveTier];
@@ -394,8 +411,7 @@ function buildQuotaSummary(entitlement: UserEntitlement, effectiveTier: Subscrip
 }
 
 function buildSummary(context: BillingContext): BillingSummary {
-  const sandboxFullAccess =
-    context.user.isSandboxTester || context.entitlement.sandboxFullAccess;
+  const sandboxFullAccess = context.user.isSandboxTester || context.entitlement.sandboxFullAccess;
 
   const isTrialExpired =
     context.entitlement.tier === SubscriptionTier.TRIAL &&
@@ -453,8 +469,7 @@ function buildSummary(context: BillingContext): BillingSummary {
       ? Number.MAX_SAFE_INTEGER
       : quotas.standard.remaining + quotas.premium.remaining;
 
-  const paywallRequired =
-    !sandboxFullAccess && !hasPaidSubscription && interviewsRemaining === 0;
+  const paywallRequired = !sandboxFullAccess && !hasPaidSubscription && interviewsRemaining === 0;
 
   return {
     tier: serializeEnum(effectiveTier),
@@ -465,10 +480,13 @@ function buildSummary(context: BillingContext): BillingSummary {
     ),
     productId: context.entitlement.productId,
     features,
-    featureFlags: FEATURE_KEYS.reduce<Record<FeatureKey, boolean>>((result, feature) => {
-      result[feature] = features.includes(feature);
-      return result;
-    }, {} as Record<FeatureKey, boolean>),
+    featureFlags: FEATURE_KEYS.reduce<Record<FeatureKey, boolean>>(
+      (result, feature) => {
+        result[feature] = features.includes(feature);
+        return result;
+      },
+      {} as Record<FeatureKey, boolean>
+    ),
     sandboxFullAccess,
     trialInterviewLimit: context.entitlement.trialInterviewLimit,
     trialInterviewsUsed: context.entitlement.trialInterviewsUsed,
@@ -501,27 +519,27 @@ function buildSummary(context: BillingContext): BillingSummary {
 function chooseBestTransaction(
   transactions: VerifiedAppStoreTransaction[]
 ): VerifiedAppStoreTransaction | undefined {
-  return transactions
-    .slice()
-    .sort((left, right) => {
-      const leftCatalog = findCatalogItemByProductId(left.payload.productId ?? '');
-      const rightCatalog = findCatalogItemByProductId(right.payload.productId ?? '');
-      const leftTier = left.environment === AppStoreEnvironment.SANDBOX
+  return transactions.slice().sort((left, right) => {
+    const leftCatalog = findCatalogItemByProductId(left.payload.productId ?? '');
+    const rightCatalog = findCatalogItemByProductId(right.payload.productId ?? '');
+    const leftTier =
+      left.environment === AppStoreEnvironment.SANDBOX
         ? SubscriptionTier.SANDBOX
-        : leftCatalog?.tier ?? SubscriptionTier.FREE;
-      const rightTier = right.environment === AppStoreEnvironment.SANDBOX
+        : (leftCatalog?.tier ?? SubscriptionTier.FREE);
+    const rightTier =
+      right.environment === AppStoreEnvironment.SANDBOX
         ? SubscriptionTier.SANDBOX
-        : rightCatalog?.tier ?? SubscriptionTier.FREE;
+        : (rightCatalog?.tier ?? SubscriptionTier.FREE);
 
-      const tierDelta = tierRank(rightTier) - tierRank(leftTier);
-      if (tierDelta !== 0) {
-        return tierDelta;
-      }
+    const tierDelta = tierRank(rightTier) - tierRank(leftTier);
+    if (tierDelta !== 0) {
+      return tierDelta;
+    }
 
-      const leftExpiry = left.payload.expiresDate ?? 0;
-      const rightExpiry = right.payload.expiresDate ?? 0;
-      return rightExpiry - leftExpiry;
-    })[0];
+    const leftExpiry = left.payload.expiresDate ?? 0;
+    const rightExpiry = right.payload.expiresDate ?? 0;
+    return rightExpiry - leftExpiry;
+  })[0];
 }
 
 function deriveSubscriptionStatus(
@@ -583,9 +601,7 @@ async function verifySignedTransaction(
   );
 }
 
-async function verifyNotificationPayload(
-  signedPayload: string
-): Promise<{
+async function verifyNotificationPayload(signedPayload: string): Promise<{
   notification: ResponseBodyV2DecodedPayload;
   transaction?: VerifiedAppStoreTransaction;
 }> {
@@ -643,7 +659,8 @@ async function writeEntitlementFromTransaction(
     throw new ValidationError(`Unsupported App Store product: ${productId}`);
   }
 
-  const appAccountToken = transaction.payload.appAccountToken ?? transaction.renewalInfo?.appAccountToken;
+  const appAccountToken =
+    transaction.payload.appAccountToken ?? transaction.renewalInfo?.appAccountToken;
   if (appAccountToken && appAccountToken !== context.user.appAccountToken) {
     throw new ForbiddenError('App Store transaction does not belong to the authenticated user');
   }
@@ -771,7 +788,7 @@ async function consumeQuotaAtomically(
     // No counter increment; surface a synthetic remaining=∞ for the caller's audit log.
     const row = await prisma.userEntitlement.findUnique({
       where: { id: entitlementId },
-      select: { [usedField]: true } as Record<string, boolean>,
+      select: { [usedField]: true },
     });
     const used = ((row as Record<string, number> | null)?.[usedField] ?? 0) + 0;
     return { consumed: true, usedAfter: used, limit };
@@ -801,7 +818,7 @@ async function consumeQuotaAtomically(
 
   const row = await prisma.userEntitlement.findUnique({
     where: { id: entitlementId },
-    select: { [usedField]: true } as Record<string, boolean>,
+    select: { [usedField]: true },
   });
   const usedAfter = (row as Record<string, number> | null)?.[usedField] ?? limit;
   return { consumed: true, usedAfter, limit };
@@ -1000,10 +1017,7 @@ async function withSessionAccessGrant(
       };
     });
   } catch (error) {
-    if (
-      error instanceof Prisma.PrismaClientKnownRequestError &&
-      error.code === 'P2002'
-    ) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
       // Race: a concurrent caller created the grant between our check and insert.
       const existingGrant = await withDatabaseRetry((prisma) =>
         prisma.sessionAccessGrant.findUnique({
@@ -1011,7 +1025,7 @@ async function withSessionAccessGrant(
         })
       );
 
-      if (existingGrant && existingGrant.userId === userId) {
+      if (existingGrant?.userId === userId) {
         if (existingGrant.quality !== quality) {
           throw new ConflictError(
             `Session ${sessionClientId} was already claimed at ${existingGrant.quality} quality; resubmit with the original quality.`
@@ -1071,7 +1085,7 @@ export async function getSessionAccessGrant(
   const grant = await withDatabaseRetry((prisma) =>
     prisma.sessionAccessGrant.findUnique({ where: { sessionClientId } })
   );
-  if (!grant || grant.userId !== userId) {
+  if (grant?.userId !== userId) {
     throw new NotFoundError('Session access grant');
   }
   return {
@@ -1105,7 +1119,9 @@ export async function syncAppStoreTransactions(
   userId: string,
   signedTransactions: string[]
 ): Promise<BillingSummary> {
-  const verified = await Promise.all(signedTransactions.map((item) => verifySignedTransaction(item)));
+  const verified = await Promise.all(
+    signedTransactions.map((item) => verifySignedTransaction(item))
+  );
   const bestTransaction = chooseBestTransaction(verified);
 
   return withDatabaseRetry(async (prisma) =>
@@ -1125,7 +1141,8 @@ export async function processAppStoreNotification(
   signedPayload: string
 ): Promise<{ accepted: boolean; entitlement?: BillingSummary }> {
   const { notification, transaction } = await verifyNotificationPayload(signedPayload);
-  const appAccountToken = transaction?.payload.appAccountToken ?? transaction?.renewalInfo?.appAccountToken;
+  const appAccountToken =
+    transaction?.payload.appAccountToken ?? transaction?.renewalInfo?.appAccountToken;
 
   if (!transaction || !appAccountToken) {
     return { accepted: true };

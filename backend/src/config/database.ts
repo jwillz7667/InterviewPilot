@@ -1,6 +1,8 @@
 import { Prisma, PrismaClient } from '@prisma/client';
-import { getEnv } from './env.js';
+
 import { softDeleteExtension } from '../middleware/soft-delete.js';
+
+import { getEnv } from './env.js';
 
 function createPrismaClient() {
   const env = getEnv();
@@ -52,11 +54,13 @@ export async function reconnectPrisma(): Promise<DatabaseClient> {
 
   reconnectInFlight = (async () => {
     const previousClient = prisma;
-    const nextClient = createPrismaClient().$extends(softDeleteExtension) as unknown as DatabaseClient;
+    const nextClient = createPrismaClient().$extends(
+      softDeleteExtension
+    ) as unknown as DatabaseClient;
     prisma = nextClient;
 
     if (previousClient) {
-      await previousClient.$disconnect().catch(() => undefined);
+      await previousClient.$disconnect().catch(() => {});
     }
 
     try {
@@ -66,7 +70,7 @@ export async function reconnectPrisma(): Promise<DatabaseClient> {
       if (prisma === nextClient) {
         prisma = undefined;
       }
-      await nextClient.$disconnect().catch(() => undefined);
+      await nextClient.$disconnect().catch(() => {});
       throw error;
     }
   })();

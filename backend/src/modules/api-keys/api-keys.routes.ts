@@ -1,8 +1,9 @@
-import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
-import { authenticate } from '../../middleware/authenticate.js';
-import { withDatabaseRetry } from '../../config/database.js';
-import { encryptApiKey, decryptApiKey } from '../../utils/encryption.js';
+import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { z } from 'zod';
+
+import { withDatabaseRetry } from '../../config/database.js';
+import { authenticate } from '../../middleware/authenticate.js';
+import { encryptApiKey, decryptApiKey } from '../../utils/encryption.js';
 
 const providerParam = z.object({
   provider: z.enum(['deepgram', 'openai']),

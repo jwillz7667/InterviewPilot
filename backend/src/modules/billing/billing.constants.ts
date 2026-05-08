@@ -1,10 +1,11 @@
+import type { SessionMode } from '@prisma/client';
 import {
   InterviewQuality as PrismaInterviewQuality,
-  SessionMode,
   SubscriptionProduct,
   SubscriptionStatus,
   SubscriptionTier,
 } from '@prisma/client';
+
 import { getEnv } from '../../config/env.js';
 
 export const FEATURE_KEYS = [
@@ -22,14 +23,14 @@ export type FeatureKey = (typeof FEATURE_KEYS)[number];
 export type InterviewQuality = PrismaInterviewQuality;
 export const InterviewQuality = PrismaInterviewQuality;
 
-export type CatalogItem = {
+export interface CatalogItem {
   product: SubscriptionProduct;
   productId: string;
   tier: SubscriptionTier;
   displayName: string;
   billingLabel: string;
   features: FeatureKey[];
-};
+}
 
 const FREE_FEATURES: FeatureKey[] = ['live_interview', 'session_history'];
 
@@ -41,11 +42,7 @@ const PRO_FEATURES: FeatureKey[] = [
   'priority_models',
 ];
 
-const PREMIUM_FEATURES: FeatureKey[] = [
-  ...PRO_FEATURES,
-  'voice_prep',
-  'post_session_analysis',
-];
+const PREMIUM_FEATURES: FeatureKey[] = [...PRO_FEATURES, 'voice_prep', 'post_session_analysis'];
 
 export const TIER_FEATURES: Record<SubscriptionTier, FeatureKey[]> = {
   FREE: FREE_FEATURES,
@@ -60,10 +57,10 @@ export const FREE_SESSION_HISTORY_LIMIT = 5;
 
 const UNLIMITED = -1;
 
-export type QuotaPolicy = {
+export interface QuotaPolicy {
   standardMonthly: number;
   premiumMonthly: number;
-};
+}
 
 export const TIER_QUOTA: Record<SubscriptionTier, QuotaPolicy> = {
   FREE: { standardMonthly: 3, premiumMonthly: 1 },
@@ -78,20 +75,20 @@ export function isUnlimitedQuota(limit: number): boolean {
   return limit < 0;
 }
 
-export type ModelChoice = {
+export interface ModelChoice {
   model: string;
   maxTokens: number;
   temperature: number;
-};
+}
 
-export type QualityModelConfig = {
+export interface QualityModelConfig {
   primary: string;
   technical: string;
   coding: string;
   maxTokens: number;
   temperature: number;
   preGenAnswerBank: number;
-};
+}
 
 export const MODEL_BY_QUALITY: Record<InterviewQuality, QualityModelConfig> = {
   STANDARD: {
@@ -120,11 +117,7 @@ export function selectModel(
 ): ModelChoice {
   const cfg = MODEL_BY_QUALITY[quality];
   const model =
-    routing === 'coding'
-      ? cfg.coding
-      : routing === 'technical'
-        ? cfg.technical
-        : cfg.primary;
+    routing === 'coding' ? cfg.coding : routing === 'technical' ? cfg.technical : cfg.primary;
 
   return {
     model,
@@ -135,12 +128,12 @@ export function selectModel(
 
 // Legacy: model config keyed by tier — used only as a display hint inside BillingSummary.
 // Production AI requests resolve their model server-side via selectModel(quality, routing).
-export type ModelConfig = {
+export interface ModelConfig {
   defaultModel: string;
   technicalModel: string;
   codingModel: string;
   maxTokens: number;
-};
+}
 
 function modelConfigForQuality(quality: InterviewQuality): ModelConfig {
   const cfg = MODEL_BY_QUALITY[quality];

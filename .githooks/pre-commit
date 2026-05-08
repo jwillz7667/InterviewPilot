@@ -1,29 +1,20 @@
 #!/usr/bin/env bash
-# pre-commit: scan staged changes for committed secrets with gitleaks.
+# pre-commit: run secret scanning + lint/format on staged content.
 #
 # Activate by running .githooks/install.sh (sets core.hooksPath = .githooks).
-# This runs in protect mode, which only inspects staged content (not history),
-# keeping the hook fast enough for routine commits.
+# Bypass once with: git commit --no-verify  (use sparingly).
 
 set -euo pipefail
 
-if ! command -v gitleaks >/dev/null 2>&1; then
-  cat >&2 <<'MSG'
-warning: gitleaks not installed — skipping secret scan.
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+cd "$REPO_ROOT"
 
-Install with one of:
-  brew install gitleaks                     # macOS
-  go install github.com/gitleaks/gitleaks/v8@latest
-
-Bypass once with: git commit --no-verify  (use sparingly)
-MSG
-  exit 0
-fi
-
-# --redact masks any matched secret in the diff output, so the value never
-# leaks into terminal logs or CI archives.
-if ! gitleaks protect --staged --redact --no-banner; then
-  cat >&2 <<'MSG'
+# ----------------------------------------------------------------------------
+# 1. Secret scanning (gitleaks)
+# ----------------------------------------------------------------------------
+if command -v gitleaks >/dev/null 2>&1; then
+  if ! gitleaks protect --staged --redact --no-banner; then
+    cat >&2 <<'MSG'
 
 A staged change appears to contain a secret. The diff above shows the
 finding (value redacted). To proceed:
@@ -34,5 +25,51 @@ finding (value redacted). To proceed:
 If gitleaks flagged a false positive, add an exception to .gitleaks.toml.
 Bypass once with: git commit --no-verify
 MSG
-  exit 1
+    exit 1
+  fi
+else
+  echo "warning: gitleaks not installed — skipping secret scan." >&2
 fi
+
+# ----------------------------------------------------------------------------
+# 2. Backend: lint + format on staged TS files under backend/
+# ----------------------------------------------------------------------------
+mapfile -t backend_ts < <(git diff --cached --name-only --diff-filter=ACMR -- 'backend/**/*.ts' || true)
+
+if [ "${#backend_ts[@]}" -gt 0 ]; then
+  if [ -d backend/node_modules ]; then
+    # Strip backend/ prefix because eslint runs from backend/
+    rel_paths=()
+    for f in "${backend_ts[@]}"; do
+      rel_paths+=("${f#backend/}")
+    done
+    ( cd backend && npx --no-install eslint --max-warnings=9999 "${rel_paths[@]}" ) || {
+      echo "✗ ESLint failed on staged backend files. Run 'cd backend && npm run lint:fix' to auto-fix." >&2
+      exit 1
+    }
+    ( cd backend && npx --no-install prettier --check "${rel_paths[@]}" ) || {
+      echo "✗ Prettier check failed. Run 'cd backend && npm run format:fix' to auto-format." >&2
+      exit 1
+    }
+  else
+    echo "warning: backend/node_modules missing — skipping ESLint/Prettier. Run 'cd backend && npm ci'." >&2
+  fi
+fi
+
+# ----------------------------------------------------------------------------
+# 3. iOS: SwiftLint on staged Swift files (warn-only on missing tool)
+# ----------------------------------------------------------------------------
+mapfile -t swift_files < <(git diff --cached --name-only --diff-filter=ACMR -- '*.swift' || true)
+
+if [ "${#swift_files[@]}" -gt 0 ]; then
+  if command -v swiftlint >/dev/null 2>&1; then
+    swiftlint lint --quiet --strict=false --use-script-input-files=false -- "${swift_files[@]}" || {
+      echo "✗ SwiftLint reported errors on staged files." >&2
+      exit 1
+    }
+  else
+    echo "warning: swiftlint not installed — skipping. Install with 'brew install swiftlint'." >&2
+  fi
+fi
+
+exit 0

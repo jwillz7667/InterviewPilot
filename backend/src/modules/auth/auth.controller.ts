@@ -1,4 +1,7 @@
-import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
+import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
+
+import { withDatabaseRetry } from '../../config/database.js';
+
 import {
   appleLoginSchema,
   loginSchema,
@@ -14,16 +17,12 @@ import {
   rotateRefreshToken,
   revokeRefreshToken,
 } from './auth.service.js';
-import { withDatabaseRetry } from '../../config/database.js';
 
 const ACCESS_TOKEN_TTL = '15m';
 
 export function buildAuthHandlers(app: FastifyInstance) {
   function issueAccessToken(user: { id: string; email: string }) {
-    return app.jwt.sign(
-      { sub: user.id, email: user.email },
-      { expiresIn: ACCESS_TOKEN_TTL }
-    );
+    return app.jwt.sign({ sub: user.id, email: user.email }, { expiresIn: ACCESS_TOKEN_TTL });
   }
 
   async function register(request: FastifyRequest, reply: FastifyReply) {
