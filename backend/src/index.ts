@@ -14,6 +14,10 @@ import {
 import { loadEnv } from './config/env.js';
 import { disconnectRedis, getRedis } from './config/redis.js';
 import { initSentry, captureException } from './config/sentry.js';
+// Telemetry must boot before any HTTP/Prisma client is constructed so OTel can
+// patch them. loadEnv runs first so we have OTEL_* vars; initTelemetry no-ops
+// when no exporter endpoint is configured.
+import { initTelemetry } from './config/telemetry.js';
 import { aiRoutes } from './modules/ai/ai.routes.js';
 import { answerBanksRoutes } from './modules/answer-banks/answer-banks.routes.js';
 import { apiKeysRoutes } from './modules/api-keys/api-keys.routes.js';
@@ -32,6 +36,7 @@ import { requestIdPlugin } from './plugins/request-id.js';
 import { AppError } from './utils/errors.js';
 
 const env = loadEnv();
+initTelemetry();
 initSentry();
 
 if (env.CORS_ORIGIN === '*' && env.NODE_ENV === 'production') {

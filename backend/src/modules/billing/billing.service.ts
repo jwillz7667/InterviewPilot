@@ -25,6 +25,7 @@ import {
 
 import { getPrisma, withDatabaseRetry, type DatabaseClient } from '../../config/database.js';
 import { getEnv } from '../../config/env.js';
+import { withSpan } from '../../config/telemetry.js';
 import {
   ConflictError,
   ForbiddenError,
@@ -1070,7 +1071,11 @@ export async function claimInterviewAccess(
   sessionMode: SessionMode,
   quality: InterviewQuality
 ): Promise<AccessClaimResult> {
-  return withSessionAccessGrant(userId, sessionClientId, sessionMode, quality);
+  return withSpan(
+    'billing.claim_interview_access',
+    () => withSessionAccessGrant(userId, sessionClientId, sessionMode, quality),
+    { 'billing.session_mode': sessionMode, 'billing.requested_quality': quality }
+  );
 }
 
 export async function getSessionAccessGrant(
@@ -1101,12 +1106,19 @@ export async function authorizeAiCall(
   sessionClientId: string,
   routing: QuestionRouting = 'default'
 ): Promise<{ model: ModelChoice; quality: InterviewQuality; tier: SubscriptionTier }> {
-  const grant = await getSessionAccessGrant(userId, sessionClientId);
-  return {
-    model: selectModel(grant.quality, routing),
-    quality: grant.quality,
-    tier: grant.accessTier,
-  };
+  return withSpan(
+    'billing.authorize_ai_call',
+    async () => {
+      const grant = await getSessionAccessGrant(userId, sessionClientId);
+      const model = selectModel(grant.quality, routing);
+      return {
+        model,
+        quality: grant.quality,
+        tier: grant.accessTier,
+      };
+    },
+    { 'billing.routing': routing }
+  );
 }
 
 export async function canAccessRuntimeAiConfig(userId: string): Promise<boolean> {

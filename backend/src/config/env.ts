@@ -52,6 +52,13 @@ const envSchema = z.object({
   R2_BUCKET_NAME: z.string().default('interviewpilot-uploads'),
   R2_PUBLIC_URL: z.string().optional(),
   SENTRY_DSN: z.string().optional(),
+  // OpenTelemetry. When OTEL_EXPORTER_OTLP_ENDPOINT is set, the SDK auto-loads
+  // and exports traces. Sentry ingests OTLP natively, so the same DSN's OTLP
+  // endpoint is the simplest target.
+  OTEL_EXPORTER_OTLP_ENDPOINT: z.string().optional(),
+  OTEL_EXPORTER_OTLP_HEADERS: z.string().optional(),
+  OTEL_SERVICE_NAME: z.string().default('interviewpilot-backend'),
+  OTEL_TRACES_SAMPLER_ARG: z.coerce.number().min(0).max(1).default(0.1),
 });
 
 export type Env = z.infer<typeof envSchema>;

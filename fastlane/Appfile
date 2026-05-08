@@ -1,0 +1,5 @@
+app_identifier('com.res.jobhopperAI')
+team_id('487LC4H9U4')
+
+# `apple_id` is intentionally not committed — populate via env (FASTLANE_USER)
+# or App Store Connect API key (preferred).
