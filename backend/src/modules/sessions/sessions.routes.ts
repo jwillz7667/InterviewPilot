@@ -1,26 +1,30 @@
-import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
-import { authenticate } from '../../middleware/authenticate.js';
-import { withDatabaseRetry } from '../../config/database.js';
-import { buildPaginatedResponse } from '../../utils/pagination.js';
-import { z } from 'zod';
-import { getSessionAccessGrant } from '../billing/billing.service.js';
 import { SessionMode } from '@prisma/client';
+import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
+import { z } from 'zod';
+
+import { withDatabaseRetry } from '../../config/database.js';
+import { authenticate } from '../../middleware/authenticate.js';
+import { buildPaginatedResponse } from '../../utils/pagination.js';
+import { getSessionAccessGrant } from '../billing/billing.service.js';
+
 import { analyzeSession } from './session-analysis.service.js';
 
-const sessionTelemetrySummarySchema = z.object({
-  exchangeCount: z.number().int().nonnegative(),
-  cachedExchangeCount: z.number().int().nonnegative(),
-  predictiveFireCount: z.number().int().nonnegative(),
-  averageTotalLatencyMs: z.number().int().nonnegative(),
-  averageTimeToFirstTokenMs: z.number().int().nonnegative().nullable().optional(),
-  averageGenerationDurationMs: z.number().int().nonnegative().nullable().optional(),
-  averageLiveTimeToFirstTokenMs: z.number().int().nonnegative().nullable().optional(),
-  averageLiveGenerationDurationMs: z.number().int().nonnegative().nullable().optional(),
-  p95LiveTimeToFirstTokenMs: z.number().int().nonnegative().nullable().optional(),
-  p95LiveGenerationDurationMs: z.number().int().nonnegative().nullable().optional(),
-  averageQuestionDurationMs: z.number().int().nonnegative().nullable().optional(),
-  averageSpeechEndToFireMs: z.number().int().nonnegative().nullable().optional(),
-}).strict();
+const sessionTelemetrySummarySchema = z
+  .object({
+    exchangeCount: z.number().int().nonnegative(),
+    cachedExchangeCount: z.number().int().nonnegative(),
+    predictiveFireCount: z.number().int().nonnegative(),
+    averageTotalLatencyMs: z.number().int().nonnegative(),
+    averageTimeToFirstTokenMs: z.number().int().nonnegative().nullable().optional(),
+    averageGenerationDurationMs: z.number().int().nonnegative().nullable().optional(),
+    averageLiveTimeToFirstTokenMs: z.number().int().nonnegative().nullable().optional(),
+    averageLiveGenerationDurationMs: z.number().int().nonnegative().nullable().optional(),
+    p95LiveTimeToFirstTokenMs: z.number().int().nonnegative().nullable().optional(),
+    p95LiveGenerationDurationMs: z.number().int().nonnegative().nullable().optional(),
+    averageQuestionDurationMs: z.number().int().nonnegative().nullable().optional(),
+    averageSpeechEndToFireMs: z.number().int().nonnegative().nullable().optional(),
+  })
+  .strict();
 
 const createSessionSchema = z.object({
   clientId: z.string().uuid(),
@@ -110,7 +114,9 @@ export async function sessionsRoutes(app: FastifyInstance) {
       })
     );
     if (existingByClientId && existingByClientId.userId !== request.user.sub) {
-      return reply.status(403).send({ error: 'Forbidden', message: 'Session belongs to another user' });
+      return reply
+        .status(403)
+        .send({ error: 'Forbidden', message: 'Session belongs to another user' });
     }
 
     // The grant must exist (created at quota-claim time, before the session row).
@@ -202,7 +208,9 @@ export async function sessionsRoutes(app: FastifyInstance) {
       if (!existing) return reply.status(404).send({ error: 'Session not found' });
 
       await withDatabaseRetry((prisma) =>
-        prisma.interviewSession.deleteMany({ where: { id: request.params.id, userId: request.user.sub } })
+        prisma.interviewSession.deleteMany({
+          where: { id: request.params.id, userId: request.user.sub },
+        })
       );
       reply.send({ success: true });
     }

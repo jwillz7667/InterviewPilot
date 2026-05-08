@@ -1,19 +1,22 @@
-import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
-import { authenticate } from '../../middleware/authenticate.js';
-import { withDatabaseRetry } from '../../config/database.js';
+import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { z } from 'zod';
 
-const exchangeTelemetrySchema = z.object({
-  questionDurationMs: z.number().int().nonnegative().nullable().optional(),
-  speechEndToFireMs: z.number().int().nonnegative().nullable().optional(),
-  timeToFirstTokenMs: z.number().int().nonnegative().nullable().optional(),
-  generationDurationMs: z.number().int().nonnegative().nullable().optional(),
-  questionEndToCompletionMs: z.number().int().nonnegative().nullable().optional(),
-  cacheLookupMs: z.number().int().nonnegative().nullable().optional(),
-  classificationMs: z.number().int().nonnegative().nullable().optional(),
-  streamChunkCount: z.number().int().nonnegative(),
-  usedPredictiveFire: z.boolean(),
-}).strict();
+import { withDatabaseRetry } from '../../config/database.js';
+import { authenticate } from '../../middleware/authenticate.js';
+
+const exchangeTelemetrySchema = z
+  .object({
+    questionDurationMs: z.number().int().nonnegative().nullable().optional(),
+    speechEndToFireMs: z.number().int().nonnegative().nullable().optional(),
+    timeToFirstTokenMs: z.number().int().nonnegative().nullable().optional(),
+    generationDurationMs: z.number().int().nonnegative().nullable().optional(),
+    questionEndToCompletionMs: z.number().int().nonnegative().nullable().optional(),
+    cacheLookupMs: z.number().int().nonnegative().nullable().optional(),
+    classificationMs: z.number().int().nonnegative().nullable().optional(),
+    streamChunkCount: z.number().int().nonnegative(),
+    usedPredictiveFire: z.boolean(),
+  })
+  .strict();
 
 const exchangeSchema = z.object({
   clientId: z.string().uuid(),

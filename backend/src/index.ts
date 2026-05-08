@@ -1,34 +1,35 @@
-import Fastify from 'fastify';
 import cors from '@fastify/cors';
+import helmet from '@fastify/helmet';
 import jwt from '@fastify/jwt';
 import rateLimit from '@fastify/rate-limit';
-import helmet from '@fastify/helmet';
-import { loadEnv } from './config/env.js';
-import { initSentry, captureException } from './config/sentry.js';
+import Fastify from 'fastify';
+import { ZodError } from 'zod';
+
 import {
   disconnectPrisma,
   getPrisma,
   isTransientPrismaError,
   reconnectPrisma,
 } from './config/database.js';
+import { loadEnv } from './config/env.js';
 import { disconnectRedis, getRedis } from './config/redis.js';
-import { authRoutes } from './modules/auth/auth.routes.js';
-import { usersRoutes } from './modules/users/users.routes.js';
-import { profileRoutes } from './modules/users/profile.routes.js';
-import { settingsRoutes } from './modules/settings/settings.routes.js';
-import { apiKeysRoutes } from './modules/api-keys/api-keys.routes.js';
-import { sessionsRoutes } from './modules/sessions/sessions.routes.js';
-import { exchangesRoutes } from './modules/exchanges/exchanges.routes.js';
-import { answerBanksRoutes } from './modules/answer-banks/answer-banks.routes.js';
-import { interviewProfilesRoutes } from './modules/profiles/profiles.routes.js';
-import { billingRoutes } from './modules/billing/billing.routes.js';
-import { uploadsRoutes } from './modules/uploads/uploads.routes.js';
+import { initSentry, captureException } from './config/sentry.js';
 import { aiRoutes } from './modules/ai/ai.routes.js';
-import { requestIdPlugin } from './plugins/request-id.js';
+import { answerBanksRoutes } from './modules/answer-banks/answer-banks.routes.js';
+import { apiKeysRoutes } from './modules/api-keys/api-keys.routes.js';
+import { authRoutes } from './modules/auth/auth.routes.js';
+import { billingRoutes } from './modules/billing/billing.routes.js';
+import { exchangesRoutes } from './modules/exchanges/exchanges.routes.js';
+import { interviewProfilesRoutes } from './modules/profiles/profiles.routes.js';
+import { sessionsRoutes } from './modules/sessions/sessions.routes.js';
+import { settingsRoutes } from './modules/settings/settings.routes.js';
+import { uploadsRoutes } from './modules/uploads/uploads.routes.js';
+import { profileRoutes } from './modules/users/profile.routes.js';
+import { usersRoutes } from './modules/users/users.routes.js';
 import entitlementPlugin from './plugins/entitlement.js';
 import idempotencyPlugin from './plugins/idempotency.js';
+import { requestIdPlugin } from './plugins/request-id.js';
 import { AppError } from './utils/errors.js';
-import { ZodError } from 'zod';
 
 const env = loadEnv();
 initSentry();
@@ -66,7 +67,9 @@ const app = Fastify({
 });
 
 // Plugins
-const corsOrigins = env.CORS_ORIGIN.split(',').map((s) => s.trim()).filter(Boolean);
+const corsOrigins = env.CORS_ORIGIN.split(',')
+  .map((s) => s.trim())
+  .filter(Boolean);
 await app.register(cors, {
   origin: corsOrigins.length === 1 && corsOrigins[0] === '*' ? '*' : corsOrigins,
 });
@@ -231,4 +234,4 @@ const shutdown = async () => {
 process.on('SIGINT', shutdown);
 process.on('SIGTERM', shutdown);
 
-start();
+void start();

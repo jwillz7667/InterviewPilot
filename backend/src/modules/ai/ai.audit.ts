@@ -1,5 +1,6 @@
-import { z, ZodError, ZodSchema } from 'zod';
-import { FastifyRequest } from 'fastify';
+import type { FastifyRequest } from 'fastify';
+import type { z, ZodError, ZodSchema } from 'zod';
+
 import { getLogger } from '../../utils/logger.js';
 
 /// Forbidden client-supplied fields. The proxy is server-authoritative on
@@ -45,7 +46,7 @@ export function parseOrAudit<T extends ZodSchema>(
   req: FastifyRequest
 ): z.infer<T> {
   const result = schema.safeParse(body);
-  if (result.success) return result.data;
+  if (result.success) return result.data as z.infer<T>;
   auditUnknownKeys({ userId: req.user?.sub, ip: req.ip, path: req.url }, result.error);
   throw result.error;
 }

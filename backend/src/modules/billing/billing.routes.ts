@@ -1,5 +1,7 @@
-import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
+import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
+
 import { authenticate } from '../../middleware/authenticate.js';
+
 import {
   accessClaimSchema,
   appStoreNotificationSchema,

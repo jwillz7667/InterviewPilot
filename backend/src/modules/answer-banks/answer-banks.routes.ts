@@ -1,11 +1,12 @@
-import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
-import { authenticate } from '../../middleware/authenticate.js';
+import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
+import { z } from 'zod';
+
 import { getPrisma, withDatabaseRetry } from '../../config/database.js';
 import { getEnv } from '../../config/env.js';
-import { canAccessRuntimeAiConfig, getBillingSummary } from '../billing/billing.service.js';
-import { MODEL_BY_QUALITY, selectModel } from '../billing/billing.constants.js';
+import { authenticate } from '../../middleware/authenticate.js';
 import { PaymentRequiredError, ValidationError } from '../../utils/errors.js';
-import { z } from 'zod';
+import { MODEL_BY_QUALITY, selectModel } from '../billing/billing.constants.js';
+import { canAccessRuntimeAiConfig, getBillingSummary } from '../billing/billing.service.js';
 
 const answerSchema = z.object({
   question: z.string(),
@@ -50,82 +51,85 @@ export async function answerBanksRoutes(app: FastifyInstance) {
     reply.send({ banks });
   });
 
-  app.post('/api/v1/answer-banks/generate', async (request: FastifyRequest, reply: FastifyReply) => {
-    const input = generateBankSchema.parse(request.body);
+  app.post(
+    '/api/v1/answer-banks/generate',
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const input = generateBankSchema.parse(request.body);
 
-    const canAccess = await canAccessRuntimeAiConfig(request.user.sub);
-    if (!canAccess) {
-      throw new PaymentRequiredError('Upgrade to generate personalized prep assets.');
-    }
-
-    if (input.responseQualityMode === 'premium') {
-      const billing = await getBillingSummary(request.user.sub);
-      if (!billing.featureFlags.priority_models) {
-        throw new PaymentRequiredError('Top Tier mode requires an active Pro subscription.', {
-          requiredFeature: 'priority_models',
-        });
+      const canAccess = await canAccessRuntimeAiConfig(request.user.sub);
+      if (!canAccess) {
+        throw new PaymentRequiredError('Upgrade to generate personalized prep assets.');
       }
-    }
 
-    const existingBank = await withDatabaseRetry((prisma) =>
-      prisma.answerBank.findFirst({
-        where: {
-          userId: request.user.sub,
-          resumeText: input.resumeText,
-          jobDescription: input.jobDescription,
-          interviewType: input.interviewType,
-          ...(input.responseQualityMode === 'premium'
-            ? { name: { contains: 'top-tier prep' } }
-            : { NOT: { name: { contains: 'top-tier prep' } } }),
-        },
-        include: { answers: true },
-        orderBy: { updatedAt: 'desc' },
-      })
-    );
+      if (input.responseQualityMode === 'premium') {
+        const billing = await getBillingSummary(request.user.sub);
+        if (!billing.featureFlags.priority_models) {
+          throw new PaymentRequiredError('Top Tier mode requires an active Pro subscription.', {
+            requiredFeature: 'priority_models',
+          });
+        }
+      }
 
-    if (existingBank) {
-      return reply.send({ bank: existingBank, fromCache: true });
-    }
+      const existingBank = await withDatabaseRetry((prisma) =>
+        prisma.answerBank.findFirst({
+          where: {
+            userId: request.user.sub,
+            resumeText: input.resumeText,
+            jobDescription: input.jobDescription,
+            interviewType: input.interviewType,
+            ...(input.responseQualityMode === 'premium'
+              ? { name: { contains: 'top-tier prep' } }
+              : { NOT: { name: { contains: 'top-tier prep' } } }),
+          },
+          include: { answers: true },
+          orderBy: { updatedAt: 'desc' },
+        })
+      );
 
-    // Question count is governed by quality, not by user setting: Standard = 25, Premium = 50.
-    // We deliberately do NOT honour `userSettings.maxPreComputedQs` here so a free user cannot
-    // bump it to 200 client-side and burn premium tokens at standard prices.
-    const quality = input.responseQualityMode === 'premium' ? 'PREMIUM' : 'STANDARD';
-    const maxQuestions = MODEL_BY_QUALITY[quality].preGenAnswerBank;
+      if (existingBank) {
+        return reply.send({ bank: existingBank, fromCache: true });
+      }
 
-    const generatedAnswers = await generatePrepAnswers({
-      resumeText: input.resumeText,
-      jobDescription: input.jobDescription,
-      interviewType: input.interviewType,
-      maxQuestions,
-      responseQualityMode: input.responseQualityMode,
-    });
+      // Question count is governed by quality, not by user setting: Standard = 25, Premium = 50.
+      // We deliberately do NOT honour `userSettings.maxPreComputedQs` here so a free user cannot
+      // bump it to 200 client-side and burn premium tokens at standard prices.
+      const quality = input.responseQualityMode === 'premium' ? 'PREMIUM' : 'STANDARD';
+      const maxQuestions = MODEL_BY_QUALITY[quality].preGenAnswerBank;
 
-    if (generatedAnswers.length === 0) {
-      throw new ValidationError('The AI response did not contain any usable prep questions.');
-    }
-
-    const prisma = getPrisma();
-    const bank = await prisma.answerBank.create({
-      data: {
-        userId: request.user.sub,
-        name: deriveBankName(input.name, input.interviewType, input.responseQualityMode),
+      const generatedAnswers = await generatePrepAnswers({
         resumeText: input.resumeText,
         jobDescription: input.jobDescription,
         interviewType: input.interviewType,
-        answers: {
-          create: generatedAnswers.map((answer) => ({
-            question: answer.question,
-            response: answer.answer,
-            questionType: answer.type,
-          })),
-        },
-      },
-      include: { answers: true },
-    });
+        maxQuestions,
+        responseQualityMode: input.responseQualityMode,
+      });
 
-    reply.status(201).send({ bank, fromCache: false });
-  });
+      if (generatedAnswers.length === 0) {
+        throw new ValidationError('The AI response did not contain any usable prep questions.');
+      }
+
+      const prisma = getPrisma();
+      const bank = await prisma.answerBank.create({
+        data: {
+          userId: request.user.sub,
+          name: deriveBankName(input.name, input.interviewType, input.responseQualityMode),
+          resumeText: input.resumeText,
+          jobDescription: input.jobDescription,
+          interviewType: input.interviewType,
+          answers: {
+            create: generatedAnswers.map((answer) => ({
+              question: answer.question,
+              response: answer.answer,
+              questionType: answer.type,
+            })),
+          },
+        },
+        include: { answers: true },
+      });
+
+      reply.status(201).send({ bank, fromCache: false });
+    }
+  );
 
   // Get single bank with answers
   app.get(
@@ -206,7 +210,7 @@ async function generatePrepAnswers(input: {
   interviewType: string;
   maxQuestions: number;
   responseQualityMode: 'standard' | 'premium';
-}): Promise<Array<z.infer<typeof generatedAnswerSchema>>> {
+}): Promise<z.infer<typeof generatedAnswerSchema>[]> {
   const env = getEnv();
   if (!env.OPENAI_API_KEY) {
     throw new ValidationError('OPENAI_API_KEY is not configured on the server.');
@@ -241,12 +245,14 @@ async function generatePrepAnswers(input: {
   });
 
   const payload = (await response.json()) as {
-    choices?: Array<{ message?: { content?: string | null } }>;
+    choices?: { message?: { content?: string | null } }[];
     error?: { message?: string };
   };
 
   if (!response.ok) {
-    throw new ValidationError(payload.error?.message || `OpenAI request failed (${response.status})`);
+    throw new ValidationError(
+      payload.error?.message || `OpenAI request failed (${response.status})`
+    );
   }
 
   const content = payload.choices?.[0]?.message?.content?.trim();
@@ -279,9 +285,11 @@ INTERVIEW TYPE:
 ${input.interviewType}
 
 RESPONSE QUALITY MODE:
-${input.responseQualityMode === 'premium'
-  ? 'Top-tier. Answers should be action-heavy, quantified when supported, explicit about judgment and tradeoffs, and strong enough to impress a senior interviewer without sounding scripted.'
-  : 'Standard. Answers should be concise, direct, and natural out loud.'}
+${
+  input.responseQualityMode === 'premium'
+    ? 'Top-tier. Answers should be action-heavy, quantified when supported, explicit about judgment and tradeoffs, and strong enough to impress a senior interviewer without sounding scripted.'
+    : 'Standard. Answers should be concise, direct, and natural out loud.'
+}
 
 Return ONLY a JSON array in this exact shape:
 [
@@ -305,7 +313,7 @@ Rules:
   `.trim();
 }
 
-function parseGeneratedAnswers(content: string): Array<Record<string, string>> {
+function parseGeneratedAnswers(content: string): Record<string, string>[] {
   let jsonString = content.trim();
 
   const firstBracket = jsonString.indexOf('[');

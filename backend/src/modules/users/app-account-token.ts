@@ -1,5 +1,7 @@
-import { randomUUID } from 'crypto';
+import { randomUUID } from 'node:crypto';
+
 import { Prisma } from '@prisma/client';
+
 import type { DatabaseClient } from '../../config/database.js';
 
 type UserClient = Pick<DatabaseClient | Prisma.TransactionClient, 'user'>;
@@ -25,10 +27,7 @@ export async function ensureAppAccountToken(
 
     return updated.appAccountToken;
   } catch (error) {
-    if (
-      error instanceof Prisma.PrismaClientKnownRequestError &&
-      error.code === 'P2002'
-    ) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
       const existing = await prisma.user.findUniqueOrThrow({
         where: { id: user.id },
         select: { appAccountToken: true },

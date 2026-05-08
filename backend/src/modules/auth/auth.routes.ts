@@ -1,4 +1,5 @@
-import { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+
 import { buildAuthHandlers } from './auth.controller.js';
 import {
   forgotPasswordSchema,

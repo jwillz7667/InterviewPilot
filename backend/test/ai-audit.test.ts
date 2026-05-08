@@ -1,6 +1,7 @@
+import type { FastifyInstance } from 'fastify';
+import Fastify from 'fastify';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { ZodError } from 'zod';
-import Fastify, { FastifyInstance } from 'fastify';
 
 const { warnSpy } = vi.hoisted(() => ({ warnSpy: vi.fn() }));
 
@@ -15,9 +16,8 @@ vi.mock('../src/utils/logger.js', () => ({
   }),
 }));
 
-const { auditUnknownKeys, parseOrAudit, FORBIDDEN_CLIENT_FIELDS } = await import(
-  '../src/modules/ai/ai.audit.js'
-);
+const { auditUnknownKeys, parseOrAudit, FORBIDDEN_CLIENT_FIELDS } =
+  await import('../src/modules/ai/ai.audit.js');
 const { chatSchema } = await import('../src/modules/ai/ai.schema.js');
 
 const validBody = {
@@ -26,11 +26,12 @@ const validBody = {
   messages: [{ role: 'user' as const, content: 'Tell me about yourself.' }],
 };
 
-const fakeReq = (overrides: Partial<{ userId: string; ip: string; url: string }> = {}) => ({
-  user: { sub: overrides.userId ?? 'user-test-123' },
-  ip: overrides.ip ?? '203.0.113.42',
-  url: overrides.url ?? '/api/v1/ai/chat',
-}) as unknown as Parameters<typeof parseOrAudit>[2];
+const fakeReq = (overrides: Partial<{ userId: string; ip: string; url: string }> = {}) =>
+  ({
+    user: { sub: overrides.userId ?? 'user-test-123' },
+    ip: overrides.ip ?? '203.0.113.42',
+    url: overrides.url ?? '/api/v1/ai/chat',
+  }) as unknown as Parameters<typeof parseOrAudit>[2];
 
 describe('FORBIDDEN_CLIENT_FIELDS', () => {
   it('contains the security-critical engine-control fields', () => {

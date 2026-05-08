@@ -1,7 +1,8 @@
-import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
-import { authenticate } from '../../middleware/authenticate.js';
-import { withDatabaseRetry } from '../../config/database.js';
+import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { z } from 'zod';
+
+import { withDatabaseRetry } from '../../config/database.js';
+import { authenticate } from '../../middleware/authenticate.js';
 
 const updateProfileSchema = z.object({
   displayName: z.string().max(200).nullable().optional(),

@@ -27,11 +27,23 @@ function parent(thisArg: unknown): ParentClient {
 
 function makeHandlers(model: SoftDeletableModel) {
   return {
-    async findMany({ args, query }: { args: { where?: Record<string, unknown> }; query: (a: unknown) => unknown }) {
+    async findMany({
+      args,
+      query,
+    }: {
+      args: { where?: Record<string, unknown> };
+      query: (a: unknown) => unknown;
+    }) {
       args.where = { ...args.where, deletedAt: null };
       return query(args);
     },
-    async findFirst({ args, query }: { args: { where?: Record<string, unknown> }; query: (a: unknown) => unknown }) {
+    async findFirst({
+      args,
+      query,
+    }: {
+      args: { where?: Record<string, unknown> };
+      query: (a: unknown) => unknown;
+    }) {
       args.where = { ...args.where, deletedAt: null };
       return query(args);
     },

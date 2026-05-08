@@ -1,9 +1,11 @@
-import { createHash, randomBytes } from 'crypto';
+import { createHash, randomBytes } from 'node:crypto';
+
 import * as argon2 from 'argon2';
+
 import { getPrisma, withDatabaseRetry } from '../../config/database.js';
 import { sendPasswordResetEmail } from '../../services/email.js';
-import { UnauthorizedError, ValidationError } from '../../utils/errors.js';
 import { passwordSchema } from '../../shared/validation/password.js';
+import { UnauthorizedError, ValidationError } from '../../utils/errors.js';
 
 const TOKEN_EXPIRY_HOURS = 1;
 
@@ -25,7 +27,7 @@ export async function requestPasswordReset(email: string): Promise<void> {
   );
 
   // Silently return if user doesn't exist or has no password (Apple-only accounts)
-  if (!user || !user.passwordHash) return;
+  if (!user?.passwordHash) return;
 
   const rawToken = randomBytes(32).toString('hex');
   const tokenHash = hashToken(rawToken);

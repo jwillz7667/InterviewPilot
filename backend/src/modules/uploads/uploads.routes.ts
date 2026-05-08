@@ -1,16 +1,19 @@
-import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
-import { authenticate } from '../../middleware/authenticate.js';
+import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { z } from 'zod';
+
+import { authenticate } from '../../middleware/authenticate.js';
 import {
   generateUploadPresignedUrl,
   generateDownloadPresignedUrl,
   isKeyOwnedBy,
 } from '../../services/storage.js';
 
-const presignedUrlSchema = z.object({
-  filename: z.string().min(1).max(255),
-  contentType: z.string().min(1).max(100),
-}).strict();
+const presignedUrlSchema = z
+  .object({
+    filename: z.string().min(1).max(255),
+    contentType: z.string().min(1).max(100),
+  })
+  .strict();
 
 export async function uploadsRoutes(app: FastifyInstance) {
   app.addHook('onRequest', authenticate);
