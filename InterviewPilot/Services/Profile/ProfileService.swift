@@ -22,8 +22,7 @@ final class ProfileService {
 
         do {
             let fetched: UserProfile = try await apiClient.get("/api/v1/users/me/profile")
-            profile = fetched
-            cacheProfile(fetched)
+            apply(fetched)
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -31,8 +30,16 @@ final class ProfileService {
 
     func updateProfile(_ updates: ProfileUpdate) async throws {
         let updated: UserProfile = try await apiClient.patch("/api/v1/users/me/profile", body: updates)
-        profile = updated
-        cacheProfile(updated)
+        apply(updated)
+    }
+
+    /// Single write path for fresh profile data from the backend. Persists to
+    /// the in-memory store, the UserDefaults cache, and reconciles AuthService's
+    /// display-name cache so all source-of-truth surfaces stay consistent.
+    private func apply(_ fresh: UserProfile) {
+        profile = fresh
+        cacheProfile(fresh)
+        AuthService.shared.updateCachedDisplayName(fresh.displayName)
     }
 
     func updateWorkExperience(_ entries: [WorkExperienceEntry]) async throws {

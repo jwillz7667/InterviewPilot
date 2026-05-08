@@ -241,12 +241,30 @@ final class AuthService {
             token: token
         )
 
-        _ = KeychainService.save(key: .displayName, value: displayName)
+        updateCachedDisplayName(displayName)
+    }
+
+    /// Reconciles the in-memory `currentUser.displayName` with the Keychain copy.
+    /// Call after any code path that persists a new display name (e.g. profile
+    /// PATCH from `ProfileService`) so consumers reading `currentUser` — settings
+    /// header, dashboard greeting, profile editor — see the new value without
+    /// an app relaunch. Trims whitespace; an empty value clears the cache.
+    func updateCachedDisplayName(_ displayName: String?) {
+        let trimmed = displayName?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalized = (trimmed?.isEmpty ?? true) ? nil : trimmed
+
+        if let normalized {
+            _ = KeychainService.save(key: .displayName, value: normalized)
+        } else {
+            _ = KeychainService.delete(key: .displayName)
+        }
+
+        guard let user = currentUser else { return }
         currentUser = AuthUser(
-            id: currentUser?.id ?? "",
-            email: currentUser?.email ?? "",
-            displayName: displayName,
-            appAccountToken: currentUser?.appAccountToken ?? ""
+            id: user.id,
+            email: user.email,
+            displayName: normalized,
+            appAccountToken: user.appAccountToken
         )
     }
 

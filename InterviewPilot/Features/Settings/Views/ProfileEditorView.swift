@@ -70,8 +70,15 @@ struct ProfileEditorView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Done") { dismiss() }
-                        .foregroundStyle(IATheme.accent)
+                    Button(action: saveAndDismiss) {
+                        if isSaving {
+                            ProgressView().tint(IATheme.accent)
+                        } else {
+                            Text("Save")
+                                .foregroundStyle(IATheme.accent)
+                        }
+                    }
+                    .disabled(isSaving)
                 }
             }
             .onAppear { loadFromProfile() }
@@ -644,8 +651,12 @@ struct ProfileEditorView: View {
     }
 
     private func loadFromProfile() {
-        displayName = authService.currentUser?.displayName ?? ""
+        // Profile is the canonical source — refreshed from backend on app
+        // launch and after every save. AuthService.currentUser is a Keychain
+        // cache only refreshed at app start, so it can lag behind. Read profile
+        // first; fall back to auth only when the profile hasn't loaded yet.
         if let profile = profileService.profile {
+            displayName = profile.displayName ?? authService.currentUser?.displayName ?? ""
             linkedInURL = profile.linkedinUrl ?? ""
             currentRole = profile.currentRole ?? ""
             currentCompany = profile.currentCompany ?? ""
@@ -657,6 +668,8 @@ struct ProfileEditorView: View {
             if let goalStr = profile.primaryGoal {
                 primaryGoal = UserGoal(rawValue: goalStr)
             }
+        } else {
+            displayName = authService.currentUser?.displayName ?? ""
         }
     }
 
@@ -717,42 +730,64 @@ struct ProfileEditorView: View {
     }
 
     private func save() {
+        Task { await performSave(dismissOnSuccess: true, showBanner: true) }
+    }
+
+    private func saveAndDismiss() {
+        Task {
+            await performSave(dismissOnSuccess: true, showBanner: false)
+        }
+    }
+
+    private func performSave(dismissOnSuccess: Bool, showBanner: Bool) async {
+        guard !isSaving else { return }
+
         isSaving = true
         errorMessage = nil
         showSuccessBanner = false
+        defer { isSaving = false }
 
-        Task {
-            do {
-                let updates = ProfileUpdate(
-                    displayName: displayName,
-                    linkedinUrl: linkedInURL.isEmpty ? nil : linkedInURL,
-                    primaryGoal: primaryGoal?.rawValue,
-                    resumeText: resumeText.isEmpty ? nil : resumeText,
-                    currentRole: currentRole.isEmpty ? nil : currentRole,
-                    currentCompany: currentCompany.isEmpty ? nil : currentCompany,
-                    yearsInRole: yearsInRole > 0 ? yearsInRole : nil
-                )
-                try await profileService.updateProfile(updates)
+        let trimmedName = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedLinkedIn = linkedInURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedRole = currentRole.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedCompany = currentCompany.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedResume = resumeText.trimmingCharacters(in: .whitespacesAndNewlines)
 
-                // Sync display name to Keychain for local persistence
-                if !displayName.isEmpty {
-                    _ = KeychainService.save(key: .displayName, value: displayName)
-                }
+        do {
+            let updates = ProfileUpdate(
+                displayName: trimmedName.isEmpty ? nil : trimmedName,
+                linkedinUrl: trimmedLinkedIn.isEmpty ? nil : trimmedLinkedIn,
+                primaryGoal: primaryGoal?.rawValue,
+                resumeText: trimmedResume.isEmpty ? nil : trimmedResume,
+                currentRole: trimmedRole.isEmpty ? nil : trimmedRole,
+                currentCompany: trimmedCompany.isEmpty ? nil : trimmedCompany,
+                yearsInRole: yearsInRole > 0 ? yearsInRole : nil
+            )
+            try await profileService.updateProfile(updates)
 
-                if !workExperiences.isEmpty {
-                    try await profileService.updateWorkExperience(workExperiences)
-                }
+            // Reflect normalized values back into the form so the user sees
+            // exactly what was persisted, not their pre-trim input.
+            displayName = trimmedName
+            linkedInURL = trimmedLinkedIn
+            currentRole = trimmedRole
+            currentCompany = trimmedCompany
+            resumeText = trimmedResume
 
-                try await profileService.updateSkills(skills)
-
-                showSuccessBanner = true
-
-                try? await Task.sleep(for: .seconds(1.2))
-                dismiss()
-            } catch {
-                errorMessage = error.localizedDescription
+            if !workExperiences.isEmpty {
+                try await profileService.updateWorkExperience(workExperiences)
             }
-            isSaving = false
+
+            try await profileService.updateSkills(skills)
+
+            if showBanner {
+                showSuccessBanner = true
+                try? await Task.sleep(for: .seconds(1.2))
+            }
+            if dismissOnSuccess {
+                dismiss()
+            }
+        } catch {
+            errorMessage = error.localizedDescription
         }
     }
 
