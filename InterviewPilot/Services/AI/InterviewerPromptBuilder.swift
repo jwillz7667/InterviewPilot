@@ -10,7 +10,8 @@ enum InterviewerPromptBuilder {
         jobDescription: String,
         interviewType: InterviewType,
         companyName: String?,
-        positionTitle: String?
+        positionTitle: String?,
+        candidateName: String? = nil
     ) -> String {
         let company = companyName ?? "a leading technology company"
         let position = positionTitle ?? "Software Engineer"
@@ -19,6 +20,7 @@ enum InterviewerPromptBuilder {
         let interviewLabel = interviewType.displayName
 
         let questionStrategy = questionStrategySection(for: interviewType)
+        let greeting = greetingName(explicit: candidateName, fallbackResume: truncatedResume)
 
         return """
         # Role Definition
@@ -127,7 +129,7 @@ enum InterviewerPromptBuilder {
         Begin the interview immediately with your introduction. Use this template as a guide \
         (adapt naturally, do not read it verbatim):
 
-        "Hi \(openingGreeting(from: truncatedResume)), I'm Alex, and I'll be conducting your \
+        "Hi \(greeting), I'm Alex, and I'll be conducting your \
         \(interviewLabel.lowercased()) interview today for the \(position) role at \(company). \
         We'll spend about 30 minutes together. I'll ask you a series of questions, and feel free \
         to take a moment to think before answering. Let's get started — [first warm-up question]."
@@ -135,6 +137,22 @@ enum InterviewerPromptBuilder {
         Replace "[first warm-up question]" with an actual warm-up question relevant to the \
         candidate's background or the role. Do not leave it as a placeholder.
         """
+    }
+
+    /// Resolves the greeting name: prefers an explicit candidate first name, then falls back to
+    /// a heuristic extraction from the resume's first line, then to "there".
+    private static func greetingName(explicit: String?, fallbackResume: String) -> String {
+        if let explicit, !explicit.isEmpty {
+            let firstName = explicit
+                .split(separator: " ")
+                .first
+                .map(String.init)?
+                .trimmingCharacters(in: CharacterSet.whitespacesAndNewlines.union(.punctuationCharacters))
+            if let firstName, !firstName.isEmpty {
+                return firstName
+            }
+        }
+        return openingGreeting(from: fallbackResume)
     }
 
     // MARK: - Question Strategy Per Interview Type

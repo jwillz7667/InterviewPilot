@@ -42,6 +42,8 @@ final class LiveSessionViewModel {
     let preComputedAnswers: [PreComputedAnswer]
     let modelConfig: ModelConfig?
     let communicationStyle: String?
+    let candidate: CandidateContext?
+    let jobRequirements: StructuredJobRequirements?
 
     // Private state
     private var accumulatedTranscript: String = ""  // Finalized segments only
@@ -130,7 +132,9 @@ final class LiveSessionViewModel {
         responseQualityMode: ResponseQualityMode,
         preComputedAnswers: [PreComputedAnswer],
         modelConfig: ModelConfig? = nil,
-        communicationStyle: String? = nil
+        communicationStyle: String? = nil,
+        candidate: CandidateContext? = nil,
+        jobRequirements: StructuredJobRequirements? = nil
     ) {
         self.sessionId = sessionId
         self.resume = resume
@@ -146,6 +150,8 @@ final class LiveSessionViewModel {
         self.preComputedAnswers = preComputedAnswers
         self.modelConfig = modelConfig
         self.communicationStyle = communicationStyle
+        self.candidate = candidate
+        self.jobRequirements = jobRequirements
 
         self.audioCapture = AudioCaptureService()
         self.deepgram = DeepgramService()
@@ -403,7 +409,9 @@ final class LiveSessionViewModel {
             emphasis: responseEmphasis,
             qualityMode: responseQualityMode,
             includeResume: responseQualityMode != .free,
-            communicationStyle: communicationStyle
+            communicationStyle: communicationStyle,
+            candidate: candidate,
+            jobRequirements: jobRequirements
         )
         responseGenerator.preWarmConnection()
 

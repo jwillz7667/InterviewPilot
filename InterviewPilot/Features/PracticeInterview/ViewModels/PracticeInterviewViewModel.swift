@@ -43,6 +43,11 @@ final class PracticeInterviewViewModel {
     let profileId: String?
     let companyName: String?
     let positionTitle: String?
+    let jobCategory: JobCategory
+    let positionLevel: PositionLevel
+    let candidate: CandidateContext?
+    let jobRequirements: StructuredJobRequirements?
+    let communicationStyle: String?
 
     // Private
     private var exchanges: [Exchange] = []
@@ -99,7 +104,12 @@ final class PracticeInterviewViewModel {
         jobListingUrl: String?,
         profileId: String?,
         companyName: String?,
-        positionTitle: String?
+        positionTitle: String?,
+        jobCategory: JobCategory = .softwareEngineering,
+        positionLevel: PositionLevel = .seniorIndividualContributor,
+        candidate: CandidateContext? = nil,
+        jobRequirements: StructuredJobRequirements? = nil,
+        communicationStyle: String? = nil
     ) {
         self.sessionId = sessionId
         self.resume = resume
@@ -109,6 +119,11 @@ final class PracticeInterviewViewModel {
         self.profileId = profileId
         self.companyName = companyName
         self.positionTitle = positionTitle
+        self.jobCategory = jobCategory
+        self.positionLevel = positionLevel
+        self.candidate = candidate
+        self.jobRequirements = jobRequirements
+        self.communicationStyle = communicationStyle
 
         self.audioCapture = AudioCaptureService(
             targetSampleRate: Double(APIConfig.realtimeSampleRate),
@@ -119,19 +134,24 @@ final class PracticeInterviewViewModel {
         self.audioPlayback = RealtimeAudioPlaybackService()
         self.responseGenerator = ResponseGeneratorService()
 
-        // Build the candidate-side prompt for generating ideal answers
+        // Build the candidate-side prompt for generating ideal answers.
+        // jobCategory/positionLevel/jobRequirements are derived from the analyzed listing
+        // (or sensible SWE defaults when missing); candidate carries identity + projects + skills.
         self.cachedBasePrompt = PromptBuilder.buildBasePrompt(
             resume: resume,
             jobDescription: jobDescription,
             interviewType: interviewType.rawValue,
-            jobCategory: .softwareEngineering,
-            positionLevel: .seniorIndividualContributor,
+            jobCategory: jobCategory,
+            positionLevel: positionLevel,
             format: .fullAnswer,
             behavior: .direct,
             tone: .confident,
             emphasis: .technicalDepth,
             qualityMode: .premium,
-            includeResume: true
+            includeResume: true,
+            communicationStyle: communicationStyle,
+            candidate: candidate,
+            jobRequirements: jobRequirements
         )
 
         setupCallbacks()
@@ -306,7 +326,8 @@ final class PracticeInterviewViewModel {
             jobDescription: jobDescription,
             interviewType: interviewType,
             companyName: companyName,
-            positionTitle: positionTitle
+            positionTitle: positionTitle,
+            candidateName: candidate?.candidateName
         )
 
         do {

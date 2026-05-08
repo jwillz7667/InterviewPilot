@@ -19,6 +19,9 @@ struct PracticeInterviewLaunchView: View {
     @State private var analyzedJobDescription: String
     @State private var analyzedCompanyName: String?
     @State private var analyzedPositionTitle: String?
+    @State private var analyzedJobCategory: JobCategory?
+    @State private var analyzedPositionLevel: PositionLevel?
+    @State private var analyzedJobRequirements: StructuredJobRequirements?
     @State private var selectedInterviewType: InterviewType
 
     @Environment(\.dismiss) private var dismiss
@@ -537,6 +540,9 @@ struct PracticeInterviewLaunchView: View {
 
                 analyzedPositionTitle = analysis.title
                 analyzedCompanyName = structured.companyName ?? structured.roleTitle ?? nil
+                analyzedJobCategory = analysis.jobCategory
+                analyzedPositionLevel = analysis.positionLevel
+                analyzedJobRequirements = structured
 
                 var sections: [String] = []
                 if !analysis.title.isEmpty {
@@ -789,6 +795,20 @@ struct PracticeInterviewLaunchView: View {
     }
 
     private func buildViewModel(sessionId: UUID) -> PracticeInterviewViewModel {
+        let candidate = CandidateContext.build(
+            from: selectedProfile,
+            accountProfile: ProfileService.shared.profile,
+            authDisplayName: AuthService.shared.currentUser?.displayName
+        )
+
+        // Re-derive structured analysis from the prepopulated job description when the user
+        // landed here via "Practice Again" (no fresh URL fetch ran). Heuristic, but the same
+        // analyzer runs in the live setup flow so the prompt sees consistent extraction.
+        let derivedRequirements = analyzedJobRequirements ?? (
+            analyzedJobDescription.isEmpty ? nil
+            : JobDescriptionAnalyzer.analyze(title: analyzedPositionTitle, rawText: analyzedJobDescription)
+        )
+
         return PracticeInterviewViewModel(
             sessionId: sessionId,
             resume: enrichedResume,
@@ -797,7 +817,12 @@ struct PracticeInterviewLaunchView: View {
             jobListingUrl: jobListingURLInput.isEmpty ? nil : jobListingURLInput,
             profileId: selectedProfileId ?? initialProfileId,
             companyName: analyzedCompanyName,
-            positionTitle: analyzedPositionTitle
+            positionTitle: analyzedPositionTitle,
+            jobCategory: analyzedJobCategory ?? .softwareEngineering,
+            positionLevel: analyzedPositionLevel ?? .seniorIndividualContributor,
+            candidate: candidate.isEmpty ? nil : candidate,
+            jobRequirements: derivedRequirements,
+            communicationStyle: selectedProfile?.communicationStyle
         )
     }
 }

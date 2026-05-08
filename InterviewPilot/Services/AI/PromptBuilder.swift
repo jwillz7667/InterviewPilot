@@ -18,7 +18,9 @@ enum PromptBuilder {
         emphasis: ResponseEmphasis,
         qualityMode: ResponseQualityMode,
         includeResume: Bool = true,
-        communicationStyle: String? = nil
+        communicationStyle: String? = nil,
+        candidate: CandidateContext? = nil,
+        jobRequirements: StructuredJobRequirements? = nil
     ) -> String {
         let roleProfile = RoleResponseProfile.derive(
             jobCategory: jobCategory,
@@ -51,7 +53,9 @@ enum PromptBuilder {
             roleProfile: roleProfile,
             qualityDirective: qualityDirective,
             includeResume: includeResume,
-            communicationStyle: communicationStyle
+            communicationStyle: communicationStyle,
+            candidate: candidate,
+            jobRequirements: jobRequirements
         )
     }
 
@@ -118,7 +122,9 @@ enum PromptBuilder {
         tone: ResponseTone,
         emphasis: ResponseEmphasis,
         qualityMode: ResponseQualityMode,
-        includeResume: Bool = true
+        includeResume: Bool = true,
+        candidate: CandidateContext? = nil,
+        jobRequirements: StructuredJobRequirements? = nil
     ) -> String {
         let base = buildBasePrompt(
             resume: resume,
@@ -131,7 +137,9 @@ enum PromptBuilder {
             tone: tone,
             emphasis: emphasis,
             qualityMode: qualityMode,
-            includeResume: includeResume
+            includeResume: includeResume,
+            candidate: candidate,
+            jobRequirements: jobRequirements
         )
         return buildFullPrompt(
             basePrompt: base,
@@ -156,7 +164,9 @@ enum PromptBuilder {
         roleProfile: RoleResponseProfile,
         qualityDirective: String,
         includeResume: Bool = true,
-        communicationStyle: String? = nil
+        communicationStyle: String? = nil,
+        candidate: CandidateContext? = nil,
+        jobRequirements: StructuredJobRequirements? = nil
     ) -> String {
         let communicationStyleDirective: String
         if let style = communicationStyle, !style.isEmpty {
@@ -185,6 +195,31 @@ enum PromptBuilder {
             ## Candidate Resume
             [Resume not available on the current plan. Generate answers based on the job description and general best practices for the role.]
             """
+        }
+
+        // Structured personalization sections (Identity / Projects / Stack Match) — when a
+        // CandidateContext is available these short, dense blocks dominate the model's
+        // attention much more reliably than the same data buried inside the resume blob.
+        let candidateSection: String
+        if let candidate, !candidate.isEmpty {
+            let rendered = candidate.promptSection(jobRequirements: jobRequirements)
+            candidateSection = rendered.isEmpty ? "" : rendered + "\n\n"
+        } else {
+            candidateSection = ""
+        }
+
+        // Job requirements get their own structured block as well so the model sees
+        // company / required-stack / responsibilities outside the prose blob.
+        let jobRequirementsSection: String
+        if let jobRequirements {
+            let formatted = jobRequirements.formattedAnalysis
+            jobRequirementsSection = formatted.isEmpty ? "" : """
+
+            ## Structured Job Requirements
+            \(formatted)
+            """
+        } else {
+            jobRequirementsSection = ""
         }
         return """
         # Role and Objective
@@ -334,14 +369,15 @@ enum PromptBuilder {
 
         # Context
 
-        You have access to the candidate's full professional context below. Read ALL of it carefully before generating any answer. Every section is important — the resume, LinkedIn profile, additional notes, job description, and interview metadata all inform how you should answer.
+        You have access to the candidate's full professional context below. Read ALL of it carefully before generating any answer. Every section is important — the candidate identity, key projects, stack signals, resume, LinkedIn profile, additional notes, job description, and interview metadata all inform how you should answer.
 
-        \(resumeSection)
+        \(candidateSection)\(resumeSection)
 
         ## Job Description
         <user_job_description>
         \(jobDescription)
         </user_job_description>
+        \(jobRequirementsSection)
 
         ## Interview Details
         - Interview type: \(interviewType)

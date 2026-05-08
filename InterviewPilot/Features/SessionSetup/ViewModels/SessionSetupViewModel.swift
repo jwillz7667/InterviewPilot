@@ -678,6 +678,11 @@ final class SessionSetupViewModel {
 
     func createLiveViewModel(sessionId: UUID) -> LiveSessionViewModel {
         let profile = derivedProfile
+        let candidate = CandidateContext.build(
+            from: selectedProfile,
+            accountProfile: ProfileService.shared.profile,
+            authDisplayName: authService.currentUser?.displayName
+        )
 
         return LiveSessionViewModel(
             sessionId: sessionId,
@@ -693,7 +698,9 @@ final class SessionSetupViewModel {
             responseQualityMode: responseQualityMode,
             preComputedAnswers: shouldPreGenerate ? preparedAnswers : [],
             modelConfig: subscriptionService.currentEntitlement?.modelConfig,
-            communicationStyle: selectedProfile?.communicationStyle
+            communicationStyle: selectedProfile?.communicationStyle,
+            candidate: candidate.isEmpty ? nil : candidate,
+            jobRequirements: structuredJobRequirements
         )
     }
 
