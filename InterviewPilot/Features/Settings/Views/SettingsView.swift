@@ -222,6 +222,13 @@ struct SettingsView: View {
                 IASettingsRow(icon: "person.2.fill", iconColor: IATheme.tertiary, title: "Interview Profiles") {
                     showProfiles = true
                 }
+
+                Divider().padding(.leading, 54)
+
+                NavigationLink(destination: ActiveSessionsView()) {
+                    IASettingsRowLabel(icon: "lock.shield.fill", iconColor: IATheme.accent, title: "Active Sessions")
+                }
+                .buttonStyle(.plain)
             }
             .padding(.vertical, 8)
             .padding(.horizontal, 14)

@@ -28,6 +28,21 @@ export const logoutSchema = z.object({
   refreshToken: z.string().min(1, 'Refresh token is required'),
 }).strict();
 
+export const listSessionsSchema = z.object({
+  refreshToken: z.string().min(1).optional(),
+}).strict();
+
+export const revokeSessionsSchema = z
+  .object({
+    refreshToken: z.string().min(1).optional(),
+    deviceId: z.string().min(1).optional(),
+    allOthers: z.boolean().optional(),
+  })
+  .strict()
+  .refine((data) => Boolean(data.deviceId) || data.allOthers === true, {
+    message: 'Either deviceId or allOthers=true is required',
+  });
+
 export const forgotPasswordSchema = z.object({
   email: z.string().email(),
 }).strict();

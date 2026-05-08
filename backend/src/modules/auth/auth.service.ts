@@ -435,14 +435,18 @@ export async function authenticateWithApple(input: AppleLoginInput) {
   return user;
 }
 
-export async function createRefreshToken(userId: string, deviceId?: string): Promise<string> {
+export async function createRefreshToken(
+  userId: string,
+  deviceId?: string,
+  userAgent?: string
+): Promise<string> {
   const token = randomBytes(64).toString('hex');
   const tokenHash = hashRefreshToken(token);
   const expiresAt = new Date(Date.now() + REFRESH_TOKEN_EXPIRY_DAYS * 24 * 60 * 60 * 1000);
 
   await withDatabaseRetry((prisma) =>
     prisma.refreshToken.create({
-      data: { tokenHash, userId, deviceId, expiresAt },
+      data: { tokenHash, userId, deviceId, userAgent, expiresAt },
     })
   );
 
@@ -450,7 +454,8 @@ export async function createRefreshToken(userId: string, deviceId?: string): Pro
 }
 
 export async function rotateRefreshToken(
-  oldToken: string
+  oldToken: string,
+  userAgent?: string
 ): Promise<{ userId: string; newToken: string }> {
   const oldTokenHash = hashRefreshToken(oldToken);
   const prisma = getPrisma();
@@ -478,6 +483,7 @@ export async function rotateRefreshToken(
         tokenHash: newTokenHash,
         userId: existing.userId,
         deviceId: existing.deviceId,
+        userAgent: userAgent ?? existing.userAgent,
         expiresAt,
       },
     });
@@ -500,4 +506,66 @@ export async function revokeRefreshToken(token: string): Promise<void> {
       data: { revokedAt: new Date() },
     })
   );
+}
+
+export type SessionSummary = {
+  deviceId: string | null;
+  userAgent: string | null;
+  createdAt: Date;
+  lastUsedAt: Date;
+  current: boolean;
+};
+
+export async function listUserSessions(
+  userId: string,
+  currentToken?: string
+): Promise<SessionSummary[]> {
+  const currentHash = currentToken ? hashRefreshToken(currentToken) : null;
+
+  const rows = await withDatabaseRetry((prisma) =>
+    prisma.refreshToken.findMany({
+      where: {
+        userId,
+        revokedAt: null,
+        expiresAt: { gt: new Date() },
+      },
+      orderBy: { lastUsedAt: 'desc' },
+      select: {
+        tokenHash: true,
+        deviceId: true,
+        userAgent: true,
+        createdAt: true,
+        lastUsedAt: true,
+      },
+    })
+  );
+
+  return rows.map((row) => ({
+    deviceId: row.deviceId,
+    userAgent: row.userAgent,
+    createdAt: row.createdAt,
+    lastUsedAt: row.lastUsedAt,
+    current: currentHash != null && row.tokenHash === currentHash,
+  }));
+}
+
+export async function revokeUserSessions(
+  userId: string,
+  options: { deviceId?: string; exceptToken?: string } = {}
+): Promise<{ revokedCount: number }> {
+  const exceptHash = options.exceptToken ? hashRefreshToken(options.exceptToken) : null;
+
+  const result = await withDatabaseRetry((prisma) =>
+    prisma.refreshToken.updateMany({
+      where: {
+        userId,
+        revokedAt: null,
+        ...(options.deviceId ? { deviceId: options.deviceId } : {}),
+        ...(exceptHash ? { tokenHash: { not: exceptHash } } : {}),
+      },
+      data: { revokedAt: new Date() },
+    })
+  );
+
+  return { revokedCount: result.count };
 }

@@ -26,12 +26,19 @@ export function buildAuthHandlers(app: FastifyInstance) {
     );
   }
 
+  function userAgentOf(request: FastifyRequest): string | undefined {
+    const ua = request.headers['user-agent'];
+    if (!ua) return undefined;
+    if (Array.isArray(ua)) return ua[0]?.slice(0, 255);
+    return ua.slice(0, 255);
+  }
+
   async function register(request: FastifyRequest, reply: FastifyReply) {
     const input = registerSchema.parse(request.body);
     const user = await registerUser(input);
 
     const accessToken = issueAccessToken(user);
-    const refreshToken = await createRefreshToken(user.id);
+    const refreshToken = await createRefreshToken(user.id, undefined, userAgentOf(request));
 
     reply.status(201).send({
       user: {
@@ -50,7 +57,7 @@ export function buildAuthHandlers(app: FastifyInstance) {
     const user = await loginUser(input);
 
     const accessToken = issueAccessToken(user);
-    const refreshToken = await createRefreshToken(user.id, input.deviceId);
+    const refreshToken = await createRefreshToken(user.id, input.deviceId, userAgentOf(request));
 
     reply.send({
       user: {
@@ -68,7 +75,7 @@ export function buildAuthHandlers(app: FastifyInstance) {
     const input = appleLoginSchema.parse(request.body);
     const user = await authenticateWithApple(input);
     const accessToken = issueAccessToken(user);
-    const refreshToken = await createRefreshToken(user.id);
+    const refreshToken = await createRefreshToken(user.id, undefined, userAgentOf(request));
 
     reply.send({
       user: {
@@ -84,7 +91,7 @@ export function buildAuthHandlers(app: FastifyInstance) {
 
   async function refresh(request: FastifyRequest, reply: FastifyReply) {
     const { refreshToken: oldToken } = refreshSchema.parse(request.body);
-    const { userId, newToken } = await rotateRefreshToken(oldToken);
+    const { userId, newToken } = await rotateRefreshToken(oldToken, userAgentOf(request));
 
     const user = await withDatabaseRetry((prisma) =>
       prisma.user.findUniqueOrThrow({

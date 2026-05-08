@@ -26,6 +26,7 @@ import { uploadsRoutes } from './modules/uploads/uploads.routes.js';
 import { aiRoutes } from './modules/ai/ai.routes.js';
 import { requestIdPlugin } from './plugins/request-id.js';
 import entitlementPlugin from './plugins/entitlement.js';
+import idempotencyPlugin from './plugins/idempotency.js';
 import { AppError } from './utils/errors.js';
 import { ZodError } from 'zod';
 
@@ -82,6 +83,7 @@ await app.register(rateLimit, {
 
 await app.register(requestIdPlugin);
 await app.register(entitlementPlugin);
+await app.register(idempotencyPlugin);
 
 // Health check
 app.get('/health', async () => {

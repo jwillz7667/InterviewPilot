@@ -1,7 +1,14 @@
-import { FastifyInstance } from 'fastify';
+import { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { buildAuthHandlers } from './auth.controller.js';
-import { forgotPasswordSchema, resetPasswordSchema } from './auth.schema.js';
+import {
+  forgotPasswordSchema,
+  listSessionsSchema,
+  resetPasswordSchema,
+  revokeSessionsSchema,
+} from './auth.schema.js';
 import { requestPasswordReset, resetPassword } from './password-reset.service.js';
+import { listUserSessions, revokeUserSessions } from './auth.service.js';
+import { authenticate } from '../../middleware/authenticate.js';
 
 const AUTH_BODY_LIMIT = 4 * 1024;
 
@@ -39,5 +46,35 @@ export async function authRoutes(app: FastifyInstance) {
     const { token, password } = resetPasswordSchema.parse(request.body);
     await resetPassword(token, password);
     reply.send({ message: 'Password has been reset successfully.' });
+  });
+
+  await app.register(async function protectedAuthRoutes(protectedApp) {
+    protectedApp.addHook('onRequest', authenticate);
+
+    protectedApp.post(
+      '/api/v1/auth/sessions/list',
+      { bodyLimit: AUTH_BODY_LIMIT },
+      async (request: FastifyRequest, reply: FastifyReply) => {
+        const { refreshToken } = listSessionsSchema.parse(request.body ?? {});
+        const sessions = await listUserSessions(request.user.sub, refreshToken);
+        reply.send({ sessions });
+      }
+    );
+
+    protectedApp.post(
+      '/api/v1/auth/sessions/revoke',
+      { bodyLimit: AUTH_BODY_LIMIT, config: { idempotent: true } },
+      async (request: FastifyRequest, reply: FastifyReply) => {
+        const input = revokeSessionsSchema.parse(request.body);
+        const result = await revokeUserSessions(request.user.sub, {
+          deviceId: input.deviceId,
+          // allOthers semantics: revoke every active session except the caller's.
+          // deviceId-targeted revocation ignores `exceptToken` (we want it gone
+          // regardless of which device is calling).
+          exceptToken: input.allOthers && !input.deviceId ? input.refreshToken : undefined,
+        });
+        reply.send(result);
+      }
+    );
   });
 }
