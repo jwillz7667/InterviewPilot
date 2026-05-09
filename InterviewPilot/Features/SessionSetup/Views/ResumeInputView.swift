@@ -20,7 +20,7 @@ struct ResumeInputView: View {
                                     IABrandLogo(size: 42, showShadow: false, variant: .surface)
                                     Spacer()
                                     Button(action: { showFilePicker = true }) {
-                                        Label("Upload PDF", systemImage: "doc.badge.plus")
+                                        Label("Upload File", systemImage: "doc.badge.plus")
                                     }
                                     .buttonStyle(IASecondaryButtonStyle())
                                 }
@@ -57,14 +57,14 @@ struct ResumeInputView: View {
             }
             .fileImporter(
                 isPresented: $showFilePicker,
-                allowedContentTypes: [.pdf],
+                allowedContentTypes: ResumeFileFormat.allowedContentTypes,
                 allowsMultipleSelection: false
             ) { result in
                 if case .success(let urls) = result, let url = urls.first {
-                    guard url.startAccessingSecurityScopedResource() else { return }
-                    defer { url.stopAccessingSecurityScopedResource() }
-                    if let text = ResumeParserService.extractText(from: url) {
-                        resumeText = text
+                    Task {
+                        if let extracted = try? await ResumeTextExtractor.extract(from: url) {
+                            resumeText = extracted.text
+                        }
                     }
                 }
             }

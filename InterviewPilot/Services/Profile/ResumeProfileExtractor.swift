@@ -1,6 +1,8 @@
 import Foundation
 
 struct ExtractedProfile: Sendable {
+    let displayName: String?
+    let linkedinUrl: String?
     let currentRole: String?
     let currentCompany: String?
     let yearsInRole: Int?
@@ -15,12 +17,15 @@ struct ExtractedProfile: Sendable {
 
 extension ExtractedProfile: Decodable {
     private enum CodingKeys: String, CodingKey {
+        case displayName, linkedinUrl
         case currentRole, currentCompany, yearsInRole, summary
         case skills, workExperiences, education, certifications, projects, achievements
     }
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
+        displayName = try container.decodeIfPresent(String.self, forKey: .displayName)
+        linkedinUrl = try container.decodeIfPresent(String.self, forKey: .linkedinUrl)
         currentRole = try container.decodeIfPresent(String.self, forKey: .currentRole)
         currentCompany = try container.decodeIfPresent(String.self, forKey: .currentCompany)
         yearsInRole = try container.decodeIfPresent(Int.self, forKey: .yearsInRole)
@@ -76,9 +81,13 @@ struct ExtractedAchievement: Codable, Sendable {
 
 enum ResumeProfileExtractor {
     static func extract(from resumeText: String) async throws -> ExtractedProfile {
+        try Task.checkCancellation()
+
         let systemPrompt = """
         Extract a complete professional profile from the following resume. Return ONLY valid JSON with this exact schema:
         {
+          "displayName": "candidate's full name from the resume header (e.g., \\"Jane Doe\\") or null",
+          "linkedinUrl": "candidate's LinkedIn URL exactly as it appears in the resume (e.g., \\"linkedin.com/in/janedoe\\") or null",
           "currentRole": "most recent job title or null",
           "currentCompany": "most recent company or null",
           "yearsInRole": approximate years in most recent role as integer or null,
@@ -128,6 +137,8 @@ enum ResumeProfileExtractor {
         }
 
         CRITICAL RULES:
+        - displayName must be ONLY the candidate's full personal name as it appears at the top of the resume — never a job title, company, or URL.
+        - linkedinUrl must be COPIED VERBATIM from the resume text. Never invent a URL. If no LinkedIn URL is present, return null.
         - Extract ALL work experiences with DETAILED descriptions of key accomplishments, quantified impact, and technologies used for each role
         - For work experience descriptions: combine ALL bullet points from that role into a dense paragraph with specific numbers, metrics, and outcomes
         - Categorize EVERY skill: "language" for programming languages, "framework" for frameworks/libraries, "tool" for devops/tools/platforms, "soft" for leadership/communication
@@ -155,9 +166,13 @@ enum ResumeProfileExtractor {
         let json: [String: Any]
         do {
             json = try await AIClient.shared.chat(body: body)
+        } catch is CancellationError {
+            throw ProfileExtractionError.cancelled
         } catch {
             throw ProfileExtractionError.apiError
         }
+
+        try Task.checkCancellation()
 
         guard let choices = json["choices"] as? [[String: Any]],
               let message = choices.first?["message"] as? [String: Any],
@@ -166,7 +181,11 @@ enum ResumeProfileExtractor {
             throw ProfileExtractionError.parseError
         }
 
-        return try JSONDecoder().decode(ExtractedProfile.self, from: contentData)
+        do {
+            return try JSONDecoder().decode(ExtractedProfile.self, from: contentData)
+        } catch {
+            throw ProfileExtractionError.parseError
+        }
     }
 }
 
@@ -174,12 +193,14 @@ enum ProfileExtractionError: LocalizedError {
     case apiError
     case parseError
     case noApiKey
+    case cancelled
 
     var errorDescription: String? {
         switch self {
         case .apiError: "Failed to analyze resume. Please try again."
         case .parseError: "Could not parse resume data. Try editing your resume text."
         case .noApiKey: "API key not available. Start a session first to configure keys."
+        case .cancelled: "Resume analysis was cancelled."
         }
     }
 }

@@ -84,7 +84,7 @@ struct ProfileEditorView: View {
             .onAppear { loadFromProfile() }
             .fileImporter(
                 isPresented: $showFilePicker,
-                allowedContentTypes: [.pdf],
+                allowedContentTypes: ResumeFileFormat.allowedContentTypes,
                 allowsMultipleSelection: false
             ) { result in
                 handleResumeFile(result)
@@ -692,41 +692,40 @@ struct ProfileEditorView: View {
 
         Task {
             do {
-                let extracted = try await ResumeProfileExtractor.extract(from: resumeText)
-
-                if let role = extracted.currentRole, currentRole.isEmpty {
-                    currentRole = role
-                }
-                if let company = extracted.currentCompany, currentCompany.isEmpty {
-                    currentCompany = company
-                }
-                if let years = extracted.yearsInRole, yearsInRole == 0 {
-                    yearsInRole = years
-                }
-
-                for skill in extracted.skills {
-                    if !skills.contains(where: { $0.name.lowercased() == skill.name.lowercased() }) {
-                        skills.append(SkillEntry(name: skill.name))
-                    }
-                }
-
-                if workExperiences.isEmpty {
-                    workExperiences = extracted.workExperiences.map { exp in
-                        WorkExperienceEntry(
-                            title: exp.title,
-                            company: exp.company,
-                            startYear: exp.startYear,
-                            endYear: exp.endYear
-                        )
-                    }
-                }
-
+                let output = try await ResumeAutofillService.autofillFromText(
+                    resumeText,
+                    documentName: resumeDocumentName ?? "Pasted resume",
+                    existing: ResumeAutofillInput(
+                        displayName: displayName,
+                        currentRole: currentRole,
+                        currentCompany: currentCompany,
+                        yearsInRole: yearsInRole,
+                        linkedInURL: linkedInURL,
+                        skills: skills,
+                        workExperiences: workExperiences
+                    )
+                )
+                applyAutofill(output)
                 showSuccessBanner = true
             } catch {
                 errorMessage = error.localizedDescription
             }
             isExtractingProfile = false
         }
+    }
+
+    private func applyAutofill(_ output: ResumeAutofillOutput) {
+        displayName = output.displayName
+        currentRole = output.currentRole
+        currentCompany = output.currentCompany
+        yearsInRole = output.yearsInRole
+        if !output.linkedInURL.isEmpty {
+            linkedInURL = output.linkedInURL
+        }
+        skills = output.skills
+        workExperiences = output.workExperiences
+        resumeText = output.resumeText
+        resumeDocumentName = output.documentName
     }
 
     private func save() {
@@ -794,17 +793,28 @@ struct ProfileEditorView: View {
     private func handleResumeFile(_ result: Result<[URL], Error>) {
         switch result {
         case .success(let urls):
-            if let url = urls.first {
-                guard url.startAccessingSecurityScopedResource() else { return }
-                defer { url.stopAccessingSecurityScopedResource() }
-
-                resumeDocumentName = url.lastPathComponent
-                if let data = try? Data(contentsOf: url),
-                   let text = ResumeParserService.extractText(from: data) {
-                    resumeText = text
-                    if currentRole.isEmpty && currentCompany.isEmpty && skills.isEmpty {
-                        extractProfileFromResume()
-                    }
+            guard let url = urls.first else { return }
+            isExtractingProfile = true
+            errorMessage = nil
+            Task {
+                defer { isExtractingProfile = false }
+                do {
+                    let output = try await ResumeAutofillService.autofill(
+                        from: url,
+                        existing: ResumeAutofillInput(
+                            displayName: displayName,
+                            currentRole: currentRole,
+                            currentCompany: currentCompany,
+                            yearsInRole: yearsInRole,
+                            linkedInURL: linkedInURL,
+                            skills: skills,
+                            workExperiences: workExperiences
+                        )
+                    )
+                    applyAutofill(output)
+                    showSuccessBanner = true
+                } catch {
+                    errorMessage = error.localizedDescription
                 }
             }
         case .failure(let error):
