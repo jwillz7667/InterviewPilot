@@ -125,5 +125,7 @@ jobs:
           echo "Selecting $XCODE"
           sudo xcode-select -s "$XCODE/Contents/Developer"
           xcodebuild -version
+      - name: List installed iOS runtimes
+        run: xcrun simctl list runtimes
       - name: Build iOS App
-        run: xcodebuild -project InterviewPilot.xcodeproj -scheme InterviewPilot -configuration Debug -destination 'generic/platform=iOS' build CODE_SIGNING_ALLOWED=NO CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO
+        run: xcodebuild -project InterviewPilot.xcodeproj -scheme InterviewPilot -configuration Debug -sdk iphonesimulator build CODE_SIGNING_ALLOWED=NO CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO ONLY_ACTIVE_ARCH=NO
