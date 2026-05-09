@@ -4,6 +4,7 @@ import { withDatabaseRetry } from '../../config/database.js';
 
 import {
   appleLoginSchema,
+  linkedinLoginSchema,
   loginSchema,
   logoutSchema,
   refreshSchema,
@@ -17,6 +18,7 @@ import {
   rotateRefreshToken,
   revokeRefreshToken,
 } from './auth.service.js';
+import { authenticateWithLinkedIn } from './linkedin.service.js';
 
 const ACCESS_TOKEN_TTL = '15m';
 
@@ -88,6 +90,24 @@ export function buildAuthHandlers(app: FastifyInstance) {
     });
   }
 
+  async function linkedin(request: FastifyRequest, reply: FastifyReply) {
+    const input = linkedinLoginSchema.parse(request.body);
+    const user = await authenticateWithLinkedIn(input);
+    const accessToken = issueAccessToken(user);
+    const refreshToken = await createRefreshToken(user.id, input.deviceId, userAgentOf(request));
+
+    reply.send({
+      user: {
+        id: user.id,
+        email: user.email,
+        displayName: user.displayName,
+        appAccountToken: user.appAccountToken,
+      },
+      accessToken,
+      refreshToken,
+    });
+  }
+
   async function refresh(request: FastifyRequest, reply: FastifyReply) {
     const { refreshToken: oldToken } = refreshSchema.parse(request.body);
     const { userId, newToken } = await rotateRefreshToken(oldToken, userAgentOf(request));
@@ -110,5 +130,5 @@ export function buildAuthHandlers(app: FastifyInstance) {
     reply.send({ success: true });
   }
 
-  return { register, login, apple, refresh, logout };
+  return { register, login, apple, linkedin, refresh, logout };
 }

@@ -27,6 +27,14 @@ export const appleLoginSchema = z
   })
   .strict();
 
+export const linkedinLoginSchema = z
+  .object({
+    code: z.string().min(1, 'Authorization code is required'),
+    redirectUri: z.string().url().min(1, 'redirectUri is required'),
+    deviceId: z.string().min(1).max(128).optional(),
+  })
+  .strict();
+
 export const refreshSchema = z
   .object({
     refreshToken: z.string().min(1, 'Refresh token is required'),
@@ -72,4 +80,5 @@ export const resetPasswordSchema = z
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
 export type AppleLoginInput = z.infer<typeof appleLoginSchema>;
+export type LinkedInLoginInput = z.infer<typeof linkedinLoginSchema>;
 export type RefreshInput = z.infer<typeof refreshSchema>;

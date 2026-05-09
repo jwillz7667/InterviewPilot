@@ -21,6 +21,12 @@ export async function configRoutes(app: FastifyInstance): Promise<void> {
         required: env.APP_ATTEST_REQUIRED,
         environment: env.APP_ATTEST_ENVIRONMENT,
       },
+      linkedin: {
+        clientId: env.LINKEDIN_CLIENT_ID ?? null,
+        redirectUri: env.LINKEDIN_REDIRECT_URI,
+        enabled: Boolean(env.LINKEDIN_CLIENT_ID && env.LINKEDIN_CLIENT_SECRET),
+        scope: 'openid profile email',
+      },
     });
   });
 }

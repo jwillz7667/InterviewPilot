@@ -15,7 +15,7 @@ import { requestPasswordReset, resetPassword } from './password-reset.service.js
 const AUTH_BODY_LIMIT = 4 * 1024;
 
 export async function authRoutes(app: FastifyInstance) {
-  const { register, login, apple, refresh, logout } = buildAuthHandlers(app);
+  const { register, login, apple, linkedin, refresh, logout } = buildAuthHandlers(app);
   const authRouteOptions = {
     bodyLimit: AUTH_BODY_LIMIT,
     config: {
@@ -34,6 +34,7 @@ export async function authRoutes(app: FastifyInstance) {
   app.post('/api/v1/auth/register', authRouteOptions, register);
   app.post('/api/v1/auth/login', authRouteOptions, login);
   app.post('/api/v1/auth/apple', authRouteOptions, apple);
+  app.post('/api/v1/auth/linkedin', authRouteOptions, linkedin);
   app.post('/api/v1/auth/refresh', authRouteOptions, refresh);
   app.post('/api/v1/auth/logout', logoutOptions, logout);
 

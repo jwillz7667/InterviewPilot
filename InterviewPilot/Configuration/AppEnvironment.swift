@@ -2,6 +2,11 @@ import Foundation
 
 enum AppEnvironment {
     static let defaultBackendBaseURL = "https://interviewpilot-production.up.railway.app"
+    /// Default redirect URI for the Sign In with LinkedIn flow. Must be
+    /// registered in the LinkedIn Developer Portal and match the backend's
+    /// `LINKEDIN_REDIRECT_URI` env var. Override via Info.plist key
+    /// `LINKEDIN_REDIRECT_URI` for environments that need a different value.
+    static let defaultLinkedInRedirectURI = "com.res.jobhopperAI://oauth/linkedin/callback"
 
     static var backendBaseURL: String {
         #if DEBUG
@@ -20,6 +25,24 @@ enum AppEnvironment {
         }
 
         return defaultBackendBaseURL
+    }
+
+    static var linkedInRedirectURI: String {
+        if let configured = Bundle.main.object(forInfoDictionaryKey: "LINKEDIN_REDIRECT_URI") as? String {
+            let trimmed = configured.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty { return trimmed }
+        }
+        return defaultLinkedInRedirectURI
+    }
+
+    /// Custom-scheme component used by ASWebAuthenticationSession's
+    /// `callbackURLScheme`. Derived from `linkedInRedirectURI`.
+    static var linkedInCallbackScheme: String {
+        let uri = linkedInRedirectURI
+        if let schemeRange = uri.range(of: "://") {
+            return String(uri[uri.startIndex..<schemeRange.lowerBound])
+        }
+        return uri
     }
 
     /// All AI calls flow through the backend proxy — no master keys are

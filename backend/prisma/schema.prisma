@@ -79,6 +79,7 @@ model User {
 
   appleId       String?   @unique
   googleId      String?   @unique
+  linkedinSub   String?   @unique
   isSandboxTester Boolean @default(false)
 
   linkedinUrl          String?

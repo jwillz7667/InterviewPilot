@@ -140,6 +140,33 @@ final class AuthService {
         }
     }
 
+    /// Drives the Sign In with LinkedIn (OpenID Connect) flow. The backend
+    /// exchanges the authorization code for tokens and finalizes the session,
+    /// so we only forward the redirect-derived `code` + `redirectURI`.
+    func signInWithLinkedIn() async {
+        isLoading = true
+        errorMessage = nil
+        defer { isLoading = false }
+
+        do {
+            let result = try await LinkedInAuthService.shared.authorize()
+            let body: [String: String] = [
+                "code": result.code,
+                "redirectUri": result.redirectURI,
+                "deviceId": deviceId(),
+            ]
+            let response: AuthResponse = try await post(
+                path: "/api/v1/auth/linkedin",
+                body: body
+            )
+            applyAuthenticatedSession(response)
+        } catch LinkedInAuthError.userCanceled {
+            // User dismissed the sheet — no need to surface an error.
+        } catch {
+            errorMessage = parseError(error)
+        }
+    }
+
     func logout() async {
         if let refreshToken = KeychainService.load(key: .refreshToken),
            let accessToken = KeychainService.load(key: .accessToken) {

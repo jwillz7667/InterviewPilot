@@ -69,6 +69,12 @@ const envSchema = z.object({
   // Sentry DSN delivered to iOS clients post-auth via /config; can be a
   // separate DSN from the backend's, but reusing the same project is fine.
   SENTRY_DSN_IOS: z.string().optional(),
+  // Sign In with LinkedIn (OpenID Connect). The redirect URI registered in
+  // the LinkedIn developer portal must match LINKEDIN_REDIRECT_URI exactly,
+  // and iOS must use the same value when launching ASWebAuthenticationSession.
+  LINKEDIN_CLIENT_ID: z.string().optional(),
+  LINKEDIN_CLIENT_SECRET: z.string().optional(),
+  LINKEDIN_REDIRECT_URI: z.string().default('com.res.jobhopperAI://oauth/linkedin/callback'),
 });
 
 export type Env = z.infer<typeof envSchema>;

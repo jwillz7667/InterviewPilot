@@ -63,6 +63,8 @@ struct LoginView: View {
 
                     appleSignInButton
 
+                    linkedInSignInButton
+
                     Button(action: { showEmailAuth = true }) {
                         Text("Continue with Email")
                             .font(IATypography.bodyMedium)
@@ -98,6 +100,26 @@ struct LoginView: View {
         .disabled(authService.isLoading)
     }
 
+    /// LinkedIn brand uses #0A66C2; the button mirrors Apple's height and shape
+    /// so the two CTAs read as a stacked pair, not two unrelated controls.
+    private var linkedInSignInButton: some View {
+        Button(action: handleLinkedInSignIn) {
+            HStack(spacing: 10) {
+                Image(systemName: "link.circle.fill")
+                    .font(.system(size: 20, weight: .semibold))
+                Text("Continue with LinkedIn")
+                    .font(IATypography.bodyMedium.weight(.semibold))
+            }
+            .foregroundStyle(.white)
+            .frame(maxWidth: .infinity)
+            .frame(height: 56)
+            .background(Color(red: 0.039, green: 0.400, blue: 0.761))
+            .clipShape(Capsule())
+        }
+        .disabled(authService.isLoading)
+        .accessibilityLabel("Sign in with LinkedIn")
+    }
+
     private var footer: some View {
         VStack(spacing: 8) {
             HStack(spacing: 16) {
@@ -117,6 +139,12 @@ struct LoginView: View {
             Text("\u{00A9} 2026 Interview Ace AI")
                 .font(IATypography.labelSmall)
                 .foregroundStyle(IATheme.textTertiary)
+        }
+    }
+
+    private func handleLinkedInSignIn() {
+        Task {
+            await authService.signInWithLinkedIn()
         }
     }
 
