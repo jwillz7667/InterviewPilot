@@ -118,10 +118,18 @@ jobs:
     runs-on: macos-26
     steps:
       - uses: actions/checkout@v4
-      - name: Select latest Xcode
+      - name: Select latest stable Xcode
         run: |
           ls /Applications | grep -i ^Xcode
-          XCODE=$(ls -d /Applications/Xcode*.app 2>/dev/null | sort -V | tail -1)
+          # Pick the highest-version *non-beta* Xcode. Beta releases (e.g.
+          # Xcode_26.5_beta_2) require a matching beta iOS simulator runtime
+          # which is rarely pre-installed on the runner — selecting one causes
+          # xcodebuild to demand "iOS 26.5" and fail before it ever sees our
+          # destination UDID.
+          XCODE=$(ls -d /Applications/Xcode_*.app 2>/dev/null | grep -v -i beta | sort -V | tail -1)
+          if [ -z "$XCODE" ]; then
+            XCODE=$(ls -d /Applications/Xcode*.app 2>/dev/null | sort -V | tail -1)
+          fi
           echo "Selecting $XCODE"
           sudo xcode-select -s "$XCODE/Contents/Developer"
           xcodebuild -version
