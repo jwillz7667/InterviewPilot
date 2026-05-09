@@ -1,6 +1,7 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
 import { authenticate } from '../../middleware/authenticate.js';
+import { appAttestHook } from '../attest/attest.middleware.js';
 
 import {
   accessClaimSchema,
@@ -36,6 +37,7 @@ export async function billingRoutes(app: FastifyInstance) {
 
   await app.register(async function protectedBillingRoutes(protectedApp) {
     protectedApp.addHook('onRequest', authenticate);
+    protectedApp.addHook('preHandler', appAttestHook);
 
     protectedApp.get(
       '/api/v1/billing/entitlements',

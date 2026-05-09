@@ -87,6 +87,7 @@ final class DeepgramService {
         // that window to be silently dropped.
         await receiveFirstMessage()
         self.isConnected = true
+        CrashReportingService.breadcrumb(category: "deepgram", message: "ws.opened")
 
         startKeepAlive()
         Task { await receiveMessages() }
@@ -107,6 +108,7 @@ final class DeepgramService {
 
     func disconnect() {
         intentionalDisconnect = true
+        CrashReportingService.breadcrumb(category: "deepgram", message: "ws.closed")
         reconnectTask?.cancel()
         reconnectTask = nil
         keepAliveTask?.cancel()
@@ -162,6 +164,7 @@ final class DeepgramService {
         guard !intentionalDisconnect else { return }
         guard reconnectAttempts < Self.maxReconnectAttempts else {
             isReconnecting = false
+            CrashReportingService.breadcrumb(category: "deepgram", message: "ws.reconnect_failed", level: .error, data: ["reason": reason])
             onError?("Connection lost after \(Self.maxReconnectAttempts) reconnect attempts: \(reason)")
             return
         }

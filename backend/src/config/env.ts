@@ -59,6 +59,16 @@ const envSchema = z.object({
   OTEL_EXPORTER_OTLP_HEADERS: z.string().optional(),
   OTEL_SERVICE_NAME: z.string().default('interviewpilot-backend'),
   OTEL_TRACES_SAMPLER_ARG: z.coerce.number().min(0).max(1).default(0.1),
+  // App Attest. APP_ATTEST_REQUIRED gates whether protected routes reject
+  // requests without a valid assertion header. Ship false for one release so
+  // existing clients can register their key before enforcement turns on.
+  APP_ATTEST_REQUIRED: booleanish.default(false),
+  APP_ATTEST_TEAM_ID: z.string().default('487LC4H9U4'),
+  APP_ATTEST_BUNDLE_ID: z.string().default('com.res.jobhopperAI'),
+  APP_ATTEST_ENVIRONMENT: z.enum(['appattest', 'appattestdevelop']).default('appattest'),
+  // Sentry DSN delivered to iOS clients post-auth via /config; can be a
+  // separate DSN from the backend's, but reusing the same project is fine.
+  SENTRY_DSN_IOS: z.string().optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;

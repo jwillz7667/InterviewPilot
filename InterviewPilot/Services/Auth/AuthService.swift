@@ -57,6 +57,7 @@ final class AuthService {
             appAccountToken: appAccountToken
         )
         isAuthenticated = true
+        CrashReportingService.setUserId(userId)
         _ = token
     }
 
@@ -159,6 +160,8 @@ final class AuthService {
         clearUserDefaults()
         isAuthenticated = false
         currentUser = nil
+        AppAttestService.shared.clearKey()
+        CrashReportingService.setUserId(nil)
     }
 
     private func clearUserDefaults() {

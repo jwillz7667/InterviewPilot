@@ -132,6 +132,7 @@ final class AuthenticatedAPIClient {
         }
 
         request.httpMethod = method
+        await attachAttestationHeaders(to: &request, path: path, method: method, body: nil)
         return request
     }
 
@@ -140,10 +141,47 @@ final class AuthenticatedAPIClient {
         method: String,
         body: Body
     ) async throws -> URLRequest {
-        var request = try await makeRequest(path: path, method: method)
+        guard let url = URL(string: "\(baseURL)\(path)") else {
+            throw APIClientError.invalidURL
+        }
+        guard var request = await authService.authenticatedRequest(url: url) else {
+            throw APIClientError.unauthenticated
+        }
+        request.httpMethod = method
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try encoder.encode(body)
+        let bodyData = try encoder.encode(body)
+        request.httpBody = bodyData
+        await attachAttestationHeaders(to: &request, path: path, method: method, body: bodyData)
         return request
+    }
+
+    /// Apple App Attest assertion headers. Only attached for routes the backend
+    /// actually checks (billing + ai); GETs and auth flows skip the cost.
+    private func attachAttestationHeaders(
+        to request: inout URLRequest,
+        path: String,
+        method: String,
+        body: Data?
+    ) async {
+        guard requiresAttestation(path: path) else { return }
+        do {
+            if let headers = try await AppAttestService.shared.makeAssertionHeaders(
+                method: method,
+                path: path,
+                body: body
+            ) {
+                for (k, v) in headers { request.setValue(v, forHTTPHeaderField: k) }
+            }
+        } catch {
+            // Backend degrades open by default; failure here is non-fatal until
+            // APP_ATTEST_REQUIRED flips on. Errors surface in Sentry breadcrumbs.
+        }
+    }
+
+    private func requiresAttestation(path: String) -> Bool {
+        path.hasPrefix("/api/v1/billing/access-claims")
+            || path.hasPrefix("/api/v1/billing/app-store/sync")
+            || path.hasPrefix("/api/v1/ai/")
     }
 
     private func perform<Response: Decodable>(

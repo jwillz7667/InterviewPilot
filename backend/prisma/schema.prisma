@@ -112,8 +112,26 @@ model User {
   workExperiences    WorkExperience[]
   skills             UserSkill[]
   interviewProfiles  InterviewProfile[]
+  appAttestKeys      AppAttestKey[]
 
   @@map("users")
+}
+
+model AppAttestKey {
+  id           String   @id @default(cuid())
+  keyId        String   @unique
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  publicKey    Bytes
+  receipt      Bytes
+  signCount    BigInt   @default(0)
+  environment  String
+  attestedAt   DateTime @default(now())
+  lastUsedAt   DateTime @default(now())
+  revokedAt    DateTime?
+
+  @@index([userId])
+  @@map("app_attest_keys")
 }
 
 model RefreshToken {

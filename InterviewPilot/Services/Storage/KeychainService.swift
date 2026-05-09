@@ -10,6 +10,7 @@ enum KeychainKey: String {
     case appAccountToken = "com.res.jobhopperAI.app-account-token"
     case linkedInURL = "com.res.jobhopperAI.linkedin-url"
     case deviceId = "com.res.jobhopperAI.device-id"
+    case appAttestKeyId = "com.res.jobhopperAI.app-attest-key-id"
     // Legacy items — purged at launch to remove any cached AI master keys.
     case legacyDeepgramAPIKey = "com.res.jobhopperAI.deepgram-api-key"
     case legacyOpenAIAPIKey = "com.res.jobhopperAI.openai-api-key"

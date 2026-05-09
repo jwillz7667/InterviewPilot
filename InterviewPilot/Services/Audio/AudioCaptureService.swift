@@ -158,6 +158,7 @@ final class AudioCaptureService {
         try buildAndStartEngine()
         isCapturing = true
         isInterrupted = false
+        CrashReportingService.breadcrumb(category: "audio", message: "capture.started")
     }
 
     private func buildAndStartEngine() throws {

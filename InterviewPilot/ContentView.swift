@@ -41,6 +41,9 @@ struct ContentView: View {
                     await profileService.fetchProfile()
                     checkOnboardingStatus()
                     checkTrialExpiry()
+                    try? await AppAttestService.shared.ensureRegistered(
+                        apiClient: AuthenticatedAPIClient.shared
+                    )
                 } else {
                     subscriptionService.reset()
                     showOnboarding = false

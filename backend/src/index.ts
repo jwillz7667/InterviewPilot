@@ -21,8 +21,10 @@ import { initTelemetry } from './config/telemetry.js';
 import { aiRoutes } from './modules/ai/ai.routes.js';
 import { answerBanksRoutes } from './modules/answer-banks/answer-banks.routes.js';
 import { apiKeysRoutes } from './modules/api-keys/api-keys.routes.js';
+import { attestRoutes } from './modules/attest/attest.routes.js';
 import { authRoutes } from './modules/auth/auth.routes.js';
 import { billingRoutes } from './modules/billing/billing.routes.js';
+import { configRoutes } from './modules/config/config.routes.js';
 import { exchangesRoutes } from './modules/exchanges/exchanges.routes.js';
 import { interviewProfilesRoutes } from './modules/profiles/profiles.routes.js';
 import { sessionsRoutes } from './modules/sessions/sessions.routes.js';
@@ -178,11 +180,13 @@ app.setErrorHandler((error: Error & { statusCode?: number; code?: string }, requ
 });
 
 // Routes
+await app.register(configRoutes);
 await app.register(authRoutes);
 await app.register(usersRoutes);
 await app.register(profileRoutes);
 await app.register(settingsRoutes);
 await app.register(apiKeysRoutes);
+await app.register(attestRoutes);
 await app.register(sessionsRoutes);
 await app.register(exchangesRoutes);
 await app.register(answerBanksRoutes);
