@@ -125,6 +125,9 @@ jobs:
           echo "Selecting $XCODE"
           sudo xcode-select -s "$XCODE/Contents/Developer"
           xcodebuild -version
+      - name: Download missing iOS platform
+        run: sudo xcodebuild -downloadPlatform iOS -buildVersion latest
+        timeout-minutes: 15
       - name: Resolve simulator UDID
         id: dest
         run: |
