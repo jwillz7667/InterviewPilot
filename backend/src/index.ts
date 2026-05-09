@@ -19,6 +19,7 @@ import { initSentry, captureException } from './config/sentry.js';
 // when no exporter endpoint is configured.
 import { initTelemetry } from './config/telemetry.js';
 import { aiRoutes } from './modules/ai/ai.routes.js';
+import { probeDeepgramKeyScopes } from './modules/ai/ai.service.js';
 import { answerBanksRoutes } from './modules/answer-banks/answer-banks.routes.js';
 import { apiKeysRoutes } from './modules/api-keys/api-keys.routes.js';
 import { attestRoutes } from './modules/attest/attest.routes.js';
@@ -219,6 +220,8 @@ const start = async () => {
     await app.listen({ port: env.PORT, host: '0.0.0.0' });
     app.log.info(`Server running on port ${env.PORT}`);
     void initializeDatabaseConnection();
+    // Probe Deepgram permissions in the background — never block boot on it.
+    void probeDeepgramKeyScopes();
   } catch (err) {
     app.log.error(err);
     process.exit(1);

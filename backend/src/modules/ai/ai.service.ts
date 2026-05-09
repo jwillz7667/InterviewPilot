@@ -38,6 +38,12 @@ interface DeepgramKeyResponse {
   expiration_date: string | null;
 }
 
+interface DeepgramErrorBody {
+  category?: string;
+  message?: string;
+  details?: string;
+}
+
 export interface RealtimeSessionResult {
   sessionId: string;
   model: string;
@@ -49,6 +55,38 @@ export interface TranscriptionSessionResult {
   apiKey: string;
   expiresAt: number | null;
   ephemeral: boolean;
+}
+
+// When the configured master Deepgram key lacks `keys:write`, every interview
+// start would otherwise 502. We probe once, cache the verdict for 10 minutes,
+// and quietly degrade to returning the master key directly — Deepgram's WSS
+// accepts it for transcription as long as the key has `usage:write`. The TTL
+// keeps a manual fix (rotating the master key with the right scope) from
+// requiring a redeploy.
+const KEY_MINT_FALLBACK_TTL_MS = 10 * 60 * 1000;
+let keyMintFallbackUntil = 0;
+let keyMintFallbackReason: string | null = null;
+
+function shouldSkipKeyMint(): boolean {
+  return Date.now() < keyMintFallbackUntil;
+}
+
+function activateKeyMintFallback(reason: string): void {
+  keyMintFallbackUntil = Date.now() + KEY_MINT_FALLBACK_TTL_MS;
+  keyMintFallbackReason = reason;
+}
+
+function clearKeyMintFallback(): void {
+  keyMintFallbackUntil = 0;
+  keyMintFallbackReason = null;
+}
+
+function parseDeepgramError(text: string): DeepgramErrorBody | null {
+  try {
+    return JSON.parse(text) as DeepgramErrorBody;
+  } catch {
+    return null;
+  }
 }
 
 async function ensureBillingAccess(userId: string): Promise<void> {
@@ -178,6 +216,7 @@ export async function createTranscriptionSession(
 
   const projectId = env.DEEPGRAM_PROJECT_ID;
   if (!projectId) {
+    // No project configured — master key is the intended credential.
     return {
       apiKey: masterKey,
       expiresAt: null,
@@ -185,29 +224,110 @@ export async function createTranscriptionSession(
     };
   }
 
-  const response = await fetch(`${DEEPGRAM_BASE}/projects/${projectId}/keys`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Token ${masterKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      comment: `ip-user-${userId}-${Date.now()}`,
-      scopes: ['usage:write'],
-      time_to_live_in_seconds: input.ttlSeconds,
-    }),
-  });
+  // If a recent mint attempt failed for a permissions reason, skip the round-trip
+  // and serve the master key. The fallback window is short enough that an ops
+  // fix (rotating the master key with `keys:write`) is honored within minutes.
+  if (shouldSkipKeyMint()) {
+    log.debug(
+      {
+        event: 'deepgram.key.mint.skipped',
+        userId,
+        reason: keyMintFallbackReason,
+        retryAt: new Date(keyMintFallbackUntil).toISOString(),
+      },
+      'Skipping Deepgram key mint (fallback active)'
+    );
+    return masterKeyFallback(masterKey);
+  }
+
+  let response: Response;
+  try {
+    response = await fetch(`${DEEPGRAM_BASE}/projects/${projectId}/keys`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Token ${masterKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        comment: `ip-user-${userId}-${Date.now()}`,
+        scopes: ['usage:write'],
+        time_to_live_in_seconds: input.ttlSeconds,
+      }),
+    });
+  } catch (err) {
+    log.warn(
+      { event: 'deepgram.key.mint.network', userId, err },
+      'Deepgram key mint network error — serving master key'
+    );
+    activateKeyMintFallback('network_error');
+    return masterKeyFallback(masterKey);
+  }
 
   if (!response.ok) {
-    const text = await response.text();
+    const text = await response.text().catch(() => '');
+    const parsed = parseDeepgramError(text);
+    const isPermissionDenied =
+      response.status === 401 ||
+      response.status === 403 ||
+      parsed?.category === 'INSUFFICIENT_PERMISSIONS';
+
+    if (isPermissionDenied) {
+      // Most common cause: master key lacks `keys:write`. The key still works
+      // for transcription, so degrade rather than failing the live session.
+      log.warn(
+        {
+          event: 'deepgram.key.mint.scope_missing',
+          userId,
+          status: response.status,
+          category: parsed?.category,
+          message: parsed?.message,
+          remediation:
+            'Rotate DEEPGRAM_API_KEY to a key with the `keys:write` scope to restore ephemeral key minting.',
+        },
+        'Deepgram master key lacks keys:write — falling back to master key'
+      );
+      activateKeyMintFallback(`http_${response.status}_${parsed?.category ?? 'permission_denied'}`);
+      return masterKeyFallback(masterKey);
+    }
+
+    if (response.status >= 500) {
+      // Upstream Deepgram outage — short-circuit subsequent calls and serve
+      // the master key so users can keep transcribing.
+      log.warn(
+        {
+          event: 'deepgram.key.mint.upstream_error',
+          userId,
+          status: response.status,
+          body: text.slice(0, 200),
+        },
+        'Deepgram key mint failed upstream — falling back to master key'
+      );
+      activateKeyMintFallback(`http_${response.status}`);
+      return masterKeyFallback(masterKey);
+    }
+
+    // 4xx other than auth — likely a configuration problem worth surfacing.
+    log.error(
+      {
+        event: 'deepgram.key.mint.failed',
+        userId,
+        status: response.status,
+        body: text.slice(0, 200),
+      },
+      'Deepgram key mint failed with unexpected status'
+    );
     throw new AppError(
       502,
-      `Deepgram key provisioning failed (${response.status}): ${text.slice(0, 200)}`,
-      'AI_UPSTREAM_ERROR'
+      'Transcription credentials are temporarily unavailable. Please retry shortly.',
+      'TRANSCRIPTION_UNAVAILABLE'
     );
   }
 
   const data = (await response.json()) as DeepgramKeyResponse;
+  // Successful mint clears any prior fallback so future calls retry the
+  // happy path immediately if ops fixed the scope mid-window.
+  if (keyMintFallbackUntil !== 0) clearKeyMintFallback();
+
   const expiresAt = data.expiration_date ? new Date(data.expiration_date).getTime() / 1000 : null;
 
   return {
@@ -215,6 +335,74 @@ export async function createTranscriptionSession(
     expiresAt,
     ephemeral: true,
   };
+}
+
+function masterKeyFallback(masterKey: string): TranscriptionSessionResult {
+  // Master keys are long-lived; the iOS client caps cache to 5 minutes when
+  // expiresAt is null, so a rotated master key takes effect on the next reload.
+  return { apiKey: masterKey, expiresAt: null, ephemeral: false };
+}
+
+// Probes the configured Deepgram master key at boot to detect a missing
+// `keys:write` scope before the first interview. Logs a single warning with
+// a remediation hint; never throws — the runtime fallback covers correctness.
+export async function probeDeepgramKeyScopes(): Promise<void> {
+  const env = getEnv();
+  if (!env.DEEPGRAM_API_KEY || !env.DEEPGRAM_PROJECT_ID) return;
+
+  try {
+    const response = await fetch(
+      `${DEEPGRAM_BASE}/projects/${env.DEEPGRAM_PROJECT_ID}/members/me`,
+      {
+        headers: {
+          Authorization: `Token ${env.DEEPGRAM_API_KEY}`,
+          Accept: 'application/json',
+        },
+      }
+    );
+
+    if (!response.ok) {
+      const text = await response.text().catch(() => '');
+      log.warn(
+        {
+          event: 'deepgram.key.probe.failed',
+          status: response.status,
+          body: text.slice(0, 200),
+        },
+        'Deepgram master key probe failed; ephemeral key minting may degrade to master-key fallback'
+      );
+      // If the master key cannot even read its own member record, ephemeral
+      // mints will also fail. Pre-warm the fallback so the first interview
+      // start does not pay the round-trip latency.
+      activateKeyMintFallback(`probe_http_${response.status}`);
+      return;
+    }
+
+    const member = (await response.json()) as { scopes?: string[] };
+    const scopes = member.scopes ?? [];
+    if (!scopes.includes('keys:write')) {
+      log.warn(
+        {
+          event: 'deepgram.key.probe.scope_missing',
+          scopes,
+          remediation:
+            'The configured DEEPGRAM_API_KEY lacks `keys:write`. Per-user ephemeral key minting will fall back to the master key. Rotate to a Member-or-higher key with `keys:write` to restore ephemeral minting.',
+        },
+        'Deepgram master key missing keys:write scope'
+      );
+      activateKeyMintFallback('probe_scope_missing');
+    } else {
+      log.info(
+        { event: 'deepgram.key.probe.ok', scopeCount: scopes.length },
+        'Deepgram master key has keys:write scope'
+      );
+    }
+  } catch (err) {
+    log.warn(
+      { event: 'deepgram.key.probe.error', err },
+      'Deepgram key probe threw; runtime fallback will handle it'
+    );
+  }
 }
 
 function buildOpenAIBody(

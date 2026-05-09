@@ -23,14 +23,39 @@ enum AIClientError: LocalizedError {
     case invalidURL
     case unauthenticated
     case invalidResponse
-    case server(statusCode: Int, message: String)
+    case server(statusCode: Int, code: String?, message: String)
 
     var errorDescription: String? {
         switch self {
         case .invalidURL: return "Invalid backend URL."
         case .unauthenticated: return "Please sign in again."
         case .invalidResponse: return "The server returned an invalid response."
-        case .server(let code, let message): return "AI request failed (\(code)): \(message)"
+        case .server(_, let code, let message):
+            // Server messages are already user-friendly (the backend's AppError
+            // path returns short, sanitized text). Leak HTTP status only for
+            // unrecognized codes so support can correlate against logs.
+            if let mapped = AIClientError.userFacingMessage(for: code) {
+                return mapped
+            }
+            return message
+        }
+    }
+
+    /// Maps backend AppError codes to the polished message we want the user to
+    /// see. Returning `nil` means "use the server-provided message verbatim."
+    private static func userFacingMessage(for code: String?) -> String? {
+        guard let code else { return nil }
+        switch code {
+        case "TRANSCRIPTION_UNAVAILABLE":
+            return "Live transcription is temporarily unavailable. Please try again in a moment."
+        case "AI_NOT_CONFIGURED":
+            return "Live AI is not configured on this server. Contact support."
+        case "AI_UPSTREAM_ERROR":
+            return "Our AI provider returned an error. Please retry."
+        case "PAYMENT_REQUIRED":
+            return "Your interview quota is exhausted. Upgrade to continue."
+        default:
+            return nil
         }
     }
 }
@@ -100,8 +125,12 @@ final class AIClient {
             throw AIClientError.unauthenticated
         }
         guard httpResponse.statusCode == 200 else {
-            let message = parseErrorMessage(from: data) ?? "Request failed"
-            throw AIClientError.server(statusCode: httpResponse.statusCode, message: message)
+            let parsed = parseErrorPayload(from: data)
+            throw AIClientError.server(
+                statusCode: httpResponse.statusCode,
+                code: parsed.code,
+                message: parsed.message ?? "Request failed"
+            )
         }
 
         guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
@@ -157,8 +186,12 @@ final class AIClient {
             throw AIClientError.unauthenticated
         }
         guard httpResponse.statusCode == 200 else {
-            let message = parseErrorMessage(from: data) ?? "Failed to create realtime session"
-            throw AIClientError.server(statusCode: httpResponse.statusCode, message: message)
+            let parsed = parseErrorPayload(from: data)
+            throw AIClientError.server(
+                statusCode: httpResponse.statusCode,
+                code: parsed.code,
+                message: parsed.message ?? "Failed to create realtime session"
+            )
         }
         return try JSONDecoder().decode(RealtimeSession.self, from: data)
     }
@@ -186,8 +219,12 @@ final class AIClient {
             throw AIClientError.unauthenticated
         }
         guard httpResponse.statusCode == 200 else {
-            let message = parseErrorMessage(from: data) ?? "Failed to mint transcription key"
-            throw AIClientError.server(statusCode: httpResponse.statusCode, message: message)
+            let parsed = parseErrorPayload(from: data)
+            throw AIClientError.server(
+                statusCode: httpResponse.statusCode,
+                code: parsed.code,
+                message: parsed.message ?? "Failed to mint transcription key"
+            )
         }
 
         let session = try JSONDecoder().decode(TranscriptionSession.self, from: data)
@@ -245,16 +282,16 @@ final class AIClient {
         return request
     }
 
-    private func parseErrorMessage(from data: Data) -> String? {
+    private func parseErrorPayload(from data: Data) -> (code: String?, message: String?) {
         guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            return nil
+            return (nil, nil)
         }
-        if let message = json["message"] as? String, !message.isEmpty {
-            return message
-        }
-        if let error = json["error"] as? String, !error.isEmpty {
-            return error
-        }
-        return nil
+        let code = (json["error"] as? String)?.nilIfEmpty
+        let message = (json["message"] as? String)?.nilIfEmpty
+        return (code, message)
     }
+}
+
+private extension String {
+    var nilIfEmpty: String? { isEmpty ? nil : self }
 }
