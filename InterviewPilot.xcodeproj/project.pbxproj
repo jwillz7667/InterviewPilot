@@ -6,6 +6,10 @@
 	objectVersion = 90;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		2FE7D1442FAEB33C003A4636 /* Sentry in Frameworks */ = {isa = PBXBuildFile; productRef = 2FE7D1432FAEB33C003A4636 /* Sentry */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
 		2FDD21482F5FC12D001E6C21 /* JobHopper.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = JobHopper.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -35,6 +39,7 @@
 		2FDD21452F5FC12D001E6C21 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			files = (
+				2FE7D1442FAEB33C003A4636 /* Sentry in Frameworks */,
 			);
 		};
 /* End PBXFrameworksBuildPhase section */
@@ -73,6 +78,9 @@
 				2FDD214A2F5FC12D001E6C21 /* InterviewPilot */,
 			);
 			name = InterviewPilot;
+			packageProductDependencies = (
+				2FE7D1432FAEB33C003A4636 /* Sentry */,
+			);
 			productName = JobHopper;
 			productReference = 2FDD21482F5FC12D001E6C21 /* JobHopper.app */;
 			productType = "com.apple.product-type.application";
@@ -101,6 +109,9 @@
 			);
 			mainGroup = 2FDD213F2F5FC12D001E6C21;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				2FE7D1422FAEB33C003A4636 /* XCRemoteSwiftPackageReference "sentry-cocoa" */,
+			);
 			preferredProjectObjectVersion = 90;
 			productRefGroup = 2FDD21492F5FC12D001E6C21 /* Products */;
 			projectDirPath = "";
@@ -341,6 +352,27 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		2FE7D1422FAEB33C003A4636 /* XCRemoteSwiftPackageReference "sentry-cocoa" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/getsentry/sentry-cocoa";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 9.12.1;
+			};
+			traits = (
+			);
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		2FE7D1432FAEB33C003A4636 /* Sentry */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 2FE7D1422FAEB33C003A4636 /* XCRemoteSwiftPackageReference "sentry-cocoa" */;
+			productName = Sentry;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 2FDD21402F5FC12D001E6C21 /* Project object */;
 }
