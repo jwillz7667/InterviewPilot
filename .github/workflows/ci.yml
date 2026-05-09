@@ -125,9 +125,15 @@ jobs:
           echo "Selecting $XCODE"
           sudo xcode-select -s "$XCODE/Contents/Developer"
           xcodebuild -version
-      - name: Download missing iOS platform
-        run: sudo xcodebuild -downloadPlatform iOS -buildVersion latest
+      - name: Download missing iOS platform (best-effort)
+        run: |
+          # Apple's CDN intermittently returns "iOS latest is not available for download."
+          # Treat this step as best-effort — the runner ships with a recent iOS Simulator
+          # runtime, and the next step picks the highest installed one.
+          sudo xcodebuild -downloadPlatform iOS -buildVersion latest || \
+            echo "::warning::xcodebuild -downloadPlatform iOS failed; falling back to pre-installed runtime"
         timeout-minutes: 15
+        continue-on-error: true
       - name: Resolve simulator UDID
         id: dest
         run: |
