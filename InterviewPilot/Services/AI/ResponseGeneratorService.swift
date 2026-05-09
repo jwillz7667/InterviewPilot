@@ -123,6 +123,7 @@ final class ResponseGeneratorService {
             guard let self else { return }
 
             self.isGenerating = true
+            CrashReportingService.breadcrumb(category: "openai", message: "request.start", data: ["routing": routing.rawValue])
             // Server is authoritative on model + token cap. Client supplies
             // `sessionClientId` (binds to a SessionAccessGrant) and `routing`
             // (default/technical/coding). Temperature + penalties are still
@@ -166,6 +167,7 @@ final class ResponseGeneratorService {
                     }
 
                     if !streamedResponse.isEmpty {
+                        CrashReportingService.breadcrumb(category: "openai", message: "response.complete", data: ["chars": streamedResponse.count])
                         self.onResponseComplete?(streamedResponse)
                         self.isGenerating = false
                         return
@@ -184,6 +186,7 @@ final class ResponseGeneratorService {
                     lastError = error.localizedDescription
 
                     if Self.isNonRetryable(statusCode: statusCode) {
+                        CrashReportingService.breadcrumb(category: "openai", message: "response.failed", level: .error, data: ["status": statusCode, "error": error.localizedDescription])
                         self.onError?(error.localizedDescription)
                         self.isGenerating = false
                         return

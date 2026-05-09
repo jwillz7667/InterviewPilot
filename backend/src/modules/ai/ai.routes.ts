@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
 import { authenticate } from '../../middleware/authenticate.js';
 import { getLogger } from '../../utils/logger.js';
+import { appAttestHook } from '../attest/attest.middleware.js';
 import { getBillingSummary } from '../billing/billing.service.js';
 
 import { parseOrAudit } from './ai.audit.js';
@@ -52,6 +53,7 @@ function userKey(req: FastifyRequest): string {
 
 export async function aiRoutes(app: FastifyInstance) {
   app.addHook('onRequest', authenticate);
+  app.addHook('preHandler', appAttestHook);
 
   // Voice Prep / Realtime: gated to Premium inside the service. Strict rate cap (lower than
   // chat) because each session minted is a new outbound socket to OpenAI Realtime.

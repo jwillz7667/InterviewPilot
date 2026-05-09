@@ -8,6 +8,16 @@ struct InterviewAceApp: App {
 
     init() {
         NetworkPathMonitor.shared.start()
+        Task { @MainActor in
+            if let config = await RemoteConfigService.shared.refresh(),
+               let dsn = config.sentry.dsn, !dsn.isEmpty {
+                CrashReportingService.start(
+                    dsn: dsn,
+                    environment: config.sentry.environment,
+                    tracesSampleRate: config.sentry.tracesSampleRate
+                )
+            }
+        }
     }
 
     var sharedModelContainer: ModelContainer = {

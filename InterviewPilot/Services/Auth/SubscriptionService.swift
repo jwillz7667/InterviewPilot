@@ -417,6 +417,7 @@ final class SubscriptionService {
 
         entitlement = response.claim.entitlement
         cacheEntitlement(response.claim.entitlement)
+        CrashReportingService.breadcrumb(category: "billing", message: "claim-access.granted", data: ["quality": quality.rawValue, "mode": sessionMode.rawValue])
         return response.claim
     }
 
