@@ -90,7 +90,7 @@ struct ProfileDetailEditorView: View {
         .task { await loadProfile() }
         .fileImporter(
             isPresented: $showFilePicker,
-            allowedContentTypes: [.pdf],
+            allowedContentTypes: ResumeFileFormat.allowedContentTypes,
             allowsMultipleSelection: false
         ) { result in
             handleResumeFile(result)
@@ -959,13 +959,17 @@ struct ProfileDetailEditorView: View {
         switch result {
         case .success(let urls):
             guard let url = urls.first else { return }
-            guard url.startAccessingSecurityScopedResource() else { return }
-            defer { url.stopAccessingSecurityScopedResource() }
-
             resumeDocumentName = url.lastPathComponent
-            if let data = try? Data(contentsOf: url),
-               let text = ResumeParserService.extractText(from: data) {
-                resumeText = text
+            Task {
+                do {
+                    let extracted = try await ResumeTextExtractor.extract(from: url)
+                    resumeText = extracted.text
+                    if currentRole.isEmpty && currentCompany.isEmpty && skills.isEmpty {
+                        extractProfileFromResume()
+                    }
+                } catch {
+                    errorMessage = error.localizedDescription
+                }
             }
         case .failure(let error):
             errorMessage = error.localizedDescription

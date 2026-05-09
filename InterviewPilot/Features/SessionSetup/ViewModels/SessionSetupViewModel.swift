@@ -496,12 +496,14 @@ final class SessionSetupViewModel {
     func handleResumeFile(result: Result<URL, Error>) {
         switch result {
         case .success(let url):
-            guard url.startAccessingSecurityScopedResource() else { return }
-            defer { url.stopAccessingSecurityScopedResource() }
-
-            if let text = ResumeParserService.extractText(from: url) {
-                resumeText = text
-                resumeDocumentName = url.lastPathComponent
+            resumeDocumentName = url.lastPathComponent
+            Task {
+                do {
+                    let extracted = try await ResumeTextExtractor.extract(from: url)
+                    resumeText = extracted.text
+                } catch {
+                    errorMessage = "Failed to load resume: \(error.localizedDescription)"
+                }
             }
         case .failure(let error):
             errorMessage = "Failed to load resume: \(error.localizedDescription)"

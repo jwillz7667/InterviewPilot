@@ -4,6 +4,7 @@ import UniformTypeIdentifiers
 struct OnboardingView: View {
     @State private var viewModel = OnboardingViewModel()
     @State private var showFilePicker = false
+    @State private var newSkillText = ""
     var onComplete: () -> Void
 
     var body: some View {
@@ -50,7 +51,7 @@ struct OnboardingView: View {
         }
         .fileImporter(
             isPresented: $showFilePicker,
-            allowedContentTypes: [.pdf],
+            allowedContentTypes: ResumeFileFormat.allowedContentTypes,
             allowsMultipleSelection: false
         ) { result in
             switch result {
@@ -103,7 +104,24 @@ struct OnboardingView: View {
             UploadResumeView(
                 resumeText: $viewModel.resumeText,
                 resumeDocumentName: $viewModel.resumeDocumentName,
-                onFilePick: { showFilePicker = true }
+                autofillState: viewModel.autofillState,
+                onFilePick: { showFilePicker = true },
+                onRetryAutofill: { viewModel.runAutofillFromPastedText() },
+                onAutofillFromText: { viewModel.runAutofillFromPastedText() }
+            )
+        case .reviewProfile:
+            ProfileReviewView(
+                displayName: $viewModel.displayName,
+                currentRole: $viewModel.currentRole,
+                currentCompany: $viewModel.currentCompany,
+                skills: $viewModel.skills,
+                newSkillText: $newSkillText,
+                onAddSkill: addSkill,
+                onRemoveSkill: { skill in
+                    viewModel.skills.removeAll { $0.id == skill.id }
+                },
+                resumeLoaded: !viewModel.resumeText.isEmpty,
+                linkedInConnected: !viewModel.linkedInURL.isEmpty
             )
         case .microphoneAccess:
             MicrophonePermissionView(
@@ -159,6 +177,16 @@ struct OnboardingView: View {
                 .disabled(!viewModel.canAdvance || viewModel.isLoading)
             }
         }
+    }
+
+    private func addSkill() {
+        let trimmed = newSkillText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        let exists = viewModel.skills.contains { $0.name.lowercased() == trimmed.lowercased() }
+        if !exists {
+            viewModel.skills.append(SkillEntry(name: trimmed))
+        }
+        newSkillText = ""
     }
 
     private func handleNext() {
