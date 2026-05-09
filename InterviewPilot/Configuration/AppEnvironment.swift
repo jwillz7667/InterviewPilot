@@ -2,11 +2,16 @@ import Foundation
 
 enum AppEnvironment {
     static let defaultBackendBaseURL = "https://interviewpilot-production.up.railway.app"
-    /// Default redirect URI for the Sign In with LinkedIn flow. Must be
-    /// registered in the LinkedIn Developer Portal and match the backend's
-    /// `LINKEDIN_REDIRECT_URI` env var. Override via Info.plist key
-    /// `LINKEDIN_REDIRECT_URI` for environments that need a different value.
-    static let defaultLinkedInRedirectURI = "com.res.jobhopperAI://oauth/linkedin/callback"
+    /// HTTPS redirect URI registered with LinkedIn. LinkedIn does not accept
+    /// custom URL schemes here, so we use a backend bridge that 302s to the
+    /// native callback URI. Must match the backend's `LINKEDIN_REDIRECT_URI`
+    /// env var exactly. Override via Info.plist key `LINKEDIN_REDIRECT_URI`.
+    static let defaultLinkedInRedirectURI =
+        "https://interviewpilot-production.up.railway.app/auth/linkedin/callback"
+    /// Custom URL scheme that ASWebAuthenticationSession listens for. The
+    /// backend bridge route 302s to this scheme after LinkedIn returns the
+    /// authorization code. Override via Info.plist key `LINKEDIN_CALLBACK_SCHEME`.
+    static let defaultLinkedInCallbackScheme = "com.res.jobhopperAI"
 
     static var backendBaseURL: String {
         #if DEBUG
@@ -35,14 +40,16 @@ enum AppEnvironment {
         return defaultLinkedInRedirectURI
     }
 
-    /// Custom-scheme component used by ASWebAuthenticationSession's
-    /// `callbackURLScheme`. Derived from `linkedInRedirectURI`.
+    /// Custom-scheme component passed to ASWebAuthenticationSession's
+    /// `callbackURLScheme`. Decoupled from `linkedInRedirectURI` because the
+    /// LinkedIn-facing redirect URL is HTTPS (LinkedIn rejects custom schemes)
+    /// while the iOS app needs to listen for the bridge's 302 target.
     static var linkedInCallbackScheme: String {
-        let uri = linkedInRedirectURI
-        if let schemeRange = uri.range(of: "://") {
-            return String(uri[uri.startIndex..<schemeRange.lowerBound])
+        if let configured = Bundle.main.object(forInfoDictionaryKey: "LINKEDIN_CALLBACK_SCHEME") as? String {
+            let trimmed = configured.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty { return trimmed }
         }
-        return uri
+        return defaultLinkedInCallbackScheme
     }
 
     /// All AI calls flow through the backend proxy — no master keys are

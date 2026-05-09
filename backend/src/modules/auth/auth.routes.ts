@@ -1,6 +1,8 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 
+import { getEnv } from '../../config/env.js';
 import { authenticate } from '../../middleware/authenticate.js';
+import { getLogger } from '../../utils/logger.js';
 
 import { buildAuthHandlers } from './auth.controller.js';
 import {
@@ -11,6 +13,13 @@ import {
 } from './auth.schema.js';
 import { listUserSessions, revokeUserSessions } from './auth.service.js';
 import { requestPasswordReset, resetPassword } from './password-reset.service.js';
+
+// LinkedIn rejects custom URL schemes in OAuth redirect URIs, so the iOS app
+// registers an HTTPS bridge URL with LinkedIn instead. After LinkedIn redirects
+// back here with `code`/`state`, this handler 302s to the native scheme so
+// ASWebAuthenticationSession can capture it and return control to iOS.
+const BRIDGE_ALLOWED_PARAMS = ['code', 'state', 'error', 'error_description', 'scope'] as const;
+const BRIDGE_PARAM_MAX_LENGTH = 2048;
 
 const AUTH_BODY_LIMIT = 4 * 1024;
 
@@ -37,6 +46,65 @@ export async function authRoutes(app: FastifyInstance) {
   app.post('/api/v1/auth/linkedin', authRouteOptions, linkedin);
   app.post('/api/v1/auth/refresh', authRouteOptions, refresh);
   app.post('/api/v1/auth/logout', logoutOptions, logout);
+
+  // LinkedIn OAuth redirect bridge. Public, GET-only, never reads/writes
+  // session state — purely a 302 forwarder. Heavily rate-limited because it
+  // is a public endpoint that synthesizes a redirect URL from query input.
+  app.get(
+    '/auth/linkedin/callback',
+    {
+      config: {
+        rateLimit: {
+          max: 30,
+          timeWindow: '1 minute',
+        },
+      },
+    },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const env = getEnv();
+      const log = getLogger().child({ module: 'auth-linkedin-bridge' });
+      const query = request.query as Record<string, unknown>;
+      const params = new URLSearchParams();
+
+      for (const key of BRIDGE_ALLOWED_PARAMS) {
+        const value = query[key];
+        if (typeof value === 'string' && value.length > 0 && value.length <= BRIDGE_PARAM_MAX_LENGTH) {
+          params.set(key, value);
+        }
+      }
+
+      // Refuse to redirect when LinkedIn returned no code/error — likely a
+      // direct browser hit. Render a tiny HTML page instead so users aren't
+      // dropped into a broken-looking 302 chain.
+      if (!params.has('code') && !params.has('error')) {
+        log.info({ event: 'linkedin.bridge.empty' }, 'LinkedIn bridge hit without code/error');
+        return reply
+          .code(400)
+          .type('text/html; charset=utf-8')
+          .send(
+            '<!doctype html><meta charset="utf-8"><title>Sign in with LinkedIn</title>' +
+              '<body style="font-family:-apple-system,system-ui,sans-serif;padding:32px;text-align:center;color:#333">' +
+              '<h1>Sign in with LinkedIn</h1>' +
+              '<p>This page is reached from the Interview Ace iOS app during LinkedIn sign-in. ' +
+              'Open the app to continue.</p></body>'
+          );
+      }
+
+      const native = env.LINKEDIN_NATIVE_CALLBACK_URI;
+      const separator = native.includes('?') ? '&' : '?';
+      const target = `${native}${separator}${params.toString()}`;
+
+      log.info(
+        {
+          event: 'linkedin.bridge.redirect',
+          hasCode: params.has('code'),
+          hasError: params.has('error'),
+        },
+        'LinkedIn bridge forwarding to native callback'
+      );
+      return reply.redirect(target, 302);
+    }
+  );
 
   app.post('/api/v1/auth/forgot-password', authRouteOptions, async (request, reply) => {
     const { email } = forgotPasswordSchema.parse(request.body);
