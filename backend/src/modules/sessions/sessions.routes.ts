@@ -103,60 +103,66 @@ export async function sessionsRoutes(app: FastifyInstance) {
   );
 
   // Create session
-  app.post('/api/v1/sessions', { config: { idempotent: true } }, async (request: FastifyRequest, reply: FastifyReply) => {
-    const input = createSessionSchema.parse(request.body);
+  app.post(
+    '/api/v1/sessions',
+    { config: { idempotent: true } },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const input = createSessionSchema.parse(request.body);
 
-    // Verify ownership: if a session with this clientId already exists, it must belong to the requesting user
-    const existingByClientId = await withDatabaseRetry((prisma) =>
-      prisma.interviewSession.findUnique({
-        where: { clientId: input.clientId },
-        select: { userId: true },
-      })
-    );
-    if (existingByClientId && existingByClientId.userId !== request.user.sub) {
-      return reply
-        .status(403)
-        .send({ error: 'Forbidden', message: 'Session belongs to another user' });
+      // Verify ownership: if a session with this clientId already exists, it must belong to the requesting user
+      const existingByClientId = await withDatabaseRetry((prisma) =>
+        prisma.interviewSession.findUnique({
+          where: { clientId: input.clientId },
+          select: { userId: true },
+        })
+      );
+      if (existingByClientId && existingByClientId.userId !== request.user.sub) {
+        return reply
+          .status(403)
+          .send({ error: 'Forbidden', message: 'Session belongs to another user' });
+      }
+
+      // The grant must exist (created at quota-claim time, before the session row).
+      // We read it here to seal accessTier/quality into the immutable session record so the
+      // session report can render the right pricing label even if the user upgrades later.
+      const accessGrant = await getSessionAccessGrant(request.user.sub, input.clientId);
+
+      const session = await withDatabaseRetry((prisma) =>
+        prisma.interviewSession.upsert({
+          where: { clientId: input.clientId },
+          create: {
+            ...input,
+            sessionMode:
+              input.sessionMode === 'voicePrep'
+                ? SessionMode.VOICE_PREP
+                : SessionMode.LIVE_INTERVIEW,
+            startedAt: new Date(input.startedAt),
+            endedAt: input.endedAt ? new Date(input.endedAt) : undefined,
+            userId: request.user.sub,
+            accessSource: accessGrant.accessSource,
+            accessTier: accessGrant.accessTier,
+            quality: accessGrant.quality,
+            trialInterviewNumber: accessGrant.trialInterviewNumber ?? undefined,
+            telemetrySummary: input.telemetrySummary,
+          },
+          update: {
+            endedAt: input.endedAt ? new Date(input.endedAt) : undefined,
+            totalTokensUsed: input.totalTokensUsed,
+            estimatedCost: input.estimatedCost,
+            telemetrySummary: input.telemetrySummary,
+            technicalAccuracyScore: input.technicalAccuracyScore,
+            communicationScore: input.communicationScore,
+            confidenceScore: input.confidenceScore,
+            aiStrengths: input.aiStrengths,
+            aiImprovements: input.aiImprovements,
+            overallScore: input.overallScore,
+          },
+        })
+      );
+
+      reply.status(201).send({ session });
     }
-
-    // The grant must exist (created at quota-claim time, before the session row).
-    // We read it here to seal accessTier/quality into the immutable session record so the
-    // session report can render the right pricing label even if the user upgrades later.
-    const accessGrant = await getSessionAccessGrant(request.user.sub, input.clientId);
-
-    const session = await withDatabaseRetry((prisma) =>
-      prisma.interviewSession.upsert({
-        where: { clientId: input.clientId },
-        create: {
-          ...input,
-          sessionMode:
-            input.sessionMode === 'voicePrep' ? SessionMode.VOICE_PREP : SessionMode.LIVE_INTERVIEW,
-          startedAt: new Date(input.startedAt),
-          endedAt: input.endedAt ? new Date(input.endedAt) : undefined,
-          userId: request.user.sub,
-          accessSource: accessGrant.accessSource,
-          accessTier: accessGrant.accessTier,
-          quality: accessGrant.quality,
-          trialInterviewNumber: accessGrant.trialInterviewNumber ?? undefined,
-          telemetrySummary: input.telemetrySummary,
-        },
-        update: {
-          endedAt: input.endedAt ? new Date(input.endedAt) : undefined,
-          totalTokensUsed: input.totalTokensUsed,
-          estimatedCost: input.estimatedCost,
-          telemetrySummary: input.telemetrySummary,
-          technicalAccuracyScore: input.technicalAccuracyScore,
-          communicationScore: input.communicationScore,
-          confidenceScore: input.confidenceScore,
-          aiStrengths: input.aiStrengths,
-          aiImprovements: input.aiImprovements,
-          overallScore: input.overallScore,
-        },
-      })
-    );
-
-    reply.status(201).send({ session });
-  });
+  );
 
   // Update session
   app.put(

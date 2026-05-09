@@ -33,31 +33,25 @@ const registerSchema = z.object({
 export async function attestRoutes(app: FastifyInstance): Promise<void> {
   app.addHook('onRequest', authenticate);
 
-  app.post(
-    '/api/v1/attest/challenge',
-    async (request: FastifyRequest, reply: FastifyReply) => {
-      const challenge = newChallenge(request.user.sub);
-      reply.send({ challenge });
-    }
-  );
+  app.post('/api/v1/attest/challenge', async (request: FastifyRequest, reply: FastifyReply) => {
+    const challenge = newChallenge(request.user.sub);
+    reply.send({ challenge });
+  });
 
-  app.post(
-    '/api/v1/attest/register',
-    async (request: FastifyRequest, reply: FastifyReply) => {
-      const body = registerSchema.parse(request.body);
-      if (!consumeChallenge(request.user.sub, body.challenge)) {
-        return reply.status(401).send({
-          error: 'ATTEST_CHALLENGE_INVALID',
-          message: 'Challenge missing, expired, or mismatched',
-        });
-      }
-      await registerAttestation({
-        userId: request.user.sub,
-        keyId: body.keyId,
-        attestationBase64: body.attestation,
-        challengeBase64: body.challenge,
+  app.post('/api/v1/attest/register', async (request: FastifyRequest, reply: FastifyReply) => {
+    const body = registerSchema.parse(request.body);
+    if (!consumeChallenge(request.user.sub, body.challenge)) {
+      return reply.status(401).send({
+        error: 'ATTEST_CHALLENGE_INVALID',
+        message: 'Challenge missing, expired, or mismatched',
       });
-      reply.send({ ok: true });
     }
-  );
+    await registerAttestation({
+      userId: request.user.sub,
+      keyId: body.keyId,
+      attestationBase64: body.attestation,
+      challengeBase64: body.challenge,
+    });
+    reply.send({ ok: true });
+  });
 }

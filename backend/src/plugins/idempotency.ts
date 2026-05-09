@@ -76,10 +76,7 @@ export async function idempotencyPlugin(app: FastifyInstance) {
           });
           return;
         }
-        reply
-          .header('idempotent-replay', 'true')
-          .status(parsed.status)
-          .send(parsed.body);
+        reply.header('idempotent-replay', 'true').status(parsed.status).send(parsed.body);
         return;
       } catch {
         // Corrupted entry — fall through and treat as fresh.

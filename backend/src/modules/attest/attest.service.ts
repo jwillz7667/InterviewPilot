@@ -90,8 +90,8 @@ async function verifyCertChain(certs: X509Certificate[]): Promise<void> {
   for (let i = 0; i < chain.length - 1; i++) {
     const child = chain[i]!;
     const parent = chain[i + 1]!;
-    // @peculiar/x509 typings widen these returns to `any`; the runtime
-    // values are CryptoKey + boolean. We narrow at the boundary.
+    // @peculiar/x509 typings widen these returns to `any`; runtime values
+    // are CryptoKey + boolean. Narrow at the boundary.
     // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     const parentPublicKey = await parent.publicKey.export();
     // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment

@@ -50,7 +50,8 @@ async function main(): Promise<void> {
           detail: { row: tier, summary: summary.tier },
         });
       }
-      for (const [name, q] of Object.entries(summary.quotas ?? {})) {
+      const quotas = (summary.quotas ?? {}) as Record<string, { remaining: number; limit: number }>;
+      for (const [name, q] of Object.entries(quotas)) {
         if (q.remaining < 0) {
           findings.push({
             userId,
