@@ -126,4 +126,4 @@ jobs:
           sudo xcode-select -s "$XCODE/Contents/Developer"
           xcodebuild -version
       - name: Build iOS App
-        run: xcodebuild -project InterviewPilot.xcodeproj -scheme InterviewPilot -configuration Debug -destination 'generic/platform=iOS Simulator' build CODE_SIGNING_ALLOWED=NO
+        run: xcodebuild -project InterviewPilot.xcodeproj -scheme InterviewPilot -configuration Debug -destination 'generic/platform=iOS' build CODE_SIGNING_ALLOWED=NO CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO
