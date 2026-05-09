@@ -23,10 +23,7 @@ const NONCE_HEADER = 'x-attest-nonce';
  * When APP_ATTEST_REQUIRED=false, missing/invalid headers log but pass — gives
  * us a release to roll the iOS side out before flipping enforcement.
  */
-export async function appAttestHook(
-  request: FastifyRequest,
-  _reply: FastifyReply
-): Promise<void> {
+export async function appAttestHook(request: FastifyRequest, _reply: FastifyReply): Promise<void> {
   const env = getEnv();
   const required = env.APP_ATTEST_REQUIRED;
   const userId = request.user?.sub;
@@ -52,10 +49,7 @@ export async function appAttestHook(
   const bodyHash = createHash('sha256')
     .update(request.body ? JSON.stringify(request.body) : '')
     .digest('hex');
-  const clientData = Buffer.from(
-    `${request.method}|${request.url}|${nonce}|${bodyHash}`,
-    'utf8'
-  );
+  const clientData = Buffer.from(`${request.method}|${request.url}|${nonce}|${bodyHash}`, 'utf8');
 
   try {
     await verifyAssertion({
@@ -66,10 +60,7 @@ export async function appAttestHook(
     });
     logger.debug({ userId, keyId, route: request.url }, 'attest.assertion.verified');
   } catch (err) {
-    logger.warn(
-      { userId, keyId, route: request.url, err },
-      'attest.assertion.failed'
-    );
+    logger.warn({ userId, keyId, route: request.url, err }, 'attest.assertion.failed');
     if (required) {
       throw err;
     }

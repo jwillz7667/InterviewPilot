@@ -28,8 +28,8 @@ export function buildAuthHandlers(app: FastifyInstance) {
   function userAgentOf(request: FastifyRequest): string | undefined {
     const ua = request.headers['user-agent'];
     if (!ua) return undefined;
-    if (Array.isArray(ua)) return ua[0]?.slice(0, 255);
-    return ua.slice(0, 255);
+    const value: string = Array.isArray(ua) ? ((ua[0] as string | undefined) ?? '') : ua;
+    return value.slice(0, 255);
   }
 
   async function register(request: FastifyRequest, reply: FastifyReply) {
