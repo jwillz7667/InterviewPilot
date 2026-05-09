@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct ShimmerModifier: ViewModifier {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var phase: CGFloat = 0
 
     func body(content: Content) -> some View {
@@ -12,9 +13,11 @@ struct ShimmerModifier: ViewModifier {
                     endPoint: .trailing
                 )
                 .offset(x: phase)
+                .opacity(reduceMotion ? 0 : 1)
             )
             .mask(content)
             .onAppear {
+                guard !reduceMotion else { return }
                 withAnimation(.linear(duration: 1.5).repeatForever(autoreverses: false)) {
                     phase = 400
                 }

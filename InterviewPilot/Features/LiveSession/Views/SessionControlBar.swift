@@ -28,6 +28,8 @@ struct SessionControlBar: View {
                         .shadow(color: IATheme.error.opacity(0.24), radius: 16, y: 10)
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel("End interview session")
+                .accessibilityHint("Stops audio capture and saves the session")
 
                 Spacer()
 

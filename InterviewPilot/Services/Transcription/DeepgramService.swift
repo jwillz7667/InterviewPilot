@@ -171,8 +171,10 @@ final class DeepgramService {
         let attempt = reconnectAttempts
         let keywords = lastConnectKeywords
 
-        // Exponential backoff: 0.5s, 1s, 2s, 4s, 8s
-        let delaySeconds = 0.5 * pow(2.0, Double(attempt - 1))
+        // Exponential backoff with full jitter, capped at 30s. Jitter avoids
+        // thundering-herd reconnects when many clients drop on a regional outage.
+        let base = min(30.0, 0.5 * pow(2.0, Double(attempt - 1)))
+        let delaySeconds = Double.random(in: (base / 2)...base)
 
         reconnectTask?.cancel()
         reconnectTask = Task { [weak self] in
