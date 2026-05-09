@@ -1,5 +1,7 @@
-import { createHash } from 'crypto';
+import { createHash } from 'node:crypto';
+
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+
 import { getRedis } from '../config/redis.js';
 
 const TTL_SECONDS = 24 * 60 * 60;

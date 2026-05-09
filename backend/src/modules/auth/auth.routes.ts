@@ -1,5 +1,7 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 
+import { authenticate } from '../../middleware/authenticate.js';
+
 import { buildAuthHandlers } from './auth.controller.js';
 import {
   forgotPasswordSchema,
@@ -7,9 +9,8 @@ import {
   resetPasswordSchema,
   revokeSessionsSchema,
 } from './auth.schema.js';
-import { requestPasswordReset, resetPassword } from './password-reset.service.js';
 import { listUserSessions, revokeUserSessions } from './auth.service.js';
-import { authenticate } from '../../middleware/authenticate.js';
+import { requestPasswordReset, resetPassword } from './password-reset.service.js';
 
 const AUTH_BODY_LIMIT = 4 * 1024;
 

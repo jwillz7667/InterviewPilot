@@ -1,9 +1,9 @@
 import { createHash, createPublicKey, createVerify } from 'node:crypto';
 
-import * as cbor from 'cbor-x';
 import { X509Certificate, X509ChainBuilder } from '@peculiar/x509';
+import * as cbor from 'cbor-x';
 
-import { getPrisma, withDatabaseRetry } from '../../config/database.js';
+import { withDatabaseRetry } from '../../config/database.js';
 import { getEnv } from '../../config/env.js';
 import { AppError } from '../../utils/errors.js';
 import { getLogger } from '../../utils/logger.js';
@@ -90,7 +90,12 @@ async function verifyCertChain(certs: X509Certificate[]): Promise<void> {
   for (let i = 0; i < chain.length - 1; i++) {
     const child = chain[i]!;
     const parent = chain[i + 1]!;
-    const ok = await child.verify({ publicKey: await parent.publicKey.export() });
+    // @peculiar/x509 typings widen these returns to `any`; the runtime
+    // values are CryptoKey + boolean. We narrow at the boundary.
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+    const parentPublicKey = await parent.publicKey.export();
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+    const ok: boolean = await child.verify({ publicKey: parentPublicKey });
     if (!ok) {
       throw new AppError(401, 'cert chain signature invalid', 'ATTEST_CHAIN_INVALID');
     }
@@ -116,8 +121,8 @@ interface VerifyAttestationParams {
 }
 
 export async function verifyAttestation(params: VerifyAttestationParams): Promise<{
-  publicKey: Buffer;
-  receipt: Buffer;
+  publicKey: Buffer<ArrayBufferLike>;
+  receipt: Buffer<ArrayBufferLike>;
   environment: 'appattest' | 'appattestdevelop';
 }> {
   const env = getEnv();
@@ -147,7 +152,9 @@ export async function verifyAttestation(params: VerifyAttestationParams): Promis
     throw new AppError(401, 'attestation nonce mismatch', 'ATTEST_NONCE_MISMATCH');
   }
 
-  const credPubKeyDer = Buffer.from(await credCert.publicKey.export());
+  /* eslint-disable @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-assignment */
+  const credPubKeyDer: Buffer<ArrayBufferLike> = Buffer.from(await credCert.publicKey.export());
+  /* eslint-enable @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-assignment */
   const credPubKeyHash = createHash('sha256').update(credPubKeyDer).digest();
   const expectedKeyId = Buffer.from(params.keyId, 'base64');
   if (!credPubKeyHash.equals(expectedKeyId)) {
