@@ -93,7 +93,7 @@ struct UploadResumeView: View {
                 .font(IATypography.headlineSmall)
                 .foregroundStyle(IATheme.textPrimary)
 
-            Text(hasResume ? "Tap to replace with a new file" : "PDF, DOCX, RTF, Markdown or plain text")
+            Text(hasResume ? "Tap to replace with a new file" : "PDF, RTF, Markdown or plain text")
                 .font(IATypography.bodySmall)
                 .foregroundStyle(IATheme.textSecondary)
 

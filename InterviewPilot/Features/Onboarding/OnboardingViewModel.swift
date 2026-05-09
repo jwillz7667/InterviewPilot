@@ -6,10 +6,10 @@ import UIKit
 @Observable
 final class OnboardingViewModel {
     enum Step: Int, CaseIterable {
-        case setGoal = 1
-        case connectLinkedIn = 2
-        case uploadResume = 3
-        case reviewProfile = 4
+        case uploadResume = 1
+        case reviewProfile = 2
+        case setGoal = 3
+        case connectLinkedIn = 4
         case microphoneAccess = 5
     }
 
@@ -76,7 +76,7 @@ final class OnboardingViewModel {
         }
     }
 
-    var isFirstStep: Bool { currentStep == .setGoal }
+    var isFirstStep: Bool { currentStep == .uploadResume }
     var isLastStep: Bool { currentStep == .microphoneAccess }
 
     var isAutofilling: Bool {
@@ -202,6 +202,11 @@ final class OnboardingViewModel {
     }
 
     private func applyAutofillOutput(_ output: ResumeAutofillOutput) async {
+        // Capture sizes BEFORE we overwrite the form, so the diagnostic
+        // summary reports actual deltas instead of zero.
+        let priorSkillCount = skills.count
+        let priorExperienceCount = workExperiences.count
+
         resumeText = output.resumeText
         resumeDocumentName = output.documentName
         displayName = output.displayName
@@ -220,8 +225,8 @@ final class OnboardingViewModel {
             format: output.format,
             usedOCR: output.usedOCR,
             filledFields: ResumeAutofillField.allCases.filter { output.filledFields.contains($0) },
-            addedSkills: max(0, output.skills.count - currentInput().skills.count + output.skills.count - skills.count),
-            addedExperiences: output.workExperiences.count
+            addedSkills: max(0, output.skills.count - priorSkillCount),
+            addedExperiences: max(0, output.workExperiences.count - priorExperienceCount)
         )
         autofillState = .completed(summary)
     }

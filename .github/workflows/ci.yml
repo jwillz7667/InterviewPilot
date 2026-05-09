@@ -118,15 +118,33 @@ jobs:
     runs-on: macos-26
     steps:
       - uses: actions/checkout@v4
-      - name: Select latest stable Xcode
+      - name: Select Xcode matching installed iOS runtime
         run: |
           ls /Applications | grep -i ^Xcode
-          # Pick the highest-version *non-beta* Xcode. Beta releases (e.g.
-          # Xcode_26.5_beta_2) require a matching beta iOS simulator runtime
-          # which is rarely pre-installed on the runner — selecting one causes
-          # xcodebuild to demand "iOS 26.5" and fail before it ever sees our
-          # destination UDID.
-          XCODE=$(ls -d /Applications/Xcode_*.app 2>/dev/null | grep -v -i beta | sort -V | tail -1)
+          # Pick the highest Xcode whose major.minor version matches the
+          # highest installed iOS simulator runtime. Selecting an Xcode whose
+          # SDK is newer than any installed runtime causes xcodebuild to
+          # demand the missing platform ("iOS 26.5 is not installed") and
+          # ignore our resolved-UDID destination.
+          MAJMIN=$(xcrun simctl list runtimes -j 2>/dev/null | python3 -c '
+          import json, sys
+          rts = json.load(sys.stdin)["runtimes"]
+          ios = [r for r in rts if r.get("isAvailable") and r.get("identifier", "").startswith("com.apple.CoreSimulator.SimRuntime.iOS-")]
+          if not ios:
+              sys.exit("no iOS simulator runtimes installed")
+          # version is like "26.4" or "26.4.1"; key by tuple of ints
+          ios.sort(key=lambda r: tuple(int(x) for x in r["version"].split(".")), reverse=True)
+          v = ios[0]["version"].split(".")
+          print(f"{v[0]}.{v[1]}")
+          ')
+          echo "Highest installed iOS runtime: $MAJMIN"
+          # Find Xcodes whose filename starts with Xcode_$MAJMIN (e.g. Xcode_26.4.app, Xcode_26.4.1.app).
+          # Exclude beta builds.
+          XCODE=$(ls -d "/Applications/Xcode_${MAJMIN}"*.app 2>/dev/null | grep -v -i beta | sort -V | tail -1)
+          if [ -z "$XCODE" ]; then
+            echo "No matching Xcode for iOS $MAJMIN; falling back to highest non-beta Xcode."
+            XCODE=$(ls -d /Applications/Xcode_*.app 2>/dev/null | grep -v -i beta | sort -V | tail -1)
+          fi
           if [ -z "$XCODE" ]; then
             XCODE=$(ls -d /Applications/Xcode*.app 2>/dev/null | sort -V | tail -1)
           fi
