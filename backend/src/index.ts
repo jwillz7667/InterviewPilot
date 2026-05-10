@@ -1,3 +1,8 @@
+// Must be the first import: @peculiar/x509 (used by attest.service for App
+// Attest chain validation) pulls in tsyringe, which fails to load without the
+// reflect-metadata polyfill installed on the global scope.
+import 'reflect-metadata';
+
 import cors from '@fastify/cors';
 import helmet from '@fastify/helmet';
 import jwt from '@fastify/jwt';
