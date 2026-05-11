@@ -1,6 +1,23 @@
 import Foundation
 import Observation
 
+enum DeepgramConnectError: LocalizedError {
+    case handshakeTimedOut
+    case handshakeFailed(underlying: Error)
+    case socketUnavailable
+
+    var errorDescription: String? {
+        switch self {
+        case .handshakeTimedOut:
+            return "Transcription service did not respond within 5 seconds. Check your network and try again."
+        case .handshakeFailed(let underlying):
+            return "Transcription handshake failed: \(underlying.localizedDescription)"
+        case .socketUnavailable:
+            return "Transcription socket was not available."
+        }
+    }
+}
+
 @Observable
 final class DeepgramService {
     private var webSocket: URLSessionWebSocketTask?
@@ -84,8 +101,19 @@ final class DeepgramService {
 
         // Wait for the first message to confirm the WebSocket handshake completed.
         // Setting isConnected before the handshake finishes causes audio sent in
-        // that window to be silently dropped.
-        await receiveFirstMessage()
+        // that window to be silently dropped. If Deepgram refuses the socket
+        // (auth, scope, account state), the receive throws — surface it instead
+        // of leaving the UI stuck on "waiting for interviewer".
+        do {
+            try await receiveFirstMessage()
+        } catch {
+            CrashReportingService.breadcrumb(
+                category: "deepgram",
+                message: "ws.handshake_failed: \(error.localizedDescription)"
+            )
+            cleanupConnection()
+            throw error
+        }
         self.isConnected = true
         CrashReportingService.breadcrumb(category: "deepgram", message: "ws.opened")
 
@@ -207,35 +235,38 @@ final class DeepgramService {
 
     /// Waits for the first WebSocket message to confirm the handshake completed.
     /// Deepgram sends metadata on connect; receiving it proves the connection is live.
-    /// Times out after 5 seconds so we don't block forever on a broken socket.
-    private func receiveFirstMessage() async {
-        guard let ws = webSocket else { return }
+    /// Times out after 5 seconds and throws so the caller can surface the failure.
+    private func receiveFirstMessage() async throws {
+        guard let ws = webSocket else { throw DeepgramConnectError.socketUnavailable }
+        let message: URLSessionWebSocketTask.Message
         do {
-            let message = try await withThrowingTaskGroup(of: URLSessionWebSocketTask.Message.self) { group in
+            message = try await withThrowingTaskGroup(of: URLSessionWebSocketTask.Message.self) { group in
                 group.addTask {
                     try await ws.receive()
                 }
                 group.addTask {
                     try await Task.sleep(nanoseconds: 5_000_000_000)
-                    throw CancellationError()
+                    throw DeepgramConnectError.handshakeTimedOut
                 }
                 let result = try await group.next()!
                 group.cancelAll()
                 return result
             }
-            // Process the first message so it isn't lost
-            switch message {
-            case .string(let text):
-                handleMessage(text)
-            case .data(let data):
-                if let text = String(data: data, encoding: .utf8) {
-                    handleMessage(text)
-                }
-            @unknown default:
-                break
-            }
+        } catch let error as DeepgramConnectError {
+            throw error
         } catch {
-            // Timeout or failure — isConnected stays false, caller can handle
+            throw DeepgramConnectError.handshakeFailed(underlying: error)
+        }
+        // Process the first message so it isn't lost
+        switch message {
+        case .string(let text):
+            handleMessage(text)
+        case .data(let data):
+            if let text = String(data: data, encoding: .utf8) {
+                handleMessage(text)
+            }
+        @unknown default:
+            break
         }
     }
 
