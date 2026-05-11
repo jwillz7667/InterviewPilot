@@ -170,31 +170,28 @@ describe('createTranscriptionSession', () => {
 });
 
 describe('probeDeepgramKeyScopes', () => {
-  it('warns and pre-warms fallback when scope is missing', async () => {
+  it('logs ok and cleans up the probe key when mint succeeds', async () => {
     const { probeDeepgramKeyScopes } = await import('../src/modules/ai/ai.service.js');
-    mockFetchOnce({
+    const mintResponse = fetchResponse({
       ok: true,
-      status: 200,
-      bodyText: JSON.stringify({ scopes: ['usage:write'] }),
+      status: 201,
+      bodyText: JSON.stringify(SUCCESS_BODY),
     });
+    const deleteResponse = fetchResponse({ ok: true, status: 204, bodyText: '' });
+    const fetchSpy = vi
+      .fn()
+      .mockResolvedValueOnce(mintResponse)
+      .mockResolvedValueOnce(deleteResponse);
+    global.fetch = fetchSpy as unknown as typeof fetch;
 
     await probeDeepgramKeyScopes();
 
-    expect(warnSpy).toHaveBeenCalledWith(
-      expect.objectContaining({ event: 'deepgram.key.probe.scope_missing' }),
-      expect.any(String)
-    );
-  });
-
-  it('logs ok when keys:write is present', async () => {
-    const { probeDeepgramKeyScopes } = await import('../src/modules/ai/ai.service.js');
-    mockFetchOnce({
-      ok: true,
-      status: 200,
-      bodyText: JSON.stringify({ scopes: ['usage:write', 'keys:write'] }),
-    });
-
-    await probeDeepgramKeyScopes();
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+    const [mintCall, deleteCall] = fetchSpy.mock.calls;
+    expect(mintCall![0]).toMatch(/\/projects\/project-xyz\/keys$/);
+    expect((mintCall![1] as RequestInit).method).toBe('POST');
+    expect(deleteCall![0]).toMatch(/\/projects\/project-xyz\/keys\/key-123$/);
+    expect((deleteCall![1] as RequestInit).method).toBe('DELETE');
 
     expect(infoSpy).toHaveBeenCalledWith(
       expect.objectContaining({ event: 'deepgram.key.probe.ok' }),
@@ -202,13 +199,71 @@ describe('probeDeepgramKeyScopes', () => {
     );
   });
 
-  it('does not throw when probe fails', async () => {
+  it('warns and pre-warms fallback on 403 INSUFFICIENT_PERMISSIONS', async () => {
+    const { probeDeepgramKeyScopes, createTranscriptionSession } = await import(
+      '../src/modules/ai/ai.service.js'
+    );
+    mockFetchOnce({ ok: false, status: 403, bodyText: PERMISSION_DENIED_BODY });
+
+    await probeDeepgramKeyScopes();
+
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ event: 'deepgram.key.probe.scope_missing' }),
+      expect.any(String)
+    );
+
+    // Fallback should be active — next mint attempt skips the network call.
+    const fetchSpy = vi.fn();
+    global.fetch = fetchSpy as unknown as typeof fetch;
+    const result = await createTranscriptionSession('user-1', { ttlSeconds: 60 });
+
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(result.apiKey).toBe('master-key-abc');
+    expect(result.ephemeral).toBe(false);
+  });
+
+  it('warns but does NOT activate fallback on non-permission failures (5xx, 404, 405)', async () => {
+    const { probeDeepgramKeyScopes, createTranscriptionSession } = await import(
+      '../src/modules/ai/ai.service.js'
+    );
+    const probeResponse = fetchResponse({
+      ok: false,
+      status: 405,
+      bodyText: '',
+    });
+    const mintResponse = fetchResponse({
+      ok: true,
+      status: 201,
+      bodyText: JSON.stringify(SUCCESS_BODY),
+    });
+    const fetchSpy = vi
+      .fn()
+      .mockResolvedValueOnce(probeResponse)
+      .mockResolvedValueOnce(mintResponse);
+    global.fetch = fetchSpy as unknown as typeof fetch;
+
+    await probeDeepgramKeyScopes();
+
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ event: 'deepgram.key.probe.failed', status: 405 }),
+      expect.any(String)
+    );
+
+    // Crucially, the runtime mint still goes through — no false fallback.
+    const result = await createTranscriptionSession('user-1', { ttlSeconds: 60 });
+
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+    expect(result.apiKey).toBe('ephemeral-secret');
+    expect(result.ephemeral).toBe(true);
+  });
+
+  it('does not throw when probe fetch rejects', async () => {
     const { probeDeepgramKeyScopes } = await import('../src/modules/ai/ai.service.js');
     global.fetch = vi.fn().mockRejectedValueOnce(new Error('network down')) as unknown as typeof fetch;
 
     await expect(probeDeepgramKeyScopes()).resolves.toBeUndefined();
     expect(warnSpy).toHaveBeenCalledWith(
-      expect.objectContaining({ event: 'deepgram.key.probe.error' }),
+      expect.objectContaining({ event: 'deepgram.key.probe.network' }),
       expect.any(String)
     );
   });
