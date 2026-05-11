@@ -152,9 +152,10 @@ export async function verifyAttestation(params: VerifyAttestationParams): Promis
     throw new AppError(401, 'attestation nonce mismatch', 'ATTEST_NONCE_MISMATCH');
   }
 
-  /* eslint-disable @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-assignment */
-  const credPubKeyDer: Buffer<ArrayBufferLike> = Buffer.from(await credCert.publicKey.export());
-  /* eslint-enable @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-assignment */
+  // @peculiar/x509 v2's PublicKey.export() returns a CryptoKey, not raw bytes.
+  // PublicKey extends PemData<SubjectPublicKeyInfo>, whose .rawData getter
+  // returns the SPKI DER ArrayBuffer — which is what Apple's keyId SHA-256s.
+  const credPubKeyDer: Buffer<ArrayBufferLike> = Buffer.from(credCert.publicKey.rawData);
   const credPubKeyHash = createHash('sha256').update(credPubKeyDer).digest();
   const expectedKeyId = Buffer.from(params.keyId, 'base64');
   if (!credPubKeyHash.equals(expectedKeyId)) {
