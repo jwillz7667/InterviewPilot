@@ -343,66 +343,114 @@ function masterKeyFallback(masterKey: string): TranscriptionSessionResult {
   return { apiKey: masterKey, expiresAt: null, ephemeral: false };
 }
 
-// Probes the configured Deepgram master key at boot to detect a missing
-// `keys:write` scope before the first interview. Logs a single warning with
-// a remediation hint; never throws — the runtime fallback covers correctness.
+// Probes the configured Deepgram master key at boot to verify it can mint
+// ephemeral keys (i.e. holds `keys:write`). The only fully reliable check is
+// to perform a real mint+delete — Deepgram does not expose a read-only
+// "current member scopes" endpoint that works without knowing the member_id
+// of the key's owner. The probe creates a tiny 30s-TTL key with `usage:write`
+// and deletes it immediately. Never throws — the runtime fallback covers
+// correctness; this just pre-warms operational state.
 export async function probeDeepgramKeyScopes(): Promise<void> {
   const env = getEnv();
   if (!env.DEEPGRAM_API_KEY || !env.DEEPGRAM_PROJECT_ID) return;
 
-  try {
-    const response = await fetch(
-      `${DEEPGRAM_BASE}/projects/${env.DEEPGRAM_PROJECT_ID}/members/me`,
-      {
-        headers: {
-          Authorization: `Token ${env.DEEPGRAM_API_KEY}`,
-          Accept: 'application/json',
-        },
-      }
-    );
+  const projectId = env.DEEPGRAM_PROJECT_ID;
+  const authHeader = `Token ${env.DEEPGRAM_API_KEY}`;
 
-    if (!response.ok) {
-      const text = await response.text().catch(() => '');
+  let response: Response;
+  try {
+    response = await fetch(`${DEEPGRAM_BASE}/projects/${projectId}/keys`, {
+      method: 'POST',
+      headers: {
+        Authorization: authHeader,
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+      },
+      body: JSON.stringify({
+        comment: `ip-probe-${Date.now()}`,
+        scopes: ['usage:write'],
+        time_to_live_in_seconds: 30,
+      }),
+    });
+  } catch (err) {
+    // Network-level failure — not a permission problem. Leave fallback alone
+    // so the first user request decides the truth.
+    log.warn(
+      { event: 'deepgram.key.probe.network', err },
+      'Deepgram key probe network error; runtime fallback will handle it'
+    );
+    return;
+  }
+
+  if (response.ok) {
+    const data = (await response.json().catch(() => null)) as DeepgramKeyResponse | null;
+    if (!data?.api_key_id) {
       log.warn(
-        {
-          event: 'deepgram.key.probe.failed',
-          status: response.status,
-          body: text.slice(0, 200),
-        },
-        'Deepgram master key probe failed; ephemeral key minting may degrade to master-key fallback'
+        { event: 'deepgram.key.probe.malformed', status: response.status },
+        'Deepgram key probe returned a 2xx without api_key_id; runtime fallback will handle it'
       );
-      // If the master key cannot even read its own member record, ephemeral
-      // mints will also fail. Pre-warm the fallback so the first interview
-      // start does not pay the round-trip latency.
-      activateKeyMintFallback(`probe_http_${response.status}`);
       return;
     }
 
-    const member = (await response.json()) as { scopes?: string[] };
-    const scopes = member.scopes ?? [];
-    if (!scopes.includes('keys:write')) {
-      log.warn(
-        {
-          event: 'deepgram.key.probe.scope_missing',
-          scopes,
-          remediation:
-            'The configured DEEPGRAM_API_KEY lacks `keys:write`. Per-user ephemeral key minting will fall back to the master key. Rotate to a Member-or-higher key with `keys:write` to restore ephemeral minting.',
-        },
-        'Deepgram master key missing keys:write scope'
+    // Fire-and-forget cleanup. A 30s-TTL key would auto-expire anyway, but
+    // deleting keeps the project keyring tidy and short-circuits any rate
+    // accounting on Deepgram's side.
+    void fetch(`${DEEPGRAM_BASE}/projects/${projectId}/keys/${data.api_key_id}`, {
+      method: 'DELETE',
+      headers: { Authorization: authHeader },
+    }).catch((err: unknown) => {
+      log.debug(
+        { event: 'deepgram.key.probe.cleanup_failed', err, apiKeyId: data.api_key_id },
+        'Deepgram probe cleanup delete failed (key will auto-expire)'
       );
-      activateKeyMintFallback('probe_scope_missing');
-    } else {
-      log.info(
-        { event: 'deepgram.key.probe.ok', scopeCount: scopes.length },
-        'Deepgram master key has keys:write scope'
-      );
-    }
-  } catch (err) {
-    log.warn(
-      { event: 'deepgram.key.probe.error', err },
-      'Deepgram key probe threw; runtime fallback will handle it'
+    });
+
+    // A successful mint also clears any stale fallback window left by a
+    // previous boot — ops fix is honored immediately.
+    if (keyMintFallbackUntil !== 0) clearKeyMintFallback();
+    log.info(
+      { event: 'deepgram.key.probe.ok', scopes: data.scopes },
+      'Deepgram master key has keys:write scope'
     );
+    return;
   }
+
+  const text = await response.text().catch(() => '');
+  const parsed = parseDeepgramError(text);
+  const isPermissionDenied =
+    response.status === 401 ||
+    response.status === 403 ||
+    parsed?.category === 'INSUFFICIENT_PERMISSIONS';
+
+  if (isPermissionDenied) {
+    log.warn(
+      {
+        event: 'deepgram.key.probe.scope_missing',
+        status: response.status,
+        category: parsed?.category,
+        message: parsed?.message,
+        remediation:
+          'The configured DEEPGRAM_API_KEY lacks `keys:write`. Per-user ephemeral key minting will fall back to the master key. Rotate to a Member-or-higher key with `keys:write` (or use an admin key) to restore ephemeral minting.',
+      },
+      'Deepgram master key missing keys:write scope'
+    );
+    activateKeyMintFallback(`probe_scope_missing_${response.status}`);
+    return;
+  }
+
+  // Any other non-2xx (404, 405, 429, 5xx) is treated as a probe failure, not
+  // a definitive permission verdict. Log it but leave the runtime path to make
+  // the real call on the first user request — that way a transient Deepgram
+  // hiccup at boot doesn't lock the backend into master-key mode for 10 min.
+  log.warn(
+    {
+      event: 'deepgram.key.probe.failed',
+      status: response.status,
+      category: parsed?.category,
+      body: text.slice(0, 200),
+    },
+    'Deepgram key probe failed with a non-permission status; runtime fallback will handle it'
+  );
 }
 
 function buildOpenAIBody(
