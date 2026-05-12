@@ -3,17 +3,43 @@ import Observation
 
 enum DeepgramConnectError: LocalizedError {
     case handshakeTimedOut
-    case handshakeFailed(underlying: Error)
+    case handshakeFailed(status: Int?, body: String?, underlying: Error)
     case socketUnavailable
 
     var errorDescription: String? {
         switch self {
         case .handshakeTimedOut:
             return "Transcription service did not respond within 5 seconds. Check your network and try again."
-        case .handshakeFailed(let underlying):
-            return "Transcription handshake failed: \(underlying.localizedDescription)"
+        case .handshakeFailed(let status, let body, let underlying):
+            // Surface the actual HTTP status (and short body excerpt) so operators
+            // can distinguish 401 (key) from 403 (scope/credits) from 400 (params)
+            // instead of the opaque "bad response from server" URLError default.
+            var parts: [String] = []
+            if let status {
+                parts.append("HTTP \(status) \(DeepgramConnectError.diagnose(status: status))")
+            }
+            if let body, !body.isEmpty {
+                parts.append(body)
+            }
+            if parts.isEmpty {
+                parts.append(underlying.localizedDescription)
+            }
+            return "Transcription handshake failed: \(parts.joined(separator: " — "))"
         case .socketUnavailable:
             return "Transcription socket was not available."
+        }
+    }
+
+    private static func diagnose(status: Int) -> String {
+        switch status {
+        case 400: return "Invalid streaming parameters (model/encoding/sample rate)."
+        case 401: return "Deepgram rejected the credential. The minted key is invalid."
+        case 402: return "Deepgram account is out of credits or has no active streaming plan."
+        case 403: return "Key is missing usage:write or the project lacks streaming permission."
+        case 404: return "Streaming endpoint not found for this model. Check model name."
+        case 429: return "Deepgram rate-limited the connection. Retry shortly."
+        case 500...599: return "Deepgram upstream error."
+        default: return ""
         }
     }
 }
@@ -255,7 +281,15 @@ final class DeepgramService {
         } catch let error as DeepgramConnectError {
             throw error
         } catch {
-            throw DeepgramConnectError.handshakeFailed(underlying: error)
+            // When the WS upgrade is rejected with a non-101 status, URLSession
+            // stores the HTTPURLResponse on the task. Surface that so callers
+            // see the real reason (401/402/403/...) instead of "bad response".
+            let httpResponse = ws.response as? HTTPURLResponse
+            throw DeepgramConnectError.handshakeFailed(
+                status: httpResponse?.statusCode,
+                body: nil,
+                underlying: error
+            )
         }
         // Process the first message so it isn't lost
         switch message {
