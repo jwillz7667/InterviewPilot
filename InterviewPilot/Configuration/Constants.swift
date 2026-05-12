@@ -23,7 +23,10 @@ enum APIConfig {
     static let predictiveFireMinWords = 5
     static let predictiveFireConfidence: Float = 0.45
     static let cacheMatchThreshold: Float = 0.70
-    static let utteranceEndMs = 800
+    // Deepgram rejects utterance_end_ms < 1000 with HTTP 400 on the WSS
+    // upgrade. 1000 is the documented minimum; raising any further trades
+    // recall for latency in turn-end detection.
+    static let utteranceEndMs = 1000
     static let endpointingMs = 350
     static let postResponseEchoSimilarityThreshold: Float = 0.18
     static let postResponseMinimumQuestionScore = 4

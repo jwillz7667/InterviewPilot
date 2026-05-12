@@ -357,15 +357,23 @@ interface StreamingProbeResult {
 // captures the upgrade response so callers can see WHY Deepgram refused the
 // WSS (401 invalid key, 402 no credits, 403 missing scope, 400 bad params).
 // Node's WebSocket API hides this; native https.request exposes it.
-function probeDeepgramStreaming(apiKey: string): Promise<StreamingProbeResult> {
+function probeDeepgramStreaming(
+  apiKey: string,
+  variant: 'minimal' | 'ios' = 'ios'
+): Promise<StreamingProbeResult> {
   return new Promise((resolve) => {
     const wsKey = randomBytes(16).toString('base64');
-    // Mirror the exact iOS query params so the probe and the real client hit
-    // the same accept/reject path on Deepgram's side.
-    const path =
+    // Two probe variants:
+    //  - 'ios' mirrors the iOS client's exact query string. If it 400s, one of
+    //    the extra params is unacceptable to Deepgram.
+    //  - 'minimal' uses only the four required params. If THIS 400s, the
+    //    failure is something fundamental (model name, encoding, auth, etc.).
+    const minimalPath = '/v1/listen?model=nova-3&encoding=linear16&sample_rate=16000&channels=1';
+    const iosPath =
       '/v1/listen?model=nova-3&language=en&smart_format=true&interim_results=true' +
-      '&utterance_end_ms=800&vad_events=true&encoding=linear16&sample_rate=16000' +
+      '&utterance_end_ms=1000&vad_events=true&encoding=linear16&sample_rate=16000' +
       '&channels=1&endpointing=350';
+    const path = variant === 'minimal' ? minimalPath : iosPath;
 
     const req = https.request({
       host: 'api.deepgram.com',
@@ -475,26 +483,46 @@ export async function probeDeepgramKeyScopes(): Promise<void> {
     );
 
     // Mint succeeded — now verify the minted key can actually open a streaming
-    // WSS. This catches the failure mode where the project is otherwise valid
-    // but streaming itself is rejected (no credits, model unavailable, etc.).
-    const streamResult = await probeDeepgramStreaming(data.key);
-    if (streamResult.ok) {
+    // WSS with the iOS client's exact params. If that fails, retry with a
+    // minimal baseline to isolate whether the rejection is fundamental
+    // (auth/model/encoding) or one of the optional params.
+    const iosResult = await probeDeepgramStreaming(data.key, 'ios');
+    if (iosResult.ok) {
       log.info(
-        { event: 'deepgram.streaming.probe.ok' },
-        'Deepgram streaming upgrade accepted with minted key'
+        { event: 'deepgram.streaming.probe.ok', variant: 'ios' },
+        'Deepgram streaming upgrade accepted with iOS-equivalent params'
       );
     } else {
-      log.warn(
-        {
-          event: 'deepgram.streaming.probe.failed',
-          status: streamResult.status,
-          body: streamResult.body,
-          err: streamResult.error,
-          remediation:
-            'Deepgram refused the WSS upgrade for our streaming params. Likely causes: 401 invalid key, 402 no streaming credits, 403 missing usage:write or no streaming plan, 400 bad model/encoding/sample_rate.',
-        },
-        'Deepgram streaming upgrade rejected — live transcription will fail for users'
-      );
+      const minimalResult = await probeDeepgramStreaming(data.key, 'minimal');
+      if (minimalResult.ok) {
+        log.warn(
+          {
+            event: 'deepgram.streaming.probe.failed',
+            variant: 'ios',
+            status: iosResult.status,
+            body: iosResult.body,
+            err: iosResult.error,
+            minimalBaseline: 'ok',
+            remediation:
+              'iOS query params trigger 400; minimal baseline (model/encoding/sample_rate/channels) is accepted. One of the extra params (smart_format/interim_results/utterance_end_ms/vad_events/endpointing/language) is invalid for this account or model.',
+          },
+          'Deepgram streaming upgrade rejected with iOS params but minimal baseline works'
+        );
+      } else {
+        log.warn(
+          {
+            event: 'deepgram.streaming.probe.failed',
+            variant: 'minimal',
+            iosStatus: iosResult.status,
+            minimalStatus: minimalResult.status,
+            minimalBody: minimalResult.body,
+            minimalErr: minimalResult.error,
+            remediation:
+              'Even the minimal streaming params (model/encoding/sample_rate/channels) are rejected. Likely fundamental: account lacks streaming entitlement, nova-3 not available on this plan, or minted key was malformed.',
+          },
+          'Deepgram streaming upgrade rejected at minimal baseline — fundamental issue'
+        );
+      }
     }
 
     // Fire-and-forget cleanup. A 30s-TTL key would auto-expire anyway, but
