@@ -1,3 +1,6 @@
+import { randomBytes } from 'node:crypto';
+import https from 'node:https';
+
 import type { InterviewQuality } from '@prisma/client';
 
 import { getEnv } from '../../config/env.js';
@@ -343,6 +346,77 @@ function masterKeyFallback(masterKey: string): TranscriptionSessionResult {
   return { apiKey: masterKey, expiresAt: null, ephemeral: false };
 }
 
+interface StreamingProbeResult {
+  ok: boolean;
+  status: number | null;
+  body: string;
+  error?: string;
+}
+
+// Opens a raw HTTPS Upgrade request against Deepgram's streaming endpoint and
+// captures the upgrade response so callers can see WHY Deepgram refused the
+// WSS (401 invalid key, 402 no credits, 403 missing scope, 400 bad params).
+// Node's WebSocket API hides this; native https.request exposes it.
+function probeDeepgramStreaming(apiKey: string): Promise<StreamingProbeResult> {
+  return new Promise((resolve) => {
+    const wsKey = randomBytes(16).toString('base64');
+    // Mirror the exact iOS query params so the probe and the real client hit
+    // the same accept/reject path on Deepgram's side.
+    const path =
+      '/v1/listen?model=nova-3&language=en&smart_format=true&interim_results=true' +
+      '&utterance_end_ms=800&vad_events=true&encoding=linear16&sample_rate=16000' +
+      '&channels=1&endpointing=350';
+
+    const req = https.request({
+      host: 'api.deepgram.com',
+      port: 443,
+      path,
+      method: 'GET',
+      headers: {
+        Authorization: `Token ${apiKey}`,
+        Upgrade: 'websocket',
+        Connection: 'Upgrade',
+        'Sec-WebSocket-Key': wsKey,
+        'Sec-WebSocket-Version': '13',
+      },
+      timeout: 5000,
+    });
+
+    let settled = false;
+    const settle = (result: StreamingProbeResult) => {
+      if (settled) return;
+      settled = true;
+      resolve(result);
+    };
+
+    req.on('upgrade', (_res, socket) => {
+      socket.destroy();
+      settle({ ok: true, status: 101, body: '' });
+    });
+
+    req.on('response', (res) => {
+      let body = '';
+      res.on('data', (chunk: Buffer) => {
+        if (body.length < 500) body += chunk.toString('utf8');
+      });
+      res.on('end', () => {
+        settle({ ok: false, status: res.statusCode ?? null, body: body.slice(0, 500) });
+      });
+    });
+
+    req.on('error', (err) => {
+      settle({ ok: false, status: null, body: '', error: err.message });
+    });
+
+    req.on('timeout', () => {
+      req.destroy();
+      settle({ ok: false, status: null, body: '', error: 'timeout' });
+    });
+
+    req.end();
+  });
+}
+
 // Probes the configured Deepgram master key at boot to verify it can mint
 // ephemeral keys (i.e. holds `keys:write`). The only fully reliable check is
 // to perform a real mint+delete — Deepgram does not expose a read-only
@@ -392,6 +466,37 @@ export async function probeDeepgramKeyScopes(): Promise<void> {
       return;
     }
 
+    // A successful mint also clears any stale fallback window left by a
+    // previous boot — ops fix is honored immediately.
+    if (keyMintFallbackUntil !== 0) clearKeyMintFallback();
+    log.info(
+      { event: 'deepgram.key.probe.ok', scopes: data.scopes },
+      'Deepgram master key has keys:write scope'
+    );
+
+    // Mint succeeded — now verify the minted key can actually open a streaming
+    // WSS. This catches the failure mode where the project is otherwise valid
+    // but streaming itself is rejected (no credits, model unavailable, etc.).
+    const streamResult = await probeDeepgramStreaming(data.key);
+    if (streamResult.ok) {
+      log.info(
+        { event: 'deepgram.streaming.probe.ok' },
+        'Deepgram streaming upgrade accepted with minted key'
+      );
+    } else {
+      log.warn(
+        {
+          event: 'deepgram.streaming.probe.failed',
+          status: streamResult.status,
+          body: streamResult.body,
+          err: streamResult.error,
+          remediation:
+            'Deepgram refused the WSS upgrade for our streaming params. Likely causes: 401 invalid key, 402 no streaming credits, 403 missing usage:write or no streaming plan, 400 bad model/encoding/sample_rate.',
+        },
+        'Deepgram streaming upgrade rejected — live transcription will fail for users'
+      );
+    }
+
     // Fire-and-forget cleanup. A 30s-TTL key would auto-expire anyway, but
     // deleting keeps the project keyring tidy and short-circuits any rate
     // accounting on Deepgram's side.
@@ -405,13 +510,6 @@ export async function probeDeepgramKeyScopes(): Promise<void> {
       );
     });
 
-    // A successful mint also clears any stale fallback window left by a
-    // previous boot — ops fix is honored immediately.
-    if (keyMintFallbackUntil !== 0) clearKeyMintFallback();
-    log.info(
-      { event: 'deepgram.key.probe.ok', scopes: data.scopes },
-      'Deepgram master key has keys:write scope'
-    );
     return;
   }
 
