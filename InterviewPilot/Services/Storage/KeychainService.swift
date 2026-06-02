@@ -24,12 +24,20 @@ struct KeychainService {
     static func save(key: KeychainKey, value: String) -> Bool {
         guard let data = value.data(using: .utf8) else { return false }
 
+        // Scope to the local (non-synchronizable) keychain only — these are device
+        // credentials that must never sync to iCloud Keychain or migrate to another
+        // device.
         let lookup: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrAccount as String: key.rawValue,
+            kSecAttrSynchronizable as String: false,
         ]
+        // Re-assert device-only accessibility on every write so an entry first
+        // created by an older build with a more permissive class (e.g. the default
+        // WhenUnlocked, which is backup-eligible) is tightened in place.
         let attributes: [String: Any] = [
             kSecValueData as String: data,
+            kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlockedThisDeviceOnly,
         ]
 
         let updateStatus = SecItemUpdate(lookup as CFDictionary, attributes as CFDictionary)
