@@ -72,9 +72,13 @@ export async function generateDownloadPresignedUrl(key: string): Promise<string 
   if (!client) return null;
 
   const env = getEnv();
+  // Force a download disposition so a stored object can never be rendered inline
+  // in a browser context (defense-in-depth against a malicious upload slipping
+  // past the upload-time content-type allowlist).
   const command = new GetObjectCommand({
     Bucket: env.R2_BUCKET_NAME,
     Key: key,
+    ResponseContentDisposition: 'attachment',
   });
 
   return getSignedUrl(client, command, { expiresIn: DOWNLOAD_URL_TTL_SECONDS });

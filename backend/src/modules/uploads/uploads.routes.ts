@@ -8,10 +8,24 @@ import {
   isKeyOwnedBy,
 } from '../../services/storage.js';
 
+// Resumes are documents only. An open contentType lets an authenticated user
+// store text/html or image/svg+xml in the bucket — a stored-XSS vector if those
+// objects are ever served inline — so we allowlist the document MIME types the
+// product accepts and bind the type into the presigned signature.
+const ALLOWED_UPLOAD_CONTENT_TYPES = [
+  'application/pdf',
+  'application/rtf',
+  'text/rtf',
+  'text/plain',
+  'text/markdown',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+] as const;
+
 const presignedUrlSchema = z
   .object({
     filename: z.string().min(1).max(255),
-    contentType: z.string().min(1).max(100),
+    contentType: z.enum(ALLOWED_UPLOAD_CONTENT_TYPES),
   })
   .strict();
 
