@@ -126,7 +126,10 @@ app.get('/health', async () => {
       if (!env.REDIS_URL) return 'unconfigured';
       try {
         const client = await getRedis();
-        if (!client) return 'unconfigured';
+        // getRedis never blocks: it returns the client only when ready, otherwise
+        // undefined while a throttled background reconnect runs. Configured but
+        // not ready => disconnected (degraded), not unconfigured.
+        if (!client) return 'disconnected';
         const reply = await client.ping();
         return reply === 'PONG' ? 'connected' : 'disconnected';
       } catch {

@@ -66,7 +66,12 @@ export async function getCachedBillingSummary(
   const redis = await getRedis();
   if (!redis) return null;
 
-  const cached = await redis.get(`${BILLING_CACHE_PREFIX}${userId}`);
+  let cached: string | null;
+  try {
+    cached = await redis.get(`${BILLING_CACHE_PREFIX}${userId}`);
+  } catch {
+    return null; // Redis dropped mid-flight — treat as a cache miss.
+  }
   if (!cached) return null;
 
   try {
@@ -86,12 +91,24 @@ export async function setCachedBillingSummary(
   const redis = await getRedis();
   if (!redis) return;
 
-  await redis.setEx(`${BILLING_CACHE_PREFIX}${userId}`, BILLING_CACHE_TTL, JSON.stringify(summary));
+  try {
+    await redis.setEx(
+      `${BILLING_CACHE_PREFIX}${userId}`,
+      BILLING_CACHE_TTL,
+      JSON.stringify(summary)
+    );
+  } catch {
+    // Best-effort cache write; a Redis drop must not fail the caller.
+  }
 }
 
 export async function invalidateBillingCache(userId: string): Promise<void> {
   const redis = await getRedis();
   if (!redis) return;
 
-  await redis.del(`${BILLING_CACHE_PREFIX}${userId}`);
+  try {
+    await redis.del(`${BILLING_CACHE_PREFIX}${userId}`);
+  } catch {
+    // Best-effort invalidation; the entry expires via TTL regardless.
+  }
 }

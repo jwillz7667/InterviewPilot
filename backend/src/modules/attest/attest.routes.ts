@@ -32,21 +32,31 @@ async function newChallenge(userId: string): Promise<string> {
 
   const redis = await getRedis();
   if (redis) {
-    await redis.set(challengeRedisKey(userId), challengeBase64, { EX: CHALLENGE_TTL_SECONDS });
-  } else {
-    challengeStore.set(userId, { challenge, expiresAt: Date.now() + CHALLENGE_TTL_MS });
+    try {
+      await redis.set(challengeRedisKey(userId), challengeBase64, { EX: CHALLENGE_TTL_SECONDS });
+      return challengeBase64;
+    } catch {
+      // Redis dropped between readiness check and write — fall back to memory so
+      // challenge issuance never 500s. (Single-instance fallback only.)
+    }
   }
+  challengeStore.set(userId, { challenge, expiresAt: Date.now() + CHALLENGE_TTL_MS });
   return challengeBase64;
 }
 
 async function consumeChallenge(userId: string, challengeBase64: string): Promise<boolean> {
   const redis = await getRedis();
   if (redis) {
-    // GETDEL makes consume atomic: a challenge can never be redeemed twice even
-    // under concurrent register calls.
-    const stored = await redis.getDel(challengeRedisKey(userId));
-    if (!stored) return false;
-    return constantTimeEqualBase64(stored, challengeBase64);
+    try {
+      // GETDEL makes consume atomic: a challenge can never be redeemed twice even
+      // under concurrent register calls.
+      const stored = await redis.getDel(challengeRedisKey(userId));
+      if (!stored) return false;
+      return constantTimeEqualBase64(stored, challengeBase64);
+    } catch {
+      // Redis dropped mid-flight — fall back to the in-memory store rather than
+      // erroring the register call.
+    }
   }
 
   const record = challengeStore.get(userId);

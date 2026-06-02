@@ -63,7 +63,12 @@ export async function idempotencyPlugin(app: FastifyInstance) {
 
     const requestHash = hashRequest(request.method, request.url, request.body);
     const cacheKey = redisKey(userId, rawKey);
-    const cached = await redis.get(cacheKey);
+    let cached: string | null;
+    try {
+      cached = await redis.get(cacheKey);
+    } catch {
+      return; // Redis dropped mid-flight — degrade open, process the request normally.
+    }
 
     if (cached) {
       try {
@@ -114,7 +119,12 @@ export async function idempotencyPlugin(app: FastifyInstance) {
       requestHash,
     };
 
-    await redis.set(redisKey(userId, key), JSON.stringify(entry), { EX: TTL_SECONDS });
+    try {
+      await redis.set(redisKey(userId, key), JSON.stringify(entry), { EX: TTL_SECONDS });
+    } catch {
+      // Caching the response is best-effort; a Redis drop here must not fail the
+      // already-successful response.
+    }
     return payload;
   });
 }
