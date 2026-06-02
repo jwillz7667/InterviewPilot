@@ -54,16 +54,20 @@ export function initTelemetry(): void {
 
   sdk.start();
   started = true;
+}
 
-  // Graceful shutdown so the last batch of spans flushes before exit.
-  const shutdown = (): void => {
-    sdk
-      ?.shutdown()
-      .then(() => process.exit(0))
-      .catch(() => process.exit(1));
-  };
-  process.on('SIGTERM', shutdown);
-  process.on('SIGINT', shutdown);
+// Flush + stop the OTel SDK. Called from the single graceful-shutdown path in
+// index.ts so the last batch of spans is exported before the process exits.
+// Telemetry must NOT register its own process-exit handlers: a stray
+// process.exit() there races (and can win against) the real shutdown that drains
+// in-flight SSE streams and disconnects Prisma/Redis.
+export async function shutdownTelemetry(): Promise<void> {
+  if (!sdk) return;
+  try {
+    await sdk.shutdown();
+  } catch {
+    // Best-effort flush; never block or fail shutdown on telemetry.
+  }
 }
 
 function parseOtlpHeaders(raw: string | undefined): Record<string, string> {

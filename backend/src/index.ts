@@ -17,12 +17,13 @@ import {
   reconnectPrisma,
 } from './config/database.js';
 import { loadEnv } from './config/env.js';
+import { RedisRateLimitStore } from './config/rate-limit-store.js';
 import { disconnectRedis, getRedis } from './config/redis.js';
 import { initSentry, captureException } from './config/sentry.js';
 // Telemetry must boot before any HTTP/Prisma client is constructed so OTel can
 // patch them. loadEnv runs first so we have OTEL_* vars; initTelemetry no-ops
 // when no exporter endpoint is configured.
-import { initTelemetry } from './config/telemetry.js';
+import { initTelemetry, shutdownTelemetry } from './config/telemetry.js';
 import { aiRoutes } from './modules/ai/ai.routes.js';
 import { probeDeepgramKeyScopes } from './modules/ai/ai.service.js';
 import { answerBanksRoutes } from './modules/answer-banks/answer-banks.routes.js';
@@ -55,6 +56,10 @@ if (env.CORS_ORIGIN === '*' && env.NODE_ENV === 'production') {
 }
 
 const app = Fastify({
+  // Railway terminates TLS at its edge proxy and forwards X-Forwarded-For.
+  // Without trustProxy, req.ip is the proxy's IP — collapsing every client into
+  // one rate-limit bucket and mis-keying the unauthenticated IP fallback.
+  trustProxy: true,
   logger: {
     level: env.NODE_ENV === 'production' ? 'info' : 'debug',
     redact: {
@@ -95,6 +100,11 @@ await app.register(jwt, {
 await app.register(rateLimit, {
   max: 100,
   timeWindow: '1 minute',
+  // Share counters across instances when Redis is configured; otherwise fall
+  // back to the plugin's default in-process LRU store (correct for a single
+  // instance). skipOnError fails open so a Redis blip never blocks the API.
+  skipOnError: true,
+  ...(env.REDIS_URL ? { store: RedisRateLimitStore } : {}),
 });
 
 await app.register(requestIdPlugin);
@@ -243,12 +253,35 @@ const shutdown = async () => {
   shutdownTimer.unref();
 
   await app.close();
-  await Promise.all([disconnectPrisma(), disconnectRedis()]);
+  await Promise.all([disconnectPrisma(), disconnectRedis(), shutdownTelemetry()]);
   clearTimeout(shutdownTimer);
   process.exit(0);
 };
 
-process.on('SIGINT', shutdown);
-process.on('SIGTERM', shutdown);
+let isShuttingDown = false;
+const shutdownOnce = (signal: string) => {
+  if (isShuttingDown) return;
+  isShuttingDown = true;
+  app.log.info({ signal }, 'Received shutdown signal');
+  void shutdown();
+};
+
+process.on('SIGINT', () => shutdownOnce('SIGINT'));
+process.on('SIGTERM', () => shutdownOnce('SIGTERM'));
+
+// Last-resort crash handlers. Without these, an unhandled rejection terminates
+// the Node 22 process silently — no Sentry capture, no controlled drain. Log +
+// report, then exit so the orchestrator restarts a clean process.
+process.on('unhandledRejection', (reason) => {
+  const error = reason instanceof Error ? reason : new Error(String(reason));
+  app.log.error({ err: error }, 'Unhandled promise rejection');
+  captureException(error, { source: 'unhandledRejection' });
+});
+
+process.on('uncaughtException', (error) => {
+  app.log.error({ err: error }, 'Uncaught exception — shutting down');
+  captureException(error, { source: 'uncaughtException' });
+  shutdownOnce('uncaughtException');
+});
 
 void start();
