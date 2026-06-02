@@ -1,5 +1,4 @@
 import Foundation
-import Observation
 
 enum DeepgramConnectError: LocalizedError {
     case handshakeTimedOut
@@ -9,7 +8,7 @@ enum DeepgramConnectError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .handshakeTimedOut:
-            return "Transcription service did not respond within 5 seconds. Check your network and try again."
+            return "Transcription service did not respond within 10 seconds. Check your network and try again."
         case .handshakeFailed(let status, let body, let underlying):
             // Surface the actual HTTP status (and short body excerpt) so operators
             // can distinguish 401 (key) from 403 (scope/credits) from 400 (params)
@@ -44,19 +43,28 @@ enum DeepgramConnectError: LocalizedError {
     }
 }
 
-@Observable
-final class DeepgramService {
+/// Deepgram Nova-3 live transcription over a raw WSS socket.
+///
+/// Connection confirmation is done on the WebSocket **upgrade** (HTTP 101),
+/// delivered via `URLSessionWebSocketDelegate.didOpenWithProtocol`. Deepgram's
+/// streaming endpoint stays completely silent until it receives audio — it does
+/// NOT emit any metadata/handshake message on connect — so blocking on a first
+/// message (as an OpenAI-Realtime-style handshake would) deadlocks until the
+/// timeout and kills the session before audio ever starts. We therefore confirm
+/// on the open event and treat a non-101 completion as the failure path, which
+/// also carries the real HTTP status for diagnostics.
+final class DeepgramService: NSObject {
     private var webSocket: URLSessionWebSocketTask?
     private var urlSession: URLSession?
     private(set) var isConnected = false
     private(set) var isReconnecting = false
 
-    @ObservationIgnored var onPartialTranscript: ((String) -> Void)?
-    @ObservationIgnored var onFinalTranscript: ((String) -> Void)?
-    @ObservationIgnored var onSpeechStarted: (() -> Void)?
-    @ObservationIgnored var onSpeechEnded: (() -> Void)?
-    @ObservationIgnored var onError: ((String) -> Void)?
-    @ObservationIgnored var onReconnected: (() -> Void)?
+    var onPartialTranscript: ((String) -> Void)?
+    var onFinalTranscript: ((String) -> Void)?
+    var onSpeechStarted: (() -> Void)?
+    var onSpeechEnded: (() -> Void)?
+    var onError: ((String) -> Void)?
+    var onReconnected: (() -> Void)?
 
     private let aiClient: AIClient
     private var lastConnectKeywords: [String] = []
@@ -65,11 +73,29 @@ final class DeepgramService {
     private var keepAliveTask: Task<Void, Never>?
     private var reconnectTask: Task<Void, Never>?
 
+    // Handshake confirmation plumbing — resolved by the URLSession delegate.
+    private var handshakeContinuation: CheckedContinuation<Void, Error>?
+    private var handshakeTimeoutTask: Task<Void, Never>?
+
     private static let maxReconnectAttempts = 5
     private static let keepAliveIntervalSeconds: UInt64 = 8
+    private static let handshakeTimeoutSeconds: UInt64 = 10
 
     init(aiClient: AIClient = .shared) {
         self.aiClient = aiClient
+        super.init()
+    }
+
+    deinit {
+        // Guarantee teardown even if the owner is dropped without disconnect():
+        // URLSession retains its delegate (self) and keeps the socket + receive
+        // loop alive until invalidated. Only Sendable members are touched here so
+        // this is safe from the nonisolated deinit; invalidateAndCancel also
+        // cancels the underlying WebSocket task.
+        keepAliveTask?.cancel()
+        reconnectTask?.cancel()
+        handshakeTimeoutTask?.cancel()
+        urlSession?.invalidateAndCancel()
     }
 
     func connect(keywords: [String] = []) async throws {
@@ -79,11 +105,14 @@ final class DeepgramService {
         try await connectInternal(keywords: keywords)
     }
 
-    private func connectInternal(keywords: [String]) async throws {
+    private func connectInternal(keywords: [String], forceKeyRefresh: Bool = false) async throws {
         // Clean up previous connection
         cleanupConnection()
 
-        let apiKey = try await aiClient.currentDeepgramKey()
+        // On reconnect, mint a fresh key: if the drop was caused by a revoked or
+        // expired ephemeral key, reusing the cached one fails identically on
+        // every attempt until the reconnect budget is exhausted.
+        let apiKey = try await aiClient.currentDeepgramKey(forceRefresh: forceKeyRefresh)
 
         var components = URLComponents(string: "wss://api.deepgram.com/v1/listen")!
         components.queryItems = [
@@ -120,18 +149,18 @@ final class DeepgramService {
         let config = URLSessionConfiguration.default
         config.timeoutIntervalForRequest = 30
         config.timeoutIntervalForResource = 3600  // 1 hour for long interviews
-        let session = URLSession(configuration: config)
+        let session = URLSession(configuration: config, delegate: self, delegateQueue: nil)
         self.urlSession = session
         self.webSocket = session.webSocketTask(with: request)
         self.webSocket?.resume()
 
-        // Wait for the first message to confirm the WebSocket handshake completed.
-        // Setting isConnected before the handshake finishes causes audio sent in
-        // that window to be silently dropped. If Deepgram refuses the socket
-        // (auth, scope, account state), the receive throws — surface it instead
-        // of leaving the UI stuck on "waiting for interviewer".
+        // Confirm the WSS upgrade (HTTP 101) via the delegate open event. If
+        // Deepgram refuses the socket (auth, scope, account state, bad params)
+        // the upgrade is rejected with a non-101 status, surfaced through
+        // didCompleteWithError with the real HTTP status. Setting isConnected
+        // before the upgrade would let audio be sent into a dead socket.
         do {
-            try await receiveFirstMessage()
+            try await waitForHandshake()
         } catch {
             CrashReportingService.breadcrumb(
                 category: "deepgram",
@@ -163,6 +192,9 @@ final class DeepgramService {
     func disconnect() {
         intentionalDisconnect = true
         CrashReportingService.breadcrumb(category: "deepgram", message: "ws.closed")
+        // Unblock any in-flight handshake so a connect() awaiting confirmation
+        // doesn't hang past teardown.
+        resolveHandshake(.failure(DeepgramConnectError.socketUnavailable))
         reconnectTask?.cancel()
         reconnectTask = nil
         keepAliveTask?.cancel()
@@ -185,6 +217,31 @@ final class DeepgramService {
             self?.isReconnecting = false
             self?.reconnectAttempts = 0
         }
+    }
+
+    // MARK: - Handshake confirmation
+
+    /// Suspends until the WebSocket upgrade is confirmed (delegate open event),
+    /// the upgrade is rejected (delegate completion with a status), or the
+    /// timeout elapses. Resolved exactly once via `resolveHandshake`.
+    private func waitForHandshake() async throws {
+        handshakeTimeoutTask?.cancel()
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            self.handshakeContinuation = continuation
+            self.handshakeTimeoutTask = Task { [weak self] in
+                try? await Task.sleep(nanoseconds: Self.handshakeTimeoutSeconds * 1_000_000_000)
+                guard !Task.isCancelled else { return }
+                self?.resolveHandshake(.failure(DeepgramConnectError.handshakeTimedOut))
+            }
+        }
+    }
+
+    private func resolveHandshake(_ result: Result<Void, Error>) {
+        handshakeTimeoutTask?.cancel()
+        handshakeTimeoutTask = nil
+        guard let continuation = handshakeContinuation else { return }
+        handshakeContinuation = nil
+        continuation.resume(with: result)
     }
 
     // MARK: - Keep-Alive
@@ -240,7 +297,7 @@ final class DeepgramService {
             guard let self, !self.intentionalDisconnect else { return }
 
             do {
-                try await self.connectInternal(keywords: keywords)
+                try await self.connectInternal(keywords: keywords, forceKeyRefresh: true)
                 self.reconnectAttempts = 0
                 self.isReconnecting = false
                 self.onReconnected?()
@@ -251,57 +308,15 @@ final class DeepgramService {
     }
 
     private func cleanupConnection() {
+        // Resolve any pending handshake before tearing the socket down so a
+        // suspended waitForHandshake() never leaks its continuation.
+        resolveHandshake(.failure(DeepgramConnectError.socketUnavailable))
         keepAliveTask?.cancel()
         keepAliveTask = nil
         webSocket?.cancel(with: .normalClosure, reason: nil)
         webSocket = nil
         urlSession?.invalidateAndCancel()
         urlSession = nil
-    }
-
-    /// Waits for the first WebSocket message to confirm the handshake completed.
-    /// Deepgram sends metadata on connect; receiving it proves the connection is live.
-    /// Times out after 5 seconds and throws so the caller can surface the failure.
-    private func receiveFirstMessage() async throws {
-        guard let ws = webSocket else { throw DeepgramConnectError.socketUnavailable }
-        let message: URLSessionWebSocketTask.Message
-        do {
-            message = try await withThrowingTaskGroup(of: URLSessionWebSocketTask.Message.self) { group in
-                group.addTask {
-                    try await ws.receive()
-                }
-                group.addTask {
-                    try await Task.sleep(nanoseconds: 5_000_000_000)
-                    throw DeepgramConnectError.handshakeTimedOut
-                }
-                let result = try await group.next()!
-                group.cancelAll()
-                return result
-            }
-        } catch let error as DeepgramConnectError {
-            throw error
-        } catch {
-            // When the WS upgrade is rejected with a non-101 status, URLSession
-            // stores the HTTPURLResponse on the task. Surface that so callers
-            // see the real reason (401/402/403/...) instead of "bad response".
-            let httpResponse = ws.response as? HTTPURLResponse
-            throw DeepgramConnectError.handshakeFailed(
-                status: httpResponse?.statusCode,
-                body: nil,
-                underlying: error
-            )
-        }
-        // Process the first message so it isn't lost
-        switch message {
-        case .string(let text):
-            handleMessage(text)
-        case .data(let data):
-            if let text = String(data: data, encoding: .utf8) {
-                handleMessage(text)
-            }
-        @unknown default:
-            break
-        }
     }
 
     private func receiveMessages() async {
@@ -391,5 +406,40 @@ final class DeepgramService {
         }
 
         return nil
+    }
+}
+
+// MARK: - URLSessionWebSocketDelegate
+
+extension DeepgramService: URLSessionWebSocketDelegate {
+    nonisolated func urlSession(
+        _ session: URLSession,
+        webSocketTask: URLSessionWebSocketTask,
+        didOpenWithProtocol protocol: String?
+    ) {
+        Task { @MainActor [weak self] in
+            self?.resolveHandshake(.success(()))
+        }
+    }
+
+    nonisolated func urlSession(
+        _ session: URLSession,
+        task: URLSessionTask,
+        didCompleteWithError error: Error?
+    ) {
+        // On a rejected upgrade, URLSession stores the HTTPURLResponse on the
+        // task — surface the real status (401/402/403/...) instead of an opaque
+        // URLError. Only meaningful while the handshake is still pending; after a
+        // successful open this fires on normal/dropped close and is handled by
+        // the receiveMessages() loop, so we no-op when nothing is awaiting.
+        let status = (task.response as? HTTPURLResponse)?.statusCode
+        Task { @MainActor [weak self] in
+            guard let self, self.handshakeContinuation != nil else { return }
+            self.resolveHandshake(.failure(DeepgramConnectError.handshakeFailed(
+                status: status,
+                body: nil,
+                underlying: error ?? URLError(.badServerResponse)
+            )))
+        }
     }
 }
