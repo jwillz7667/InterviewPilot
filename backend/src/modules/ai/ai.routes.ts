@@ -51,6 +51,23 @@ function userKey(req: FastifyRequest): string {
   return req.user?.sub ?? req.ip;
 }
 
+// Resolves once the socket can accept more data, or immediately if the
+// connection closes/errors first. Without this, a slow client lets the upstream
+// stream outrun the kernel send buffer and balloons server memory.
+function awaitDrain(stream: NodeJS.WritableStream): Promise<void> {
+  return new Promise((resolve) => {
+    const settle = () => {
+      stream.off('drain', settle);
+      stream.off('close', settle);
+      stream.off('error', settle);
+      resolve();
+    };
+    stream.once('drain', settle);
+    stream.once('close', settle);
+    stream.once('error', settle);
+  });
+}
+
 export async function aiRoutes(app: FastifyInstance) {
   app.addHook('onRequest', authenticate);
   app.addHook('preHandler', appAttestHook);
@@ -124,9 +141,14 @@ export async function aiRoutes(app: FastifyInstance) {
     },
     async (request: FastifyRequest, reply: FastifyReply) => {
       const input = parseOrAudit(chatStreamSchema, request.body, request);
+      // Abort the upstream OpenAI request when the client disconnects — cancelling
+      // only the local reader leaves OpenAI generating (and billing) the full
+      // completion for an abandoned stream.
+      const upstreamAbort = new AbortController();
       const { upstream, resolvedQuality, resolvedModel } = await chatCompletionStream(
         request.user.sub,
-        input
+        input,
+        upstreamAbort.signal
       );
 
       reply.raw.writeHead(200, {
@@ -141,6 +163,7 @@ export async function aiRoutes(app: FastifyInstance) {
 
       const reader = upstream.body!.getReader() as ReadableStreamDefaultReader<Uint8Array>;
       const onDisconnect = () => {
+        upstreamAbort.abort();
         void reader.cancel().catch(() => {});
       };
       reply.raw.on('close', onDisconnect);
@@ -149,15 +172,28 @@ export async function aiRoutes(app: FastifyInstance) {
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
-          if (!reply.raw.writableEnded) {
-            reply.raw.write(value);
-          } else {
+          if (reply.raw.writableEnded) {
+            upstreamAbort.abort();
             await reader.cancel().catch(() => {});
             break;
           }
+          // Respect backpressure: if the kernel buffer is full, pause reading
+          // from OpenAI until the socket drains (or the client disconnects).
+          if (!reply.raw.write(value)) {
+            await awaitDrain(reply.raw);
+          }
+        }
+      } catch (err) {
+        // Mid-stream upstream failure after headers are flushed: emit a terminal
+        // SSE error frame so the iOS client can distinguish failure from a clean
+        // end (a bare truncated 200 with no [DONE] is ambiguous).
+        if (!reply.raw.writableEnded) {
+          const message = err instanceof Error ? err.message : 'stream interrupted';
+          reply.raw.write(`event: error\ndata: ${JSON.stringify({ message })}\n\n`);
         }
       } finally {
         reply.raw.off('close', onDisconnect);
+        upstreamAbort.abort();
         if (!reply.raw.writableEnded) reply.raw.end();
       }
     }
