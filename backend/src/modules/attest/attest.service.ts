@@ -258,15 +258,24 @@ export async function verifyAssertion(params: VerifyAssertionParams): Promise<vo
     throw new AppError(401, 'assertion rpIdHash != appId hash', 'ATTEST_APPID_MISMATCH');
   }
 
-  // Counter must be strictly monotonic — replay protection.
-  if (BigInt(auth.signCount) <= key.signCount) {
+  // Counter must be strictly monotonic — replay protection. Fast-path reject
+  // gives a clear error for the common (sequential) case.
+  const observedSignCount = BigInt(auth.signCount);
+  if (observedSignCount <= key.signCount) {
     throw new AppError(401, 'assertion counter not advanced', 'ATTEST_COUNTER_REPLAY');
   }
 
-  await withDatabaseRetry((prisma) =>
-    prisma.appAttestKey.update({
-      where: { keyId: params.keyId },
-      data: { signCount: BigInt(auth.signCount), lastUsedAt: new Date() },
+  // Atomic conditional advance closes the TOCTOU window: two concurrent requests
+  // carrying the same assertion both pass the read-time check above, but only the
+  // first UPDATE whose WHERE still sees the lower counter succeeds. count !== 1
+  // means another request already consumed this (or a higher) counter value.
+  const advanced = await withDatabaseRetry((prisma) =>
+    prisma.appAttestKey.updateMany({
+      where: { keyId: params.keyId, signCount: { lt: observedSignCount } },
+      data: { signCount: observedSignCount, lastUsedAt: new Date() },
     })
   );
+  if (advanced.count !== 1) {
+    throw new AppError(401, 'assertion counter not advanced', 'ATTEST_COUNTER_REPLAY');
+  }
 }
