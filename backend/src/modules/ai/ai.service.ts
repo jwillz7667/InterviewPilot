@@ -175,15 +175,16 @@ export async function createRealtimeSession(
       'OpenAI-Beta': 'realtime=v1',
     },
     body: JSON.stringify(body),
+    signal: AbortSignal.timeout(30_000),
   });
 
   if (!response.ok) {
     const text = await response.text();
-    throw new AppError(
-      502,
-      `OpenAI Realtime session creation failed (${response.status}): ${text.slice(0, 200)}`,
-      'AI_UPSTREAM_ERROR'
+    log.warn(
+      { event: 'ai.upstream_error', surface: 'realtime', status: response.status, body: text.slice(0, 200) },
+      'OpenAI Realtime session creation failed'
     );
+    throw new AppError(502, 'AI service returned an error. Please retry.', 'AI_UPSTREAM_ERROR');
   }
 
   const data = (await response.json()) as OpenAIRealtimeSessionResponse;
@@ -258,11 +259,13 @@ export async function createTranscriptionSession(
       }),
     });
   } catch (err) {
+    // Transient network blip — serve the master key for THIS request only. Do
+    // not latch the global fallback: a momentary hiccup must not force every
+    // other user onto the master key for the full TTL window.
     log.warn(
       { event: 'deepgram.key.mint.network', userId, err },
-      'Deepgram key mint network error — serving master key'
+      'Deepgram key mint network error — serving master key for this request'
     );
-    activateKeyMintFallback('network_error');
     return masterKeyFallback(masterKey);
   }
 
@@ -294,8 +297,9 @@ export async function createTranscriptionSession(
     }
 
     if (response.status >= 500) {
-      // Upstream Deepgram outage — short-circuit subsequent calls and serve
-      // the master key so users can keep transcribing.
+      // Transient Deepgram outage — serve the master key for THIS request only.
+      // A 5xx is not a permanent scope problem, so don't latch the global
+      // fallback; the next request retries the happy path.
       log.warn(
         {
           event: 'deepgram.key.mint.upstream_error',
@@ -303,9 +307,8 @@ export async function createTranscriptionSession(
           status: response.status,
           body: text.slice(0, 200),
         },
-        'Deepgram key mint failed upstream — falling back to master key'
+        'Deepgram key mint failed upstream — serving master key for this request'
       );
-      activateKeyMintFallback(`http_${response.status}`);
       return masterKeyFallback(masterKey);
     }
 
@@ -626,13 +629,20 @@ export async function chatCompletion(userId: string, input: ChatInput): Promise<
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(body),
+    signal: AbortSignal.timeout(30_000),
   });
 
   const text = await response.text();
   if (!response.ok) {
+    // Log the upstream body server-side for debugging, but never forward it to
+    // the client — OpenAI error payloads can echo org/account/quota internals.
+    log.warn(
+      { event: 'ai.upstream_error', surface: 'chat', status: response.status, body: text.slice(0, 500) },
+      'OpenAI chat completion failed'
+    );
     throw new AppError(
       response.status >= 500 ? 502 : response.status,
-      `OpenAI chat completion failed (${response.status}): ${text.slice(0, 500)}`,
+      'AI service returned an error. Please retry.',
       'AI_UPSTREAM_ERROR'
     );
   }
@@ -661,7 +671,8 @@ export async function chatCompletion(userId: string, input: ChatInput): Promise<
 
 export async function chatCompletionStream(
   userId: string,
-  input: ChatStreamInput
+  input: ChatStreamInput,
+  signal?: AbortSignal
 ): Promise<{ upstream: Response; resolvedQuality: InterviewQuality; resolvedModel: string }> {
   const authorized = await authorizeAiCall(userId, input.sessionClientId, input.routing);
   await ensureBillingAccess(userId);
@@ -669,6 +680,9 @@ export async function chatCompletionStream(
 
   const body = buildOpenAIBody(input, authorized.model, true);
 
+  // Pass the caller's abort signal so a client disconnect tears down the
+  // upstream OpenAI request. Cancelling only the downstream reader leaves OpenAI
+  // generating (and billing) the full completion for an abandoned stream.
   const response = await fetch(`${OPENAI_BASE}/chat/completions`, {
     method: 'POST',
     headers: {
@@ -676,13 +690,18 @@ export async function chatCompletionStream(
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(body),
+    signal,
   });
 
   if (!response.ok || !response.body) {
     const text = await response.text().catch(() => '');
+    log.warn(
+      { event: 'ai.upstream_error', surface: 'chat_stream', status: response.status, body: text.slice(0, 500) },
+      'OpenAI chat stream failed'
+    );
     throw new AppError(
       response.status >= 500 ? 502 : response.status,
-      `OpenAI chat stream failed (${response.status}): ${text.slice(0, 500)}`,
+      'AI service returned an error. Please retry.',
       'AI_UPSTREAM_ERROR'
     );
   }
