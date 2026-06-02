@@ -184,8 +184,11 @@ export async function registerUser(input: RegisterInput) {
 
 export async function loginUser(input: LoginInput) {
   const email = normalizeEmail(input.email);
+  // findFirst (not findUnique) so the soft-delete extension applies its
+  // `deletedAt: null` filter — findUnique bypasses it, which would let a
+  // soft-deleted account keep authenticating.
   const user = await withDatabaseRetry((prisma) =>
-    prisma.user.findUnique({
+    prisma.user.findFirst({
       where: { email },
       select: {
         id: true,
@@ -462,6 +465,17 @@ export async function rotateRefreshToken(
     });
 
     if (!existing || existing.revokedAt || existing.expiresAt < new Date()) {
+      throw new UnauthorizedError('Invalid or expired refresh token');
+    }
+
+    // Reject refresh for soft-deleted accounts — otherwise a deleted user with a
+    // live refresh token keeps minting access tokens. findFirst triggers the
+    // soft-delete extension's `deletedAt: null` filter (findUnique bypasses it).
+    const owner = await tx.user.findFirst({
+      where: { id: existing.userId },
+      select: { id: true },
+    });
+    if (!owner) {
       throw new UnauthorizedError('Invalid or expired refresh token');
     }
 

@@ -57,7 +57,18 @@ export async function usersRoutes(app: FastifyInstance) {
   );
 
   app.delete('/api/v1/users/me', async (request: FastifyRequest, reply: FastifyReply) => {
-    await withDatabaseRetry((prisma) => prisma.user.delete({ where: { id: request.user.sub } }));
+    const userId = request.user.sub;
+    await withDatabaseRetry((prisma) =>
+      prisma.$transaction(async (tx) => {
+        // Soft-delete (the extension rewrites delete → deletedAt) and revoke all
+        // refresh tokens so existing sessions can't be renewed after deletion.
+        await tx.user.delete({ where: { id: userId } });
+        await tx.refreshToken.updateMany({
+          where: { userId, revokedAt: null },
+          data: { revokedAt: new Date() },
+        });
+      })
+    );
     reply.send({ success: true });
   });
 }
