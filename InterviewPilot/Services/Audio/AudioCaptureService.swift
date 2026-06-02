@@ -178,36 +178,61 @@ final class AudioCaptureService {
         guard let converter = AVAudioConverter(from: inputFormat, to: outputFormat) else { return }
 
         let onBuffer = self.onAudioBuffer
-        let convertedFrameCapacity = AVAudioFrameCount(targetSampleRate * bufferDurationSeconds)
+        let sampleRateRatio = outputFormat.sampleRate / inputFormat.sampleRate
+        // Throttle waveform-level updates: the tap fires ~30x/sec, but the UI
+        // only needs ~10Hz. Spawning a MainActor Task per buffer floods the
+        // main actor and re-renders the waveform far more than necessary.
+        var levelUpdateCounter = 0
 
         inputNode.installTap(onBus: 0, bufferSize: bufferSize, format: inputFormat) {
             [weak self] buffer, _ in
 
-            // Calculate audio level for waveform display
-            let level = AudioCaptureService.calculateRMS(buffer: buffer)
-            Task { @MainActor in
-                self?.audioLevel = level
+            levelUpdateCounter &+= 1
+            if levelUpdateCounter % 3 == 0 {
+                let level = AudioCaptureService.calculateRMS(buffer: buffer)
+                Task { @MainActor in
+                    self?.audioLevel = level
+                }
             }
 
-            // Convert to 16kHz PCM16 mono
-            guard let convertedBuffer = AVAudioPCMBuffer(
-                pcmFormat: converter.outputFormat,
-                frameCapacity: convertedFrameCapacity
+            // Convert to 16kHz PCM16 mono. Size the output buffer from the
+            // actual input frame count and the sample-rate ratio (input is the
+            // device's native rate, e.g. 48kHz → 16kHz is 3:1) so resampling
+            // isn't truncated.
+            let outputCapacity = AVAudioFrameCount(
+                (Double(buffer.frameLength) * sampleRateRatio).rounded(.up)
+            ) + 16
+            guard outputCapacity > 0, let convertedBuffer = AVAudioPCMBuffer(
+                pcmFormat: outputFormat,
+                frameCapacity: outputCapacity
             ) else { return }
 
-            var error: NSError?
-            converter.convert(to: convertedBuffer, error: &error) { _, outStatus in
+            // Feed the captured buffer exactly ONCE, then report end-of-input.
+            // AVAudioConverter pulls input repeatedly until its output buffer is
+            // full; returning the same buffer with `.haveData` every time would
+            // re-process the same samples and emit duplicated/garbled audio to
+            // Deepgram. The one-shot flag + `.noDataNow` is the correct pull idiom.
+            var didFeedInput = false
+            var conversionError: NSError?
+            let status = converter.convert(to: convertedBuffer, error: &conversionError) { _, outStatus in
+                if didFeedInput {
+                    outStatus.pointee = .noDataNow
+                    return nil
+                }
+                didFeedInput = true
                 outStatus.pointee = .haveData
                 return buffer
             }
 
-            if let channelData = convertedBuffer.int16ChannelData {
-                let data = Data(
-                    bytes: channelData[0],
-                    count: Int(convertedBuffer.frameLength) * 2
-                )
-                onBuffer?(data)
-            }
+            guard status != .error, conversionError == nil,
+                  convertedBuffer.frameLength > 0,
+                  let channelData = convertedBuffer.int16ChannelData else { return }
+
+            let data = Data(
+                bytes: channelData[0],
+                count: Int(convertedBuffer.frameLength) * 2
+            )
+            onBuffer?(data)
         }
 
         engine.prepare()
