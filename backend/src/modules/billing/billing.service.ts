@@ -644,6 +644,20 @@ async function verifyNotificationPayload(signedPayload: string): Promise<{
   );
 }
 
+// Whether a transaction from the given App Store environment may be honored for
+// this user. Sandbox transactions in production would otherwise be promoted to
+// SANDBOX-tier full access — a privilege-escalation vector for anyone holding a
+// sandbox Apple ID. Only designated testers (isSandboxTester) may use sandbox
+// purchases in production; non-prod environments accept them freely for testing.
+function isSandboxTransactionAllowed(
+  environment: AppStoreEnvironment,
+  user: { isSandboxTester: boolean }
+): boolean {
+  if (environment !== AppStoreEnvironment.SANDBOX) return true;
+  if (user.isSandboxTester) return true;
+  return getEnv().NODE_ENV !== 'production';
+}
+
 async function writeEntitlementFromTransaction(
   prisma: BillingDbClient,
   context: BillingContext,
@@ -664,6 +678,38 @@ async function writeEntitlementFromTransaction(
     transaction.payload.appAccountToken ?? transaction.renewalInfo?.appAccountToken;
   if (appAccountToken && appAccountToken !== context.user.appAccountToken) {
     throw new ForbiddenError('App Store transaction does not belong to the authenticated user');
+  }
+
+  if (!isSandboxTransactionAllowed(transaction.environment, context.user)) {
+    throw new ForbiddenError('Sandbox App Store transactions are not honored in production');
+  }
+
+  // Idempotent replay guard. A verified transaction already recorded for this
+  // exact event type is a no-op — return the current summary without re-writing.
+  // New transaction IDs (renewals) and distinct lifecycle events (EXPIRED,
+  // REFUND, …) still process; only literal replays of the same
+  // (transactionId, eventType) pair are skipped.
+  const transactionId = transaction.payload.transactionId;
+  if (transactionId) {
+    const alreadyProcessed = await prisma.billingEvent.findFirst({
+      where: { appStoreTransactionId: transactionId, eventType },
+      select: { id: true },
+    });
+    if (alreadyProcessed) {
+      log.info(
+        {
+          event: 'billing.transaction.duplicate_ignored',
+          userId: context.user.id,
+          transactionId,
+          eventType,
+        },
+        'Skipping already-processed App Store transaction'
+      );
+      const profilesUsed = await prisma.interviewProfile.count({
+        where: { userId: context.user.id, deletedAt: null },
+      });
+      return buildSummary({ user: context.user, entitlement: context.entitlement, profilesUsed });
+    }
   }
 
   const sandboxFullAccess =
@@ -1172,6 +1218,18 @@ export async function processAppStoreNotification(
       }
 
       const context = await ensureBillingContext(tx, user.id);
+
+      // Acknowledge but ignore sandbox notifications that reach the production
+      // webhook for a non-tester. Throwing here would 500 and make Apple retry
+      // indefinitely; returning accepted:true tells Apple to stop.
+      if (!isSandboxTransactionAllowed(transaction.environment, context.user)) {
+        log.warn(
+          { event: 'billing.notification.sandbox_ignored', userId: user.id },
+          'Ignoring sandbox App Store notification in production'
+        );
+        return { accepted: true };
+      }
+
       const entitlement = await writeEntitlementFromTransaction(
         tx,
         context,
