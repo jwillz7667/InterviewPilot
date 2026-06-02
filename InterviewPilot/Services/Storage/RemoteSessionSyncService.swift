@@ -53,11 +53,16 @@ final class RemoteSessionSyncService {
 
     @discardableResult
     func syncSession(_ snapshot: SessionSyncSnapshot) async throws -> String {
+        // The clientId is a stable per-session UUID. Sending it as the idempotency
+        // key lets the backend collapse retries of the same create (e.g. a queued
+        // offline sync that fires twice) into one row at the edge, before the DB
+        // upsert. The UUID string satisfies the backend key format.
         let sessionResponse: SessionEnvelope = try await sendRequest(
             path: "/api/v1/sessions",
             method: "POST",
             body: CreateSessionRequest(snapshot: snapshot),
-            expectedStatusCodes: [201]
+            expectedStatusCodes: [201],
+            idempotencyKey: snapshot.clientId.uuidString
         )
 
         let serverId = sessionResponse.session.id
@@ -79,12 +84,16 @@ final class RemoteSessionSyncService {
         method: String,
         body: Body,
         expectedStatusCodes: Set<Int>,
+        idempotencyKey: String? = nil,
         retryingUnauthorized: Bool = true
     ) async throws -> Response {
         let url = try buildURL(path: path)
         var request = try await authenticatedRequest(for: url)
         request.httpMethod = method
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        if let idempotencyKey {
+            request.setValue(idempotencyKey, forHTTPHeaderField: "Idempotency-Key")
+        }
         request.httpBody = try encoder.encode(body)
 
         let (data, response) = try await URLSession.shared.data(for: request)
