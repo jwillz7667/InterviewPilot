@@ -293,7 +293,10 @@ final class LiveSessionViewModel {
                 // Only show error to user if reconnection has been exhausted.
                 // During reconnection attempts, DeepgramService handles recovery silently.
                 self.errorMessage = "Transcription issue: \(message)"
-                if self.sessionState != .idle {
+                // Only reset to listening if we were mid-question. Never clobber an
+                // in-flight or just-finished answer (.generating/.responseReady/
+                // .postResponseSpeech) — that would make the user's response vanish.
+                if self.sessionState == .interviewerSpeaking {
                     self.sessionState = .listening
                 }
             }
@@ -331,8 +334,9 @@ final class LiveSessionViewModel {
                 // AudioCaptureService auto-restarts the engine on the new route.
                 // Brief flash to indicate route change.
                 self.errorMessage = "Audio device changed — reconnected"
-                Task {
+                Task { [weak self] in
                     try? await Task.sleep(nanoseconds: 2_000_000_000)
+                    guard let self else { return }
                     if self.errorMessage == "Audio device changed — reconnected" {
                         self.errorMessage = nil
                     }
