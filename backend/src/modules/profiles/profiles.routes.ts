@@ -16,6 +16,7 @@ import {
   bulkReplaceCertifications,
   bulkReplaceProjects,
   bulkReplaceAchievements,
+  saveFullProfile,
 } from './profiles.service.js';
 
 const createProfileSchema = z.object({
@@ -105,6 +106,26 @@ const bulkAchievementsSchema = z.object({
   items: z.array(achievementItemSchema).max(50),
 });
 
+// One atomic save of the whole profile. Scalars are nullable+optional so the
+// client can clear a field (present null) or leave it untouched (omitted);
+// collections default to [] so an omitted array clears that section.
+const fullProfileSchema = z.object({
+  name: z.string().min(1).max(200).optional(),
+  resumeText: z.string().max(50000).nullable().optional(),
+  currentRole: z.string().max(200).nullable().optional(),
+  currentCompany: z.string().max(200).nullable().optional(),
+  yearsInRole: z.number().int().min(0).max(50).nullable().optional(),
+  linkedinUrl: z.string().max(500).nullable().optional(),
+  summary: z.string().max(5000).nullable().optional(),
+  communicationStyle: z.string().max(200).nullable().optional(),
+  workExperiences: z.array(workExperienceItemSchema).max(50).default([]),
+  skills: z.array(skillItemSchema).max(50).default([]),
+  education: z.array(educationItemSchema).max(50).default([]),
+  certifications: z.array(certificationItemSchema).max(50).default([]),
+  projects: z.array(projectItemSchema).max(50).default([]),
+  achievements: z.array(achievementItemSchema).max(50).default([]),
+});
+
 export async function interviewProfilesRoutes(app: FastifyInstance) {
   app.addHook('onRequest', authenticate);
 
@@ -136,6 +157,16 @@ export async function interviewProfilesRoutes(app: FastifyInstance) {
     async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
       const input = updateProfileSchema.parse(request.body);
       const profile = await updateProfile(request.user.sub, request.params.id, input);
+      reply.send({ profile });
+    }
+  );
+
+  // Atomic full save: scalars + all six collections in one transaction
+  app.put(
+    '/api/v1/profiles/:id/full',
+    async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+      const input = fullProfileSchema.parse(request.body);
+      const profile = await saveFullProfile(request.user.sub, request.params.id, input);
       reply.send({ profile });
     }
   );

@@ -14,10 +14,16 @@ struct ProfileListView: View {
 
                 ScrollView {
                     VStack(spacing: IATheme.spacing20) {
-                        if !viewModel.hasFeature {
-                            gatedState
-                        } else if viewModel.profiles.isEmpty && !viewModel.isLoading {
-                            emptyState
+                        if viewModel.profiles.isEmpty && !viewModel.isLoading {
+                            // Everyone can own one profile, so an empty list means
+                            // "create your first" — unless the entitlement genuinely
+                            // blocks it (limit 0 / not loaded), which falls back to
+                            // the upgrade prompt.
+                            if viewModel.canAddProfile {
+                                emptyState
+                            } else {
+                                gatedState
+                            }
                         } else {
                             headerInfo
                             profileCards
@@ -187,14 +193,22 @@ struct ProfileListView: View {
     // MARK: - Add Button
 
     private var addButton: some View {
+        // At the limit, the button becomes an upsell that opens the paywall
+        // instead of being disabled — clearer affordance for "add more profiles".
         Button {
-            showCreateAlert = true
+            if viewModel.canAddProfile {
+                showCreateAlert = true
+            } else {
+                showPaywall = true
+            }
         } label: {
-            Label("Create New Profile", systemImage: "plus.circle.fill")
-                .frame(maxWidth: .infinity)
+            Label(
+                viewModel.canAddProfile ? "Create New Profile" : "Unlock More Profiles",
+                systemImage: viewModel.canAddProfile ? "plus.circle.fill" : "lock.fill"
+            )
+            .frame(maxWidth: .infinity)
         }
-        .buttonStyle(IAPrimaryButtonStyle(isEnabled: viewModel.canAddProfile))
-        .disabled(!viewModel.canAddProfile)
+        .buttonStyle(IAPrimaryButtonStyle())
     }
 
     // MARK: - Gated State

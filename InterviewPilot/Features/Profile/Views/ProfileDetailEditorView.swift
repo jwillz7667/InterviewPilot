@@ -9,6 +9,9 @@ struct ProfileDetailEditorView: View {
     @State private var isSaving = false
     @State private var errorMessage: String?
     @State private var showSuccessBanner = false
+    // Guards Save: a full PUT replaces every collection, so saving before the
+    // profile has loaded would wipe the server copy with empty form state.
+    @State private var didLoad = false
 
     // Scalar fields
     @State private var name = ""
@@ -84,7 +87,7 @@ struct ProfileDetailEditorView: View {
                             .foregroundStyle(IATheme.accent)
                     }
                 }
-                .disabled(isSaving)
+                .disabled(isSaving || !didLoad)
             }
         }
         .task { await loadProfile() }
@@ -863,6 +866,7 @@ struct ProfileDetailEditorView: View {
             let fetched = try await service.fetchProfile(id: profileId)
             profile = fetched
             populateFields(from: fetched)
+            didLoad = true
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -893,36 +897,26 @@ struct ProfileDetailEditorView: View {
     // MARK: - Save
 
     private func saveAll() async {
+        // Never save before the profile has loaded — a full save replaces every
+        // collection, so empty form state would clobber the stored profile.
+        guard didLoad else { return }
+
         isSaving = true
         errorMessage = nil
         showSuccessBanner = false
 
         do {
-            let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
-            let input = UpdateProfileInput(
-                name: trimmedName.isEmpty ? nil : trimmedName,
-                resumeText: resumeText,
-                currentRole: currentRole,
-                currentCompany: currentCompany,
-                yearsInRole: yearsInRole,
-                linkedinUrl: linkedinUrl,
-                summary: summary,
-                communicationStyle: communicationStyle.rawValue
-            )
+            // One atomic request: scalars + all six collections in a single
+            // transaction. The previous fan-out of a PATCH plus six PUTs could
+            // half-write the profile if any one call failed.
+            let saved = try await service.saveFullProfile(id: profileId, buildFullProfileInput())
 
-            _ = try await service.updateProfile(id: profileId, input)
-
-            async let workTask: () = service.updateWorkExperiences(profileId: profileId, workExperiences)
-            async let skillsTask: () = service.updateSkills(profileId: profileId, skills)
-            async let eduTask: () = service.updateEducation(profileId: profileId, education)
-            async let certTask: () = service.updateCertifications(profileId: profileId, certifications)
-            async let projTask: () = service.updateProjects(profileId: profileId, projects)
-            async let achieveTask: () = service.updateAchievements(profileId: profileId, achievements)
-
-            _ = try await (workTask, skillsTask, eduTask, certTask, projTask, achieveTask)
+            // Reconcile local state with the server's canonical copy (server-
+            // assigned row ids, trimmed values) so subsequent edits stay in sync.
+            profile = saved
+            populateFields(from: saved)
 
             showSuccessBanner = true
-
             try? await Task.sleep(for: .seconds(2))
             showSuccessBanner = false
         } catch {
@@ -930,6 +924,26 @@ struct ProfileDetailEditorView: View {
         }
 
         isSaving = false
+    }
+
+    private func buildFullProfileInput() -> FullProfileInput {
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        return FullProfileInput(
+            name: trimmedName.isEmpty ? nil : trimmedName,
+            resumeText: resumeText.nilIfBlank,
+            currentRole: currentRole.nilIfBlank,
+            currentCompany: currentCompany.nilIfBlank,
+            yearsInRole: yearsInRole > 0 ? yearsInRole : nil,
+            linkedinUrl: linkedinUrl.nilIfBlank,
+            summary: summary.nilIfBlank,
+            communicationStyle: communicationStyle.rawValue,
+            workExperiences: workExperiences,
+            skills: skills,
+            education: education,
+            certifications: certifications,
+            projects: projects,
+            achievements: achievements
+        )
     }
 
     // MARK: - Skills Helpers
@@ -964,9 +978,10 @@ struct ProfileDetailEditorView: View {
                 do {
                     let extracted = try await ResumeTextExtractor.extract(from: url)
                     resumeText = extracted.text
-                    if currentRole.isEmpty && currentCompany.isEmpty && skills.isEmpty {
-                        extractProfileFromResume()
-                    }
+                    // Autofill is now additive (fills empty scalars, appends new
+                    // collection rows) so it's safe to run on every import without
+                    // clobbering anything the user already entered.
+                    extractProfileFromResume()
                 } catch {
                     errorMessage = error.localizedDescription
                 }
@@ -977,7 +992,8 @@ struct ProfileDetailEditorView: View {
     }
 
     private func extractProfileFromResume() {
-        guard !resumeText.isEmpty else {
+        let trimmedResume = resumeText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedResume.isEmpty else {
             errorMessage = "Add your resume text first, then tap Auto-fill."
             return
         }
@@ -987,83 +1003,202 @@ struct ProfileDetailEditorView: View {
 
         Task {
             do {
-                let extracted = try await ResumeProfileExtractor.extract(from: resumeText)
-
-                // Personal info — always overwrite with extracted data
-                if let role = extracted.currentRole {
-                    currentRole = role
+                let extracted = try await ResumeProfileExtractor.extract(from: trimmedResume)
+                let didFill = applyExtracted(extracted)
+                if !didFill {
+                    errorMessage = "Couldn't pull new details from this resume. Your existing entries were kept."
                 }
-                if let company = extracted.currentCompany {
-                    currentCompany = company
-                }
-                if let years = extracted.yearsInRole, years > 0 {
-                    yearsInRole = years
-                }
-                if let extractedSummary = extracted.summary, !extractedSummary.isEmpty {
-                    summary = extractedSummary
-                }
-
-                // Skills — merge (add new, keep existing)
-                for skill in extracted.skills {
-                    if !skills.contains(where: { $0.name.lowercased() == skill.name.lowercased() }) {
-                        skills.append(ProfileSkillEntry(name: skill.name, category: skill.category))
-                    }
-                }
-
-                // Work experiences — always replace with extracted data
-                workExperiences = extracted.workExperiences.map { exp in
-                    ProfileWorkExperience(
-                        title: exp.title,
-                        company: exp.company,
-                        startYear: exp.startYear,
-                        endYear: exp.endYear,
-                        description: exp.description
-                    )
-                }
-
-                // Education — always replace
-                education = extracted.education.map { edu in
-                    ProfileEducation(
-                        institution: edu.institution,
-                        degree: edu.degree,
-                        field: edu.field,
-                        startYear: edu.startYear,
-                        endYear: edu.endYear
-                    )
-                }
-
-                // Certifications — always replace
-                certifications = extracted.certifications.map { cert in
-                    ProfileCertification(
-                        name: cert.name,
-                        issuer: cert.issuer,
-                        year: cert.year
-                    )
-                }
-
-                // Projects — always replace
-                projects = extracted.projects.map { proj in
-                    ProfileProject(
-                        name: proj.name,
-                        description: proj.description,
-                        techStack: proj.techStack,
-                        year: proj.year
-                    )
-                }
-
-                // Achievements — always replace
-                achievements = extracted.achievements.map { ach in
-                    ProfileAchievement(
-                        description: ach.description,
-                        metric: ach.metric,
-                        year: ach.year
-                    )
-                }
+            } catch ProfileExtractionError.cancelled {
+                // User navigated away or replaced the resume mid-extraction — not an error.
             } catch {
                 errorMessage = error.localizedDescription
             }
             isExtractingProfile = false
         }
+    }
+
+    // MARK: - Autofill Merge (additive, non-destructive)
+
+    /// Merges an extracted profile into the form: scalar fields are filled only
+    /// when empty (never overwriting typed values), collections append only rows
+    /// not already present (deduped by a canonical key). Returns whether anything
+    /// changed so the caller can tell the user when nothing new was found.
+    private func applyExtracted(_ extracted: ExtractedProfile) -> Bool {
+        var didFill = false
+
+        // Profile name — only when empty or a generic "default" placeholder, so a
+        // meaningful name the user chose is never clobbered.
+        if let candidateName = ResumeSanitizer.sanitizeName(extracted.displayName) {
+            let current = name.trimmingCharacters(in: .whitespacesAndNewlines)
+            if current.isEmpty || current.lowercased() == "default" {
+                name = candidateName
+                didFill = true
+            }
+        }
+
+        if currentRole.nilIfBlank == nil,
+           let role = ResumeSanitizer.sanitizeShort(extracted.currentRole, maxLength: 120) {
+            currentRole = role
+            didFill = true
+        }
+        if currentCompany.nilIfBlank == nil,
+           let company = ResumeSanitizer.sanitizeShort(extracted.currentCompany, maxLength: 120) {
+            currentCompany = company
+            didFill = true
+        }
+        if yearsInRole == 0, let years = ResumeSanitizer.sanitizeYearsInRole(extracted.yearsInRole) {
+            yearsInRole = years
+            didFill = true
+        }
+        if summary.nilIfBlank == nil, let extractedSummary = ResumeSanitizer.sanitizeSummary(extracted.summary) {
+            summary = extractedSummary
+            didFill = true
+        }
+        // LinkedIn — prefer a verbatim match from the resume text (the LLM
+        // occasionally invents URLs); fill only when the field is empty.
+        if linkedinUrl.nilIfBlank == nil {
+            let candidate = ResumeSanitizer.sanitizeLinkedIn(ResumeRegex.firstLinkedInURL(in: resumeText))
+                ?? ResumeSanitizer.sanitizeLinkedIn(extracted.linkedinUrl)
+            if let candidate {
+                linkedinUrl = candidate
+                didFill = true
+            }
+        }
+
+        // Collections — additive. Each helper has side effects, so call each
+        // unconditionally (no short-circuit) and OR the results.
+        if mergeSkills(extracted.skills) { didFill = true }
+        if mergeWorkExperiences(extracted.workExperiences) { didFill = true }
+        if mergeEducation(extracted.education) { didFill = true }
+        if mergeCertifications(extracted.certifications) { didFill = true }
+        if mergeProjects(extracted.projects) { didFill = true }
+        if mergeAchievements(extracted.achievements) { didFill = true }
+
+        return didFill
+    }
+
+    private func canonicalKey(_ s: String) -> String {
+        s.lowercased()
+            .components(separatedBy: .punctuationCharacters).joined()
+            .components(separatedBy: .whitespacesAndNewlines).joined()
+    }
+
+    private func mergeSkills(_ extracted: [ExtractedSkill]) -> Bool {
+        var seen = Set(skills.map { canonicalKey($0.name) })
+        var added = false
+        for skill in extracted {
+            guard let cleaned = ResumeSanitizer.sanitizeSkill(skill.name) else { continue }
+            let key = canonicalKey(cleaned)
+            guard !seen.contains(key) else { continue }
+            seen.insert(key)
+            skills.append(ProfileSkillEntry(name: cleaned, category: skill.category?.nilIfBlank))
+            added = true
+        }
+        return added
+    }
+
+    private func mergeWorkExperiences(_ extracted: [ExtractedExperience]) -> Bool {
+        var seen = Set(workExperiences.map { canonicalKey("\($0.title)|\($0.company)|\($0.startYear)") })
+        var added = false
+        for exp in extracted {
+            guard let title = exp.title.nilIfBlank, let company = exp.company.nilIfBlank else { continue }
+            let key = canonicalKey("\(title)|\(company)|\(exp.startYear)")
+            guard !seen.contains(key) else { continue }
+            seen.insert(key)
+            workExperiences.append(ProfileWorkExperience(
+                title: title,
+                company: company,
+                startYear: exp.startYear,
+                endYear: exp.endYear,
+                description: exp.description?.nilIfBlank
+            ))
+            added = true
+        }
+        return added
+    }
+
+    private func mergeEducation(_ extracted: [ExtractedEducation]) -> Bool {
+        var seen = Set(education.map { canonicalKey("\($0.institution)|\($0.degree)|\($0.startYear.map(String.init) ?? "")") })
+        var added = false
+        for edu in extracted {
+            guard let institution = edu.institution.nilIfBlank, let degree = edu.degree.nilIfBlank else { continue }
+            let key = canonicalKey("\(institution)|\(degree)|\(edu.startYear.map(String.init) ?? "")")
+            guard !seen.contains(key) else { continue }
+            seen.insert(key)
+            education.append(ProfileEducation(
+                institution: institution,
+                degree: degree,
+                field: edu.field?.nilIfBlank,
+                startYear: edu.startYear,
+                endYear: edu.endYear
+            ))
+            added = true
+        }
+        return added
+    }
+
+    private func mergeCertifications(_ extracted: [ExtractedCertification]) -> Bool {
+        var seen = Set(certifications.map { canonicalKey($0.name) })
+        var added = false
+        for cert in extracted {
+            guard let certName = cert.name.nilIfBlank else { continue }
+            let key = canonicalKey(certName)
+            guard !seen.contains(key) else { continue }
+            seen.insert(key)
+            certifications.append(ProfileCertification(
+                name: certName,
+                issuer: cert.issuer?.nilIfBlank,
+                year: cert.year
+            ))
+            added = true
+        }
+        return added
+    }
+
+    private func mergeProjects(_ extracted: [ExtractedProject]) -> Bool {
+        var seen = Set(projects.map { canonicalKey($0.name) })
+        var added = false
+        for proj in extracted {
+            guard let projName = proj.name.nilIfBlank else { continue }
+            let key = canonicalKey(projName)
+            guard !seen.contains(key) else { continue }
+            seen.insert(key)
+            projects.append(ProfileProject(
+                name: projName,
+                description: proj.description?.nilIfBlank,
+                techStack: proj.techStack?.nilIfBlank,
+                url: nil,
+                year: proj.year
+            ))
+            added = true
+        }
+        return added
+    }
+
+    private func mergeAchievements(_ extracted: [ExtractedAchievement]) -> Bool {
+        var seen = Set(achievements.map { canonicalKey($0.description) })
+        var added = false
+        for ach in extracted {
+            guard let desc = ach.description.nilIfBlank else { continue }
+            let key = canonicalKey(desc)
+            guard !seen.contains(key) else { continue }
+            seen.insert(key)
+            achievements.append(ProfileAchievement(
+                description: desc,
+                metric: ach.metric?.nilIfBlank,
+                year: ach.year
+            ))
+            added = true
+        }
+        return added
+    }
+}
+
+private extension String {
+    /// The trimmed string, or nil when it is empty/whitespace-only.
+    var nilIfBlank: String? {
+        let trimmed = trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
     }
 }
 

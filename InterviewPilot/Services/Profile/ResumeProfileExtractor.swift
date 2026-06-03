@@ -30,12 +30,38 @@ extension ExtractedProfile: Decodable {
         currentCompany = try container.decodeIfPresent(String.self, forKey: .currentCompany)
         yearsInRole = try container.decodeIfPresent(Int.self, forKey: .yearsInRole)
         summary = try container.decodeIfPresent(String.self, forKey: .summary)
-        skills = (try? container.decodeIfPresent([ExtractedSkill].self, forKey: .skills)) ?? []
-        workExperiences = (try? container.decodeIfPresent([ExtractedExperience].self, forKey: .workExperiences)) ?? []
-        education = (try? container.decodeIfPresent([ExtractedEducation].self, forKey: .education)) ?? []
-        certifications = (try? container.decodeIfPresent([ExtractedCertification].self, forKey: .certifications)) ?? []
-        projects = (try? container.decodeIfPresent([ExtractedProject].self, forKey: .projects)) ?? []
-        achievements = (try? container.decodeIfPresent([ExtractedAchievement].self, forKey: .achievements)) ?? []
+        // Decode each collection element-by-element: a single malformed row
+        // (e.g. a work experience missing `startYear`) is dropped rather than
+        // collapsing the entire array to empty.
+        skills = Self.lenientArray(ExtractedSkill.self, in: container, forKey: .skills)
+        workExperiences = Self.lenientArray(ExtractedExperience.self, in: container, forKey: .workExperiences)
+        education = Self.lenientArray(ExtractedEducation.self, in: container, forKey: .education)
+        certifications = Self.lenientArray(ExtractedCertification.self, in: container, forKey: .certifications)
+        projects = Self.lenientArray(ExtractedProject.self, in: container, forKey: .projects)
+        achievements = Self.lenientArray(ExtractedAchievement.self, in: container, forKey: .achievements)
+    }
+
+    private static func lenientArray<T: Decodable>(
+        _ type: T.Type,
+        in container: KeyedDecodingContainer<CodingKeys>,
+        forKey key: CodingKeys
+    ) -> [T] {
+        guard let wrapped = try? container.decodeIfPresent([FailableDecodable<T>].self, forKey: key) else {
+            return []
+        }
+        return wrapped.compactMap(\.value)
+    }
+}
+
+/// Decodes to `nil` instead of throwing when its wrapped element is malformed,
+/// so a bad element inside an array is skipped rather than aborting the whole
+/// array decode.
+private struct FailableDecodable<Wrapped: Decodable>: Decodable {
+    let value: Wrapped?
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        value = try? container.decode(Wrapped.self)
     }
 }
 
@@ -80,111 +106,30 @@ struct ExtractedAchievement: Codable, Sendable {
 }
 
 enum ResumeProfileExtractor {
+    /// Extracts a structured profile from raw resume text. The prompt, model
+    /// selection, token budget, and output validation/sanitization all live on
+    /// the backend (`POST /api/v1/ai/extract-profile`); this client only carries
+    /// the resume text up and decodes the sanitized result. Keeping the prompt
+    /// server-side means it can be tuned without an app release, and the call no
+    /// longer relies on the grant-gated `/ai/chat` proxy (which rejects a raw
+    /// OpenAI body) that previously made autofill fail outright.
     static func extract(from resumeText: String) async throws -> ExtractedProfile {
         try Task.checkCancellation()
 
-        let systemPrompt = """
-        Extract a complete professional profile from the following resume. Return ONLY valid JSON with this exact schema:
-        {
-          "displayName": "candidate's full name from the resume header (e.g., \\"Jane Doe\\") or null",
-          "linkedinUrl": "candidate's LinkedIn URL exactly as it appears in the resume (e.g., \\"linkedin.com/in/janedoe\\") or null",
-          "currentRole": "most recent job title or null",
-          "currentCompany": "most recent company or null",
-          "yearsInRole": approximate years in most recent role as integer or null,
-          "summary": "2-3 sentence professional summary capturing the candidate's key strengths and focus areas",
-          "skills": [
-            {"name": "Swift", "category": "language"},
-            {"name": "SwiftUI", "category": "framework"},
-            {"name": "Docker", "category": "tool"},
-            {"name": "Team Leadership", "category": "soft"}
-          ],
-          "workExperiences": [
-            {
-              "title": "Job Title",
-              "company": "Company Name",
-              "startYear": 2020,
-              "endYear": 2024,
-              "description": "Led team of 8 engineers to migrate 200k LOC UIKit app to SwiftUI, reducing UI crashes by 73%. Built real-time data pipeline processing 50k events/sec."
-            }
-          ],
-          "education": [
-            {
-              "institution": "Stanford University",
-              "degree": "B.S.",
-              "field": "Computer Science",
-              "startYear": 2012,
-              "endYear": 2016
-            }
-          ],
-          "certifications": [
-            {"name": "AWS Solutions Architect", "issuer": "Amazon", "year": 2023}
-          ],
-          "projects": [
-            {
-              "name": "Project Name",
-              "description": "What it does and the impact it had",
-              "techStack": "Swift, Python, PostgreSQL",
-              "year": 2024
-            }
-          ],
-          "achievements": [
-            {
-              "description": "Reduced app cold start time from 3.2s to 0.8s through lazy loading and prewarming",
-              "metric": "75% faster launch",
-              "year": 2023
-            }
-          ]
-        }
-
-        CRITICAL RULES:
-        - displayName must be ONLY the candidate's full personal name as it appears at the top of the resume — never a job title, company, or URL.
-        - linkedinUrl must be COPIED VERBATIM from the resume text. Never invent a URL. If no LinkedIn URL is present, return null.
-        - Extract ALL work experiences with DETAILED descriptions of key accomplishments, quantified impact, and technologies used for each role
-        - For work experience descriptions: combine ALL bullet points from that role into a dense paragraph with specific numbers, metrics, and outcomes
-        - Categorize EVERY skill: "language" for programming languages, "framework" for frameworks/libraries, "tool" for devops/tools/platforms, "soft" for leadership/communication
-        - Extract ALL education entries including degrees in progress
-        - Extract certifications, professional courses, and relevant training
-        - Extract standalone projects (side projects, open source, hackathons) separately from work experience
-        - For achievements: extract specific quantified accomplishments that stand out (promotions, awards, performance records, metrics improvements)
-        - The summary should read like an elevator pitch, not a resume objective
-        - endYear is null if the position/degree is current
-        - If a field cannot be determined, use null
-        - Return ONLY the JSON object, no markdown, no explanation
-        """
-
-        let body: [String: Any] = [
-            "model": "gpt-4.1",
-            "messages": [
-                ["role": "system", "content": systemPrompt],
-                ["role": "user", "content": resumeText]
-            ],
-            "max_tokens": 4000,
-            "temperature": 0.1,
-            "response_format": ["type": "json_object"]
-        ]
-
-        let json: [String: Any]
         do {
-            json = try await AIClient.shared.chat(body: body)
+            let profile = try await AIClient.shared.extractProfile(resumeText: resumeText)
+            try Task.checkCancellation()
+            return profile
         } catch is CancellationError {
             throw ProfileExtractionError.cancelled
+        } catch let error as URLError where error.code == .cancelled {
+            throw ProfileExtractionError.cancelled
+        } catch let error as AIClientError {
+            // The backend returns user-facing messages for known AppError codes;
+            // pass them through so the editor can surface the real reason.
+            throw ProfileExtractionError.upstream(error.errorDescription ?? "Failed to analyze resume.")
         } catch {
             throw ProfileExtractionError.apiError
-        }
-
-        try Task.checkCancellation()
-
-        guard let choices = json["choices"] as? [[String: Any]],
-              let message = choices.first?["message"] as? [String: Any],
-              let content = message["content"] as? String,
-              let contentData = content.data(using: .utf8) else {
-            throw ProfileExtractionError.parseError
-        }
-
-        do {
-            return try JSONDecoder().decode(ExtractedProfile.self, from: contentData)
-        } catch {
-            throw ProfileExtractionError.parseError
         }
     }
 }
@@ -194,6 +139,7 @@ enum ProfileExtractionError: LocalizedError {
     case parseError
     case noApiKey
     case cancelled
+    case upstream(String)
 
     var errorDescription: String? {
         switch self {
@@ -201,6 +147,7 @@ enum ProfileExtractionError: LocalizedError {
         case .parseError: "Could not parse resume data. Try editing your resume text."
         case .noApiKey: "API key not available. Start a session first to configure keys."
         case .cancelled: "Resume analysis was cancelled."
+        case .upstream(let message): message
         }
     }
 }

@@ -46,8 +46,12 @@ final class InterviewProfileService {
         return response.profile
     }
 
-    func updateProfile(id: String, _ input: UpdateProfileInput) async throws -> InterviewProfile {
-        let response: ProfileEnvelope = try await apiClient.patch("/api/v1/profiles/\(id)", body: input)
+    /// Saves the entire profile — scalars and all six collections — in a single
+    /// atomic request. This is the one write path for an interview profile:
+    /// it replaces the old fan-out of a PATCH plus six per-collection PUTs, which
+    /// could leave the profile half-written if any one call failed.
+    func saveFullProfile(id: String, _ input: FullProfileInput) async throws -> InterviewProfile {
+        let response: ProfileEnvelope = try await apiClient.put("/api/v1/profiles/\(id)/full", body: input)
         await fetchProfiles()
         return response.profile
     }
@@ -63,56 +67,6 @@ final class InterviewProfileService {
             body: EmptyBody()
         )
         await fetchProfiles()
-    }
-
-    // MARK: - Collection Updates
-
-    func updateWorkExperiences(profileId: String, _ items: [ProfileWorkExperience]) async throws {
-        let response: WorkExperienceItemsEnvelope = try await apiClient.put(
-            "/api/v1/profiles/\(profileId)/work-experiences",
-            body: BulkItems(items: items)
-        )
-        _ = response.workExperiences
-    }
-
-    func updateSkills(profileId: String, _ items: [ProfileSkillEntry]) async throws {
-        let response: SkillItemsEnvelope = try await apiClient.put(
-            "/api/v1/profiles/\(profileId)/skills",
-            body: BulkItems(items: items)
-        )
-        _ = response.skills
-    }
-
-    func updateEducation(profileId: String, _ items: [ProfileEducation]) async throws {
-        let response: EducationItemsEnvelope = try await apiClient.put(
-            "/api/v1/profiles/\(profileId)/education",
-            body: BulkItems(items: items)
-        )
-        _ = response.education
-    }
-
-    func updateCertifications(profileId: String, _ items: [ProfileCertification]) async throws {
-        let response: CertificationItemsEnvelope = try await apiClient.put(
-            "/api/v1/profiles/\(profileId)/certifications",
-            body: BulkItems(items: items)
-        )
-        _ = response.certifications
-    }
-
-    func updateProjects(profileId: String, _ items: [ProfileProject]) async throws {
-        let response: ProjectItemsEnvelope = try await apiClient.put(
-            "/api/v1/profiles/\(profileId)/projects",
-            body: BulkItems(items: items)
-        )
-        _ = response.projects
-    }
-
-    func updateAchievements(profileId: String, _ items: [ProfileAchievement]) async throws {
-        let response: AchievementItemsEnvelope = try await apiClient.put(
-            "/api/v1/profiles/\(profileId)/achievements",
-            body: BulkItems(items: items)
-        )
-        _ = response.achievements
     }
 
     // MARK: - Reset
@@ -138,31 +92,3 @@ private struct SuccessEnvelope: Decodable {
 }
 
 private struct EmptyBody: Encodable {}
-
-private struct BulkItems<T: Encodable>: Encodable {
-    let items: T
-}
-
-private struct WorkExperienceItemsEnvelope: Decodable {
-    let workExperiences: [ProfileWorkExperience]
-}
-
-private struct SkillItemsEnvelope: Decodable {
-    let skills: [ProfileSkillEntry]
-}
-
-private struct EducationItemsEnvelope: Decodable {
-    let education: [ProfileEducation]
-}
-
-private struct CertificationItemsEnvelope: Decodable {
-    let certifications: [ProfileCertification]
-}
-
-private struct ProjectItemsEnvelope: Decodable {
-    let projects: [ProfileProject]
-}
-
-private struct AchievementItemsEnvelope: Decodable {
-    let achievements: [ProfileAchievement]
-}

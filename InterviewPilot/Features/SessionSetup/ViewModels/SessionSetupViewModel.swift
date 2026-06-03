@@ -388,17 +388,17 @@ final class SessionSetupViewModel {
             // Keep local defaults if the backend is unavailable.
         }
 
-        // Load interview profiles for profile selector
-        if subscriptionService.currentEntitlement?.hasResumePersonalization == true {
-            let interviewProfileService = InterviewProfileService.shared
-            await interviewProfileService.fetchProfiles()
-            availableProfiles = interviewProfileService.profiles
+        // Load interview profiles for the profile selector. Not gated on
+        // resume_personalization: every tier owns at least one profile now, and
+        // that profile must be usable as live-session context.
+        let interviewProfileService = InterviewProfileService.shared
+        await interviewProfileService.fetchProfiles()
+        availableProfiles = interviewProfileService.profiles
 
-            // Auto-select default profile if none selected
-            if selectedProfileId == nil, let defaultProfile = interviewProfileService.defaultProfile {
-                selectedProfileId = defaultProfile.id
-                await loadSelectedProfile()
-            }
+        // Auto-select the default profile if none selected.
+        if selectedProfileId == nil, let defaultProfile = interviewProfileService.defaultProfile {
+            selectedProfileId = defaultProfile.id
+            await loadSelectedProfile()
         }
     }
 
@@ -422,7 +422,11 @@ final class SessionSetupViewModel {
                 linkedInURL = linkedIn
             }
         } catch {
-            // Silent fallback — keep existing resume
+            // Surface the failure: a silently-dropped profile load is exactly why
+            // "profiles aren't used as context" looked broken. Keep any existing
+            // resume text the user typed.
+            selectedProfile = nil
+            errorMessage = "Couldn't load the selected profile. \(error.localizedDescription)"
         }
     }
 

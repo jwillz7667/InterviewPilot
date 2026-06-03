@@ -139,6 +139,42 @@ final class AIClient {
         return json
     }
 
+    /// Extracts a structured profile from raw resume text via the backend.
+    /// Sessionless (no live-session grant required) — the backend selects the
+    /// model, validates the output, and returns a sanitized profile. Uses a
+    /// longer per-request timeout than the default session config since a full
+    /// extraction can take longer than a short chat completion.
+    func extractProfile(resumeText: String) async throws -> ExtractedProfile {
+        let url = try requireURL(path: "/api/v1/ai/extract-profile")
+        var request = try await authenticatedRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONSerialization.data(withJSONObject: ["resumeText": resumeText])
+        request.timeoutInterval = 90
+
+        let (data, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw AIClientError.invalidResponse
+        }
+        if httpResponse.statusCode == 401 {
+            throw AIClientError.unauthenticated
+        }
+        guard httpResponse.statusCode == 200 else {
+            let parsed = parseErrorPayload(from: data)
+            throw AIClientError.server(
+                statusCode: httpResponse.statusCode,
+                code: parsed.code,
+                message: parsed.message ?? "Failed to analyze resume"
+            )
+        }
+
+        do {
+            return try JSONDecoder().decode(ExtractProfileEnvelope.self, from: data).profile
+        } catch {
+            throw AIClientError.invalidResponse
+        }
+    }
+
     /// Mints a fresh ephemeral OpenAI Realtime session. Call once per WSS connect;
     /// the returned `clientSecret` is single-session and short-lived.
     func createRealtimeSession(
@@ -290,6 +326,12 @@ final class AIClient {
         let message = (json["message"] as? String)?.nilIfEmpty
         return (code, message)
     }
+}
+
+/// Envelope for `POST /api/v1/ai/extract-profile`. The backend validates and
+/// sanitizes the LLM output, so the client receives a clean `ExtractedProfile`.
+private struct ExtractProfileEnvelope: Decodable {
+    let profile: ExtractedProfile
 }
 
 private extension String {

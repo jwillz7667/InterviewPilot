@@ -11,12 +11,14 @@ import {
   transcriptionSessionSchema,
   chatSchema,
   chatStreamSchema,
+  extractProfileSchema,
 } from './ai.schema.js';
 import {
   createRealtimeSession,
   createTranscriptionSession,
   chatCompletion,
   chatCompletionStream,
+  extractProfileFromResume,
 } from './ai.service.js';
 
 const log = getLogger().child({ module: 'ai-routes' });
@@ -124,6 +126,27 @@ export async function aiRoutes(app: FastifyInstance) {
     async (request: FastifyRequest, reply: FastifyReply) => {
       const input = parseOrAudit(chatSchema, request.body, request);
       const data = await chatCompletion(request.user.sub, input);
+      reply.send(data);
+    }
+  );
+
+  // Resume autofill. Sessionless (no SessionAccessGrant) — gated on runtime AI
+  // access inside the service. Stricter rate cap than chat: extraction is a
+  // single expensive completion per profile edit, not a bursty stream.
+  app.post(
+    '/api/v1/ai/extract-profile',
+    {
+      config: {
+        rateLimit: {
+          max: 10,
+          timeWindow: '1 minute',
+          keyGenerator: userKey,
+        },
+      },
+    },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const input = parseOrAudit(extractProfileSchema, request.body, request);
+      const data = await extractProfileFromResume(request.user.sub, input);
       reply.send(data);
     }
   );

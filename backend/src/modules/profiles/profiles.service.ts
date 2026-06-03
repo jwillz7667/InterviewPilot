@@ -57,6 +57,32 @@ interface AchievementItem {
   year?: number | null;
 }
 
+interface FullProfileInput extends UpdateProfileInput {
+  workExperiences: WorkExperienceItem[];
+  skills: SkillItem[];
+  education: EducationItem[];
+  certifications: CertificationItem[];
+  projects: ProjectItem[];
+  achievements: AchievementItem[];
+}
+
+// `profileSkill` has a unique constraint on (profileId, name). The model and
+// hand-entry can both produce case-variant duplicates ("React" / "react"), and
+// a single P2002 inside a createMany rolls back the whole batch. Collapse them
+// case-insensitively (first spelling wins) so the write is total.
+export function dedupeSkills(items: SkillItem[]): SkillItem[] {
+  const seen = new Set<string>();
+  const result: SkillItem[] = [];
+  for (const item of items) {
+    const name = item.name.trim();
+    const key = name.toLowerCase();
+    if (!name || seen.has(key)) continue;
+    seen.add(key);
+    result.push({ name, category: item.category ?? null });
+  }
+  return result;
+}
+
 async function verifyProfileOwnership(userId: string, profileId: string) {
   const profile = await withDatabaseRetry((prisma) =>
     prisma.interviewProfile.findFirst({
@@ -118,8 +144,14 @@ export async function getProfile(userId: string, profileId: string) {
 export async function createProfile(userId: string, data: CreateProfileInput) {
   const billing = await getBillingSummary(userId);
 
-  if (!billing.featureFlags.resume_personalization) {
-    throw new PaymentRequiredError('Resume personalization requires an active subscription.', {
+  const isFirst = billing.profilesUsed === 0;
+
+  // The first (default) profile is free for every tier — it is the single
+  // profile the live interview reads for personalization, so gating it would
+  // leave free users with no context at all. Additional profiles remain behind
+  // the paid resume_personalization entitlement.
+  if (!isFirst && !billing.featureFlags.resume_personalization) {
+    throw new PaymentRequiredError('Additional interview profiles require an active subscription.', {
       requiredFeature: 'resume_personalization',
     });
   }
@@ -130,8 +162,6 @@ export async function createProfile(userId: string, data: CreateProfileInput) {
       { requiredTier: 'pro' }
     );
   }
-
-  const isFirst = billing.profilesUsed === 0;
 
   const profile = await withDatabaseRetry((prisma) =>
     prisma.interviewProfile.create({
@@ -301,23 +331,148 @@ export async function bulkReplaceWorkExperiences(
 export async function bulkReplaceSkills(userId: string, profileId: string, items: SkillItem[]) {
   await verifyProfileOwnership(userId, profileId);
 
+  const deduped = dedupeSkills(items);
+
   return withDatabaseRetry((prisma) =>
     prisma.$transaction(async (tx) => {
       await tx.profileSkill.deleteMany({ where: { profileId } });
 
-      if (items.length > 0) {
+      if (deduped.length > 0) {
         await tx.profileSkill.createMany({
-          data: items.map((item) => ({
+          data: deduped.map((item) => ({
             profileId,
             name: item.name,
             category: item.category ?? null,
           })),
+          skipDuplicates: true,
         });
       }
 
       return tx.profileSkill.findMany({
         where: { profileId },
         orderBy: { name: 'asc' },
+      });
+    })
+  );
+}
+
+// Atomic, all-or-nothing save of scalars + every child collection in ONE
+// transaction. Replaces the prior pattern of seven independent requests
+// (a scalar PATCH + six bulk PUTs), where a mid-sequence failure left the
+// profile half-written. Scalar keys follow update semantics: a present `null`
+// clears the column, an omitted key leaves it unchanged; collections are
+// fully replaced by the supplied arrays.
+export async function saveFullProfile(userId: string, profileId: string, data: FullProfileInput) {
+  await verifyProfileOwnership(userId, profileId);
+
+  const skills = dedupeSkills(data.skills);
+
+  return withDatabaseRetry((prisma) =>
+    prisma.$transaction(async (tx) => {
+      await tx.interviewProfile.update({
+        where: { id: profileId },
+        data: {
+          ...(data.name !== undefined && { name: data.name }),
+          ...(data.resumeText !== undefined && { resumeText: data.resumeText }),
+          ...(data.currentRole !== undefined && { currentRole: data.currentRole }),
+          ...(data.currentCompany !== undefined && { currentCompany: data.currentCompany }),
+          ...(data.yearsInRole !== undefined && { yearsInRole: data.yearsInRole }),
+          ...(data.linkedinUrl !== undefined && { linkedinUrl: data.linkedinUrl }),
+          ...(data.summary !== undefined && { summary: data.summary }),
+          ...(data.communicationStyle !== undefined && {
+            communicationStyle: data.communicationStyle,
+          }),
+        },
+      });
+
+      await tx.profileWorkExperience.deleteMany({ where: { profileId } });
+      if (data.workExperiences.length > 0) {
+        await tx.profileWorkExperience.createMany({
+          data: data.workExperiences.map((item) => ({
+            profileId,
+            title: item.title,
+            company: item.company,
+            startYear: item.startYear,
+            endYear: item.endYear ?? null,
+            description: item.description ?? null,
+          })),
+        });
+      }
+
+      await tx.profileSkill.deleteMany({ where: { profileId } });
+      if (skills.length > 0) {
+        await tx.profileSkill.createMany({
+          data: skills.map((item) => ({
+            profileId,
+            name: item.name,
+            category: item.category ?? null,
+          })),
+          skipDuplicates: true,
+        });
+      }
+
+      await tx.profileEducation.deleteMany({ where: { profileId } });
+      if (data.education.length > 0) {
+        await tx.profileEducation.createMany({
+          data: data.education.map((item) => ({
+            profileId,
+            institution: item.institution,
+            degree: item.degree,
+            field: item.field ?? null,
+            startYear: item.startYear ?? null,
+            endYear: item.endYear ?? null,
+          })),
+        });
+      }
+
+      await tx.profileCertification.deleteMany({ where: { profileId } });
+      if (data.certifications.length > 0) {
+        await tx.profileCertification.createMany({
+          data: data.certifications.map((item) => ({
+            profileId,
+            name: item.name,
+            issuer: item.issuer ?? null,
+            year: item.year ?? null,
+          })),
+        });
+      }
+
+      await tx.profileProject.deleteMany({ where: { profileId } });
+      if (data.projects.length > 0) {
+        await tx.profileProject.createMany({
+          data: data.projects.map((item) => ({
+            profileId,
+            name: item.name,
+            description: item.description ?? null,
+            techStack: item.techStack ?? null,
+            url: item.url ?? null,
+            year: item.year ?? null,
+          })),
+        });
+      }
+
+      await tx.profileAchievement.deleteMany({ where: { profileId } });
+      if (data.achievements.length > 0) {
+        await tx.profileAchievement.createMany({
+          data: data.achievements.map((item) => ({
+            profileId,
+            description: item.description,
+            metric: item.metric ?? null,
+            year: item.year ?? null,
+          })),
+        });
+      }
+
+      return tx.interviewProfile.findFirstOrThrow({
+        where: { id: profileId },
+        include: {
+          workExperiences: { orderBy: { startYear: 'desc' } },
+          skills: { orderBy: { name: 'asc' } },
+          education: { orderBy: { endYear: 'desc' } },
+          certifications: { orderBy: { year: 'desc' } },
+          projects: { orderBy: { year: 'desc' } },
+          achievements: { orderBy: { year: 'desc' } },
+        },
       });
     })
   );

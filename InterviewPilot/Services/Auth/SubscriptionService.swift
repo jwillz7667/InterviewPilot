@@ -226,7 +226,12 @@ struct BillingEntitlement: Codable, Sendable {
     }
 
     var canCreateProfile: Bool {
-        hasResumePersonalization && profilesUsed < profileLimit
+        // Every tier gets one free default profile (the limit is ≥ 1 for all
+        // tiers). Creating a second-or-later profile requires the paid
+        // resume-personalization entitlement. Keep this in lockstep with the
+        // backend gate in profiles.service.ts (first profile free, rest gated).
+        if profilesUsed == 0 { return profileLimit > 0 }
+        return hasResumePersonalization && profilesUsed < profileLimit
     }
 
     /// True when the user has at least one slot left for the requested quality.

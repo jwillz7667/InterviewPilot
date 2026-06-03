@@ -391,7 +391,10 @@ enum ResumeSanitizer {
 
     static func sanitizeYearsInRole(_ raw: Int?) -> Int? {
         guard let raw else { return nil }
-        guard raw > 0, raw <= 60 else { return nil }
+        // 50 is the shared ceiling: the editor Stepper (0...50) and every
+        // backend profile schema cap here, so an extracted value above it must
+        // be rejected rather than written — otherwise the atomic save 400s.
+        guard raw > 0, raw <= 50 else { return nil }
         return raw
     }
 

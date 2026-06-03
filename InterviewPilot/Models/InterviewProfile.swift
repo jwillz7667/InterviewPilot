@@ -208,29 +208,62 @@ struct CreateProfileInput: Codable, Sendable {
     var resumeText: String?
 }
 
-struct UpdateProfileInput: Encodable, Sendable {
+/// Payload for `PUT /api/v1/profiles/:id/full` — the whole profile in one atomic
+/// save (scalars + all six collections). The editor builds this from its current
+/// state, so a `nil` scalar means "the user left this empty" and is encoded as an
+/// explicit JSON null to clear that column server-side; `name` is the exception —
+/// it's omitted when nil so the required profile name is never wiped. Child rows
+/// are encoded directly; their client-side `id` is stripped by the (non-strict)
+/// backend schema, which assigns its own ids.
+struct FullProfileInput: Encodable, Sendable {
     var name: String?
-    var resumeText: String
-    var currentRole: String
-    var currentCompany: String
-    var yearsInRole: Int
-    var linkedinUrl: String
-    var summary: String
-    var communicationStyle: String
+    var resumeText: String?
+    var currentRole: String?
+    var currentCompany: String?
+    var yearsInRole: Int?
+    var linkedinUrl: String?
+    var summary: String?
+    var communicationStyle: String?
+    var workExperiences: [ProfileWorkExperience]
+    var skills: [ProfileSkillEntry]
+    var education: [ProfileEducation]
+    var certifications: [ProfileCertification]
+    var projects: [ProfileProject]
+    var achievements: [ProfileAchievement]
 
     func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encodeIfPresent(name, forKey: .name)
-        try container.encode(resumeText.isEmpty ? nil : resumeText, forKey: .resumeText)
-        try container.encode(currentRole.isEmpty ? nil : currentRole, forKey: .currentRole)
-        try container.encode(currentCompany.isEmpty ? nil : currentCompany, forKey: .currentCompany)
-        try container.encode(yearsInRole > 0 ? yearsInRole : nil, forKey: .yearsInRole)
-        try container.encode(linkedinUrl.isEmpty ? nil : linkedinUrl, forKey: .linkedinUrl)
-        try container.encode(summary.isEmpty ? nil : summary, forKey: .summary)
-        try container.encode(communicationStyle, forKey: .communicationStyle)
+        try encodeNullable(resumeText, forKey: .resumeText, into: &container)
+        try encodeNullable(currentRole, forKey: .currentRole, into: &container)
+        try encodeNullable(currentCompany, forKey: .currentCompany, into: &container)
+        try encodeNullable(yearsInRole, forKey: .yearsInRole, into: &container)
+        try encodeNullable(linkedinUrl, forKey: .linkedinUrl, into: &container)
+        try encodeNullable(summary, forKey: .summary, into: &container)
+        try encodeNullable(communicationStyle, forKey: .communicationStyle, into: &container)
+        try container.encode(workExperiences, forKey: .workExperiences)
+        try container.encode(skills, forKey: .skills)
+        try container.encode(education, forKey: .education)
+        try container.encode(certifications, forKey: .certifications)
+        try container.encode(projects, forKey: .projects)
+        try container.encode(achievements, forKey: .achievements)
+    }
+
+    private func encodeNullable<T: Encodable>(
+        _ value: T?,
+        forKey key: CodingKeys,
+        into container: inout KeyedEncodingContainer<CodingKeys>
+    ) throws {
+        if let value {
+            try container.encode(value, forKey: key)
+        } else {
+            try container.encodeNil(forKey: key)
+        }
     }
 
     private enum CodingKeys: String, CodingKey {
-        case name, resumeText, currentRole, currentCompany, yearsInRole, linkedinUrl, summary, communicationStyle
+        case name, resumeText, currentRole, currentCompany, yearsInRole
+        case linkedinUrl, summary, communicationStyle
+        case workExperiences, skills, education, certifications, projects, achievements
     }
 }

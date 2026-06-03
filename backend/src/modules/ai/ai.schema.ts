@@ -84,3 +84,14 @@ export const chatStreamSchema = baseChatSchema.extend({
   stream_options: z.object({ include_usage: z.boolean().optional() }).strict().optional(),
 });
 export type ChatStreamInput = z.infer<typeof chatStreamSchema>;
+
+// Sessionless resume → profile extraction. Unlike chat, this carries no
+// sessionClientId: autofill happens while editing a profile, long before a live
+// interview mints a SessionAccessGrant. The model and token budget are chosen
+// server-side; the client supplies only the raw resume text.
+export const extractProfileSchema = z
+  .object({
+    resumeText: z.string().min(1).max(50000),
+  })
+  .strict();
+export type ExtractProfileInput = z.infer<typeof extractProfileSchema>;

@@ -252,6 +252,7 @@ final class OnboardingViewModel {
     func completeOnboarding() async -> Bool {
         isLoading = true
         defer { isLoading = false }
+        errorMessage = nil
 
         let trimmedName = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedRole = currentRole.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -259,27 +260,40 @@ final class OnboardingViewModel {
         let trimmedLinkedIn = linkedInURL.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedResume = resumeText.trimmingCharacters(in: .whitespacesAndNewlines)
 
-        do {
-            let updates = ProfileUpdate(
-                displayName: trimmedName.isEmpty ? nil : trimmedName,
-                linkedinUrl: trimmedLinkedIn.isEmpty ? nil : trimmedLinkedIn,
-                primaryGoal: selectedGoal?.rawValue,
-                resumeText: trimmedResume.isEmpty ? nil : trimmedResume,
-                currentRole: trimmedRole.isEmpty ? nil : trimmedRole,
-                currentCompany: trimmedCompany.isEmpty ? nil : trimmedCompany,
-                yearsInRole: yearsInRole > 0 ? yearsInRole : nil,
-                onboardingCompleted: true
-            )
-            try await profileService.updateProfile(updates)
+        let updates = ProfileUpdate(
+            displayName: trimmedName.isEmpty ? nil : trimmedName,
+            linkedinUrl: trimmedLinkedIn.isEmpty ? nil : trimmedLinkedIn,
+            primaryGoal: selectedGoal?.rawValue,
+            resumeText: trimmedResume.isEmpty ? nil : trimmedResume,
+            currentRole: trimmedRole.isEmpty ? nil : trimmedRole,
+            currentCompany: trimmedCompany.isEmpty ? nil : trimmedCompany,
+            yearsInRole: yearsInRole > 0 ? yearsInRole : nil,
+            onboardingCompleted: true
+        )
 
-            if !workExperiences.isEmpty {
-                try? await profileService.updateWorkExperience(workExperiences)
-            }
-            if !skills.isEmpty {
-                try? await profileService.updateSkills(skills)
-            }
+        // The core profile save is mandatory: if it fails, surface the error and
+        // keep the user in onboarding so their answers aren't silently lost.
+        do {
+            try await profileService.updateProfile(updates)
         } catch {
-            // Server save failed — still complete locally.
+            errorMessage = "Couldn't save your profile. \(error.localizedDescription)"
+            return false
+        }
+
+        // Collections are best-effort — a failure here shouldn't block finishing
+        // onboarding, but it should be reported so the user knows to re-enter them
+        // later from the profile editor.
+        var collectionFailed = false
+        if !workExperiences.isEmpty {
+            do { try await profileService.updateWorkExperience(workExperiences) }
+            catch { collectionFailed = true }
+        }
+        if !skills.isEmpty {
+            do { try await profileService.updateSkills(skills) }
+            catch { collectionFailed = true }
+        }
+        if collectionFailed {
+            errorMessage = "Your profile was saved, but some details (skills or work history) couldn't sync. You can re-add them from your profile."
         }
 
         return true

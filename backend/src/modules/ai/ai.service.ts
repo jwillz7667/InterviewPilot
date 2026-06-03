@@ -14,10 +14,17 @@ import {
 } from '../billing/billing.service.js';
 import { getUserChatProvider } from '../settings/settings.service.js';
 
+import {
+  buildExtractionMessages,
+  sanitizeExtractedProfile,
+  stripJsonFences,
+  type ExtractedProfileDTO,
+} from './ai.profile-extraction.js';
 import { maxTokensField, resolveChatProvider, type ChatProviderName } from './ai.provider.js';
 import type {
   ChatInput,
   ChatStreamInput,
+  ExtractProfileInput,
   RealtimeSessionInput,
   TranscriptionSessionInput,
 } from './ai.schema.js';
@@ -685,6 +692,92 @@ export async function chatCompletion(userId: string, input: ChatInput): Promise<
   } catch {
     throw new AppError(502, 'AI provider returned non-JSON response', 'AI_UPSTREAM_ERROR');
   }
+}
+
+// Resume extraction needs a much larger completion budget than a live answer
+// (a full structured profile), and a low temperature for faithful copying.
+const EXTRACTION_MAX_TOKENS = 3000;
+const EXTRACTION_TEMPERATURE = 0.1;
+const EXTRACTION_TIMEOUT_MS = 60_000;
+
+// Sessionless autofill: gated on the same runtime-AI access as chat (active
+// subscription or remaining quota) but NOT on a SessionAccessGrant, since this
+// runs while editing a profile rather than during a live interview. The model
+// is server-selected (PREMIUM tier for extraction fidelity) and the JSON output
+// is validated/sanitized before it reaches the client.
+export async function extractProfileFromResume(
+  userId: string,
+  input: ExtractProfileInput
+): Promise<{ profile: ExtractedProfileDTO }> {
+  await ensureBillingAccess(userId);
+  const provider = resolveChatProvider(await getUserChatProvider(userId));
+  const { model } = selectModel('PREMIUM', 'default', provider.name);
+
+  const body: Record<string, unknown> = {
+    model,
+    messages: buildExtractionMessages(input.resumeText),
+    [maxTokensField(provider.name)]: EXTRACTION_MAX_TOKENS,
+    temperature: EXTRACTION_TEMPERATURE,
+    response_format: { type: 'json_object' },
+  };
+
+  const response = await fetch(`${provider.baseUrl}/chat/completions`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${provider.apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(EXTRACTION_TIMEOUT_MS),
+  });
+
+  const text = await response.text();
+  if (!response.ok) {
+    log.warn(
+      {
+        event: 'ai.upstream_error',
+        surface: 'extract_profile',
+        provider: provider.name,
+        status: response.status,
+        body: text.slice(0, 500),
+      },
+      'Profile extraction failed'
+    );
+    throw new AppError(
+      response.status >= 500 ? 502 : response.status,
+      'AI service returned an error. Please retry.',
+      'AI_UPSTREAM_ERROR'
+    );
+  }
+
+  let parsed: unknown;
+  try {
+    const envelope = JSON.parse(text) as {
+      choices?: Array<{ message?: { content?: string } }>;
+    };
+    const content = envelope.choices?.[0]?.message?.content;
+    if (!content) throw new Error('empty completion');
+    parsed = JSON.parse(stripJsonFences(content));
+  } catch {
+    throw new AppError(502, 'AI provider returned an unreadable profile.', 'AI_UPSTREAM_ERROR');
+  }
+
+  const profile = sanitizeExtractedProfile(parsed);
+
+  log.info(
+    {
+      event: 'ai.model.served',
+      userId,
+      surface: 'extract_profile',
+      provider: provider.name,
+      model,
+      skills: profile.skills.length,
+      workExperiences: profile.workExperiences.length,
+    },
+    'Profile extraction served'
+  );
+
+  return { profile };
 }
 
 export async function chatCompletionStream(
