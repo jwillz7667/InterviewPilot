@@ -30,7 +30,7 @@ jobs:
           ./scripts/backup-restore-drill.sh
       - name: Notify Slack on failure
         if: failure()
-        uses: slackapi/slack-github-action@v1
+        uses: slackapi/slack-github-action@v3
         with:
           payload: |
             {
