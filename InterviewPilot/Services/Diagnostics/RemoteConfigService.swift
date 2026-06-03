@@ -18,9 +18,17 @@ final class RemoteConfigService {
         let environment: String
     }
 
+    /// Chat providers the server holds keys for, plus the server-wide default.
+    /// The AI-provider picker (dev/full-access only) renders this list.
+    struct AIChat: Codable {
+        let availableProviders: [String]
+        let defaultProvider: String
+    }
+
     struct Config: Codable {
         let sentry: Sentry
         let appAttest: AppAttest
+        let aiChat: AIChat?
     }
 
     private(set) var config: Config?

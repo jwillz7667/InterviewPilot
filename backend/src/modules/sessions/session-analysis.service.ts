@@ -1,7 +1,8 @@
 import OpenAI from 'openai';
 
 import { withDatabaseRetry } from '../../config/database.js';
-import { resolveChatProvider } from '../ai/ai.provider.js';
+import { resolveChatProvider, type ChatProviderName } from '../ai/ai.provider.js';
+import { selectModel } from '../billing/billing.constants.js';
 
 interface ExchangeData {
   questionTranscript: string;
@@ -99,10 +100,10 @@ const analysisResponseSchema = {
   },
 };
 
-// DeepSeek's OpenAI-compatible API supports `{ type: 'json_object' }` but not
-// strict json_schema response_format, so the exact shape must be pinned in the
-// prompt instead (json_object mode also requires the word "json" to appear).
-const DEEPSEEK_JSON_INSTRUCTION = `Respond with ONLY a single valid JSON object — no markdown, no code fences — matching exactly this shape:
+// OpenAI-compatible providers (DeepSeek, Groq) support `{ type: 'json_object' }`
+// but not OpenAI's strict json_schema response_format, so the exact shape must be
+// pinned in the prompt instead (json_object mode also requires the word "json").
+const JSON_SHAPE_INSTRUCTION = `Respond with ONLY a single valid JSON object — no markdown, no code fences — matching exactly this shape:
 {
   "technicalAccuracyScore": <number 0-100>,
   "communicationScore": <number 0-100>,
@@ -210,7 +211,11 @@ ${exchangeTranscript}
 Analyze this interview thoroughly. Be specific, evidence-based, and calibrated to real tech interview standards. Do not inflate scores — an average interview should score around 65-75, not 85+.`;
 }
 
-export async function analyzeSession(sessionId: string, userId: string): Promise<AnalysisResult> {
+export async function analyzeSession(
+  sessionId: string,
+  userId: string,
+  preferredProvider?: ChatProviderName | null
+): Promise<AnalysisResult> {
   const session = await withDatabaseRetry((prisma) =>
     prisma.interviewSession.findFirst({
       where: { id: sessionId, userId },
@@ -239,18 +244,24 @@ export async function analyzeSession(sessionId: string, userId: string): Promise
     };
   }
 
-  const provider = resolveChatProvider();
+  const provider = resolveChatProvider(preferredProvider);
   const openai = new OpenAI({ apiKey: provider.apiKey, baseURL: provider.baseUrl });
-  const isDeepseek = provider.name === 'deepseek';
+  const useStrictSchema = provider.name === 'openai';
 
-  const prompt = isDeepseek
-    ? `${buildAnalysisPrompt(session)}\n\n${DEEPSEEK_JSON_INSTRUCTION}`
-    : buildAnalysisPrompt(session);
+  // OpenAI uses its premium analysis model; OpenAI-compatible providers use the
+  // model their PREMIUM tier resolves to (deepseek-chat or the env GROQ_MODEL).
+  const model = useStrictSchema
+    ? 'gpt-4.1'
+    : selectModel('PREMIUM', 'default', provider.name).model;
+
+  const prompt = useStrictSchema
+    ? buildAnalysisPrompt(session)
+    : `${buildAnalysisPrompt(session)}\n\n${JSON_SHAPE_INSTRUCTION}`;
 
   const completion = await openai.chat.completions.create({
-    model: isDeepseek ? 'deepseek-chat' : 'gpt-4.1',
+    model,
     messages: [{ role: 'user', content: prompt }],
-    response_format: isDeepseek ? { type: 'json_object' } : analysisResponseSchema,
+    response_format: useStrictSchema ? analysisResponseSchema : { type: 'json_object' },
     temperature: 0.3,
     max_tokens: 4000,
   });
@@ -260,8 +271,8 @@ export async function analyzeSession(sessionId: string, userId: string): Promise
     throw new Error('Empty analysis response from AI');
   }
 
-  // OpenAI strict mode returns bare JSON; DeepSeek json_object mode does too, but
-  // strip any stray code fences defensively before parsing.
+  // OpenAI strict mode returns bare JSON; json_object mode does too, but strip
+  // any stray code fences defensively before parsing.
   const jsonText = content
     .trim()
     .replace(/^```(?:json)?\s*/i, '')

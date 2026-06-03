@@ -6,6 +6,7 @@ import { withDatabaseRetry } from '../../config/database.js';
 import { authenticate } from '../../middleware/authenticate.js';
 import { buildPaginatedResponse } from '../../utils/pagination.js';
 import { getSessionAccessGrant } from '../billing/billing.service.js';
+import { getUserChatProvider } from '../settings/settings.service.js';
 
 import { analyzeSession } from './session-analysis.service.js';
 
@@ -197,7 +198,12 @@ export async function sessionsRoutes(app: FastifyInstance) {
     { config: { rateLimit: { max: 5, timeWindow: '1 minute' } } },
     async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
       await request.requireFeature('post_session_analysis');
-      const analysis = await analyzeSession(request.params.id, request.user.sub);
+      const preferredProvider = await getUserChatProvider(request.user.sub);
+      const analysis = await analyzeSession(
+        request.params.id,
+        request.user.sub,
+        preferredProvider
+      );
       reply.send({ analysis });
     }
   );

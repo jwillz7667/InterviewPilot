@@ -4,9 +4,10 @@ import { z } from 'zod';
 import { getPrisma, withDatabaseRetry } from '../../config/database.js';
 import { authenticate } from '../../middleware/authenticate.js';
 import { PaymentRequiredError, ValidationError } from '../../utils/errors.js';
-import { maxTokensField, resolveChatProvider } from '../ai/ai.provider.js';
+import { maxTokensField, resolveChatProvider, type ChatProvider } from '../ai/ai.provider.js';
 import { getModelByQuality, selectModel } from '../billing/billing.constants.js';
 import { canAccessRuntimeAiConfig, getBillingSummary } from '../billing/billing.service.js';
+import { getUserChatProvider } from '../settings/settings.service.js';
 
 const answerSchema = z.object({
   question: z.string(),
@@ -96,12 +97,14 @@ export async function answerBanksRoutes(app: FastifyInstance) {
       const quality = input.responseQualityMode === 'premium' ? 'PREMIUM' : 'STANDARD';
       const maxQuestions = getModelByQuality()[quality].preGenAnswerBank;
 
+      const provider = resolveChatProvider(await getUserChatProvider(request.user.sub));
       const generatedAnswers = await generatePrepAnswers({
         resumeText: input.resumeText,
         jobDescription: input.jobDescription,
         interviewType: input.interviewType,
         maxQuestions,
         responseQualityMode: input.responseQualityMode,
+        provider,
       });
 
       if (generatedAnswers.length === 0) {
@@ -210,11 +213,12 @@ async function generatePrepAnswers(input: {
   interviewType: string;
   maxQuestions: number;
   responseQualityMode: 'standard' | 'premium';
+  provider: ChatProvider;
 }): Promise<z.infer<typeof generatedAnswerSchema>[]> {
-  const provider = resolveChatProvider();
+  const { provider } = input;
 
   const quality = input.responseQualityMode === 'premium' ? 'PREMIUM' : 'STANDARD';
-  const modelChoice = selectModel(quality, 'default');
+  const modelChoice = selectModel(quality, 'default', provider.name);
 
   const response = await fetch(`${provider.baseUrl}/chat/completions`, {
     method: 'POST',

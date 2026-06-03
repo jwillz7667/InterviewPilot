@@ -12,6 +12,7 @@ import {
   canAccessRuntimeAiConfig,
   getBillingSummary,
 } from '../billing/billing.service.js';
+import { getUserChatProvider } from '../settings/settings.service.js';
 
 import { maxTokensField, resolveChatProvider, type ChatProviderName } from './ai.provider.js';
 import type {
@@ -618,9 +619,17 @@ function buildChatBody(
 }
 
 export async function chatCompletion(userId: string, input: ChatInput): Promise<unknown> {
-  const authorized = await authorizeAiCall(userId, input.sessionClientId, input.routing);
   await ensureBillingAccess(userId);
-  const provider = resolveChatProvider();
+  // Resolve the provider first (a per-user override may fall back to the env
+  // default when it has no key), then authorize so the model name matches the
+  // provider actually used — a Groq override must not be billed an OpenAI model.
+  const provider = resolveChatProvider(await getUserChatProvider(userId));
+  const authorized = await authorizeAiCall(
+    userId,
+    input.sessionClientId,
+    input.routing,
+    provider.name
+  );
 
   const body = buildChatBody(input, authorized.model, false, provider.name);
 
@@ -683,9 +692,14 @@ export async function chatCompletionStream(
   input: ChatStreamInput,
   signal?: AbortSignal
 ): Promise<{ upstream: Response; resolvedQuality: InterviewQuality; resolvedModel: string }> {
-  const authorized = await authorizeAiCall(userId, input.sessionClientId, input.routing);
   await ensureBillingAccess(userId);
-  const provider = resolveChatProvider();
+  const provider = resolveChatProvider(await getUserChatProvider(userId));
+  const authorized = await authorizeAiCall(
+    userId,
+    input.sessionClientId,
+    input.routing,
+    provider.name
+  );
 
   const body = buildChatBody(input, authorized.model, true, provider.name);
 

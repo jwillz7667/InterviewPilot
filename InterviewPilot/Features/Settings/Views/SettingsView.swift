@@ -3,12 +3,14 @@ import SwiftUI
 struct SettingsView: View {
     @State private var authService = AuthService.shared
     @State private var subscriptionService = SubscriptionService.shared
+    @State private var remoteConfig = RemoteConfigService.shared
     @State private var viewModel: SettingsViewModel
     @State private var showSignOutConfirm = false
     @State private var showDeleteAccountConfirm = false
     @State private var showPaywall = false
     @State private var showProfile = false
     @State private var showProfiles = false
+    @State private var showProviderPicker = false
     @AppStorage("appAppearance") private var appearanceRawValue = AppAppearance.system.rawValue
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var colorScheme
@@ -69,10 +71,23 @@ struct SettingsView: View {
             .sheet(isPresented: $showDeleteAccountConfirm) {
                 DeleteAccountView()
             }
+            .sheet(isPresented: $showProviderPicker) {
+                AIProviderPickerView(
+                    available: availableProviders,
+                    serverDefault: serverDefaultProvider,
+                    selected: viewModel.settings.provider ?? serverDefaultProvider,
+                    onSelect: { provider in
+                        Task { await viewModel.setPreferredProvider(provider) }
+                    }
+                )
+            }
             .task {
                 guard loadOnTask else { return }
                 await viewModel.loadIfNeeded()
                 await subscriptionService.refresh(forceStoreKitSync: true)
+                if remoteConfig.config?.aiChat == nil {
+                    await remoteConfig.refresh()
+                }
             }
         }
     }
@@ -225,6 +240,14 @@ struct SettingsView: View {
 
                 Divider().padding(.leading, 54)
 
+                if canChooseProvider {
+                    IASettingsRow(icon: "cpu", iconColor: IATheme.secondary, title: "AI Provider") {
+                        showProviderPicker = true
+                    }
+
+                    Divider().padding(.leading, 54)
+                }
+
                 NavigationLink(destination: ActiveSessionsView()) {
                     IASettingsRowLabel(icon: "lock.shield.fill", iconColor: IATheme.accent, title: "Active Sessions")
                 }
@@ -340,6 +363,25 @@ struct SettingsView: View {
 
     private var currentEntitlement: BillingEntitlement? {
         previewEntitlement ?? subscriptionService.currentEntitlement
+    }
+
+    /// Providers the server actually holds keys for. Falls back to every known
+    /// provider if config hasn't loaded — the backend still validates the write.
+    private var availableProviders: [AIProvider] {
+        let names = remoteConfig.config?.aiChat?.availableProviders ?? []
+        let resolved = names.compactMap(AIProvider.init(rawValue:))
+        return resolved.isEmpty ? AIProvider.allCases : resolved
+    }
+
+    private var serverDefaultProvider: AIProvider? {
+        guard let raw = remoteConfig.config?.aiChat?.defaultProvider else { return nil }
+        return AIProvider(rawValue: raw)
+    }
+
+    /// Switching providers is a developer/full-access affordance, and only worth
+    /// showing when there is more than one configured provider to choose from.
+    private var canChooseProvider: Bool {
+        currentEntitlement?.sandboxFullAccess == true && availableProviders.count > 1
     }
 }
 

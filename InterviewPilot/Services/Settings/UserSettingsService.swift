@@ -4,6 +4,8 @@ struct UserSettingsSnapshot: Codable, Sendable {
     let defaultInterviewType: String
     let defaultResponseFormat: String
     let shouldPreGenerate: Bool
+    /// nil = follow the server-wide default provider (no per-user override).
+    let chatProvider: String?
 
     var interviewType: InterviewType {
         InterviewType(rawValue: defaultInterviewType) ?? .general
@@ -13,10 +15,15 @@ struct UserSettingsSnapshot: Codable, Sendable {
         ResponseFormat(rawValue: defaultResponseFormat) ?? .hybrid
     }
 
+    var provider: AIProvider? {
+        chatProvider.flatMap(AIProvider.init(rawValue:))
+    }
+
     static let fallback = UserSettingsSnapshot(
         defaultInterviewType: InterviewType.general.rawValue,
         defaultResponseFormat: ResponseFormat.hybrid.rawValue,
-        shouldPreGenerate: true
+        shouldPreGenerate: true,
+        chatProvider: nil
     )
 }
 
@@ -24,6 +31,7 @@ struct UserSettingsUpdate: Encodable, Sendable {
     var defaultInterviewType: String?
     var defaultResponseFormat: String?
     var shouldPreGenerate: Bool?
+    var chatProvider: String?
 }
 
 final class UserSettingsService {

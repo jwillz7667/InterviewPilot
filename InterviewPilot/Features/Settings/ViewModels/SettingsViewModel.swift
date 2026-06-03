@@ -51,6 +51,13 @@ final class SettingsViewModel {
         )
     }
 
+    func setPreferredProvider(_ provider: AIProvider) async {
+        await apply(
+            optimistic: settings.updating(chatProvider: provider.rawValue),
+            update: UserSettingsUpdate(chatProvider: provider.rawValue)
+        )
+    }
+
     private func apply(
         optimistic updatedValue: UserSettingsSnapshot,
         update: UserSettingsUpdate
@@ -74,12 +81,14 @@ private extension UserSettingsSnapshot {
     func updating(
         defaultInterviewType: String? = nil,
         defaultResponseFormat: String? = nil,
-        shouldPreGenerate: Bool? = nil
+        shouldPreGenerate: Bool? = nil,
+        chatProvider: String? = nil
     ) -> UserSettingsSnapshot {
         UserSettingsSnapshot(
             defaultInterviewType: defaultInterviewType ?? self.defaultInterviewType,
             defaultResponseFormat: defaultResponseFormat ?? self.defaultResponseFormat,
-            shouldPreGenerate: shouldPreGenerate ?? self.shouldPreGenerate
+            shouldPreGenerate: shouldPreGenerate ?? self.shouldPreGenerate,
+            chatProvider: chatProvider ?? self.chatProvider
         )
     }
 }
