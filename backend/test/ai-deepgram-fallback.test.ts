@@ -119,7 +119,7 @@ describe('createTranscriptionSession', () => {
     expect(result.ephemeral).toBe(false);
     expect(warnSpy).toHaveBeenCalledWith(
       expect.objectContaining({ event: 'deepgram.key.mint.upstream_error' }),
-      expect.stringContaining('falling back to master key')
+      expect.stringContaining('serving master key')
     );
   });
 
