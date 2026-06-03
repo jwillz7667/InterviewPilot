@@ -90,24 +90,64 @@ export interface QualityModelConfig {
   preGenAnswerBank: number;
 }
 
-export const MODEL_BY_QUALITY: Record<InterviewQuality, QualityModelConfig> = {
-  STANDARD: {
-    primary: 'gpt-4.1-mini',
-    technical: 'gpt-4.1-mini',
-    coding: 'gpt-4.1-mini',
-    maxTokens: 320,
-    temperature: 0.7,
-    preGenAnswerBank: 25,
+type ChatProviderName = 'openai' | 'deepseek';
+
+// Model names differ per provider; token budgets and temperatures are shared
+// because they are product decisions, not provider capabilities. DeepSeek has no
+// low-latency reasoning model fit for a live interview, so the coding route uses
+// the fast chat model rather than deepseek-reasoner (which streams only after a
+// multi-second thinking phase).
+const MODELS_BY_PROVIDER: Record<
+  ChatProviderName,
+  Record<InterviewQuality, QualityModelConfig>
+> = {
+  openai: {
+    STANDARD: {
+      primary: 'gpt-4.1-mini',
+      technical: 'gpt-4.1-mini',
+      coding: 'gpt-4.1-mini',
+      maxTokens: 320,
+      temperature: 0.7,
+      preGenAnswerBank: 25,
+    },
+    PREMIUM: {
+      primary: 'gpt-4.1',
+      technical: 'gpt-4.1',
+      coding: 'o4-mini',
+      maxTokens: 600,
+      temperature: 0.55,
+      preGenAnswerBank: 50,
+    },
   },
-  PREMIUM: {
-    primary: 'gpt-4.1',
-    technical: 'gpt-4.1',
-    coding: 'o4-mini',
-    maxTokens: 600,
-    temperature: 0.55,
-    preGenAnswerBank: 50,
+  deepseek: {
+    STANDARD: {
+      primary: 'deepseek-chat',
+      technical: 'deepseek-chat',
+      coding: 'deepseek-chat',
+      maxTokens: 320,
+      temperature: 0.7,
+      preGenAnswerBank: 25,
+    },
+    PREMIUM: {
+      primary: 'deepseek-chat',
+      technical: 'deepseek-chat',
+      coding: 'deepseek-chat',
+      maxTokens: 600,
+      temperature: 0.55,
+      preGenAnswerBank: 50,
+    },
   },
 };
+
+function activeChatProvider(): ChatProviderName {
+  return getEnv().AI_CHAT_PROVIDER === 'deepseek' ? 'deepseek' : 'openai';
+}
+
+// Resolved per call rather than memoized so flipping AI_CHAT_PROVIDER takes
+// effect on the next restart with no other change. getEnv() is process-cached.
+export function getModelByQuality(): Record<InterviewQuality, QualityModelConfig> {
+  return MODELS_BY_PROVIDER[activeChatProvider()];
+}
 
 export type QuestionRouting = 'coding' | 'technical' | 'default';
 
@@ -115,7 +155,7 @@ export function selectModel(
   quality: InterviewQuality,
   routing: QuestionRouting = 'default'
 ): ModelChoice {
-  const cfg = MODEL_BY_QUALITY[quality];
+  const cfg = getModelByQuality()[quality];
   const model =
     routing === 'coding' ? cfg.coding : routing === 'technical' ? cfg.technical : cfg.primary;
 
@@ -136,7 +176,7 @@ export interface ModelConfig {
 }
 
 function modelConfigForQuality(quality: InterviewQuality): ModelConfig {
-  const cfg = MODEL_BY_QUALITY[quality];
+  const cfg = getModelByQuality()[quality];
   return {
     defaultModel: cfg.primary,
     technicalModel: cfg.technical,
@@ -145,14 +185,13 @@ function modelConfigForQuality(quality: InterviewQuality): ModelConfig {
   };
 }
 
-export const TIER_MODEL_CONFIG: Record<SubscriptionTier, ModelConfig> = {
-  FREE: modelConfigForQuality('STANDARD'),
-  TRIAL: modelConfigForQuality('STANDARD'),
-  PLUS: modelConfigForQuality('STANDARD'),
-  PRO: modelConfigForQuality('STANDARD'),
-  PREMIUM: modelConfigForQuality('PREMIUM'),
-  SANDBOX: modelConfigForQuality('PREMIUM'),
-};
+// Computed per call (not a module-eval const) because the model names depend on
+// the active provider, and so the displayed config stays honest after a swap.
+export function getTierModelConfig(tier: SubscriptionTier): ModelConfig {
+  const quality: InterviewQuality =
+    tier === 'PREMIUM' || tier === 'SANDBOX' ? 'PREMIUM' : 'STANDARD';
+  return modelConfigForQuality(quality);
+}
 
 export type ResponseQuality = 'standard' | 'enhanced' | 'premium';
 

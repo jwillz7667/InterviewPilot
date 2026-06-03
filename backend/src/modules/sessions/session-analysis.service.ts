@@ -1,7 +1,7 @@
 import OpenAI from 'openai';
 
 import { withDatabaseRetry } from '../../config/database.js';
-import { getEnv } from '../../config/env.js';
+import { resolveChatProvider } from '../ai/ai.provider.js';
 
 interface ExchangeData {
   questionTranscript: string;
@@ -98,6 +98,20 @@ const analysisResponseSchema = {
     },
   },
 };
+
+// DeepSeek's OpenAI-compatible API supports `{ type: 'json_object' }` but not
+// strict json_schema response_format, so the exact shape must be pinned in the
+// prompt instead (json_object mode also requires the word "json" to appear).
+const DEEPSEEK_JSON_INSTRUCTION = `Respond with ONLY a single valid JSON object — no markdown, no code fences — matching exactly this shape:
+{
+  "technicalAccuracyScore": <number 0-100>,
+  "communicationScore": <number 0-100>,
+  "confidenceScore": <number 0-100>,
+  "overallScore": <number 0-100>,
+  "aiStrengths": [<4-6 strings, each citing specific transcript evidence>],
+  "aiImprovements": [<4-6 actionable strings, each citing specific transcript evidence>],
+  "exchangeFeedback": [{ "sequenceOrder": <number>, "score": <number 0-100>, "verdict": "strong" | "adequate" | "weak", "feedback": <string, 2-3 sentences> }]
+}`;
 
 function buildAnalysisPrompt(session: SessionData): string {
   const durationMinutes = session.endedAt
@@ -225,15 +239,18 @@ export async function analyzeSession(sessionId: string, userId: string): Promise
     };
   }
 
-  const env = getEnv();
-  const openai = new OpenAI({ apiKey: env.OPENAI_API_KEY });
+  const provider = resolveChatProvider();
+  const openai = new OpenAI({ apiKey: provider.apiKey, baseURL: provider.baseUrl });
+  const isDeepseek = provider.name === 'deepseek';
 
-  const prompt = buildAnalysisPrompt(session);
+  const prompt = isDeepseek
+    ? `${buildAnalysisPrompt(session)}\n\n${DEEPSEEK_JSON_INSTRUCTION}`
+    : buildAnalysisPrompt(session);
 
   const completion = await openai.chat.completions.create({
-    model: 'gpt-4.1',
+    model: isDeepseek ? 'deepseek-chat' : 'gpt-4.1',
     messages: [{ role: 'user', content: prompt }],
-    response_format: analysisResponseSchema,
+    response_format: isDeepseek ? { type: 'json_object' } : analysisResponseSchema,
     temperature: 0.3,
     max_tokens: 4000,
   });
@@ -243,7 +260,13 @@ export async function analyzeSession(sessionId: string, userId: string): Promise
     throw new Error('Empty analysis response from AI');
   }
 
-  const analysis = JSON.parse(content) as AnalysisResult;
+  // OpenAI strict mode returns bare JSON; DeepSeek json_object mode does too, but
+  // strip any stray code fences defensively before parsing.
+  const jsonText = content
+    .trim()
+    .replace(/^```(?:json)?\s*/i, '')
+    .replace(/\s*```$/i, '');
+  const analysis = JSON.parse(jsonText) as AnalysisResult;
 
   // Clamp scores to 0-100
   analysis.technicalAccuracyScore = Math.max(

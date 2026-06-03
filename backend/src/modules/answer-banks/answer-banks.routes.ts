@@ -2,10 +2,10 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { z } from 'zod';
 
 import { getPrisma, withDatabaseRetry } from '../../config/database.js';
-import { getEnv } from '../../config/env.js';
 import { authenticate } from '../../middleware/authenticate.js';
 import { PaymentRequiredError, ValidationError } from '../../utils/errors.js';
-import { MODEL_BY_QUALITY, selectModel } from '../billing/billing.constants.js';
+import { maxTokensField, resolveChatProvider } from '../ai/ai.provider.js';
+import { getModelByQuality, selectModel } from '../billing/billing.constants.js';
 import { canAccessRuntimeAiConfig, getBillingSummary } from '../billing/billing.service.js';
 
 const answerSchema = z.object({
@@ -94,7 +94,7 @@ export async function answerBanksRoutes(app: FastifyInstance) {
       // We deliberately do NOT honour `userSettings.maxPreComputedQs` here so a free user cannot
       // bump it to 200 client-side and burn premium tokens at standard prices.
       const quality = input.responseQualityMode === 'premium' ? 'PREMIUM' : 'STANDARD';
-      const maxQuestions = MODEL_BY_QUALITY[quality].preGenAnswerBank;
+      const maxQuestions = getModelByQuality()[quality].preGenAnswerBank;
 
       const generatedAnswers = await generatePrepAnswers({
         resumeText: input.resumeText,
@@ -211,23 +211,20 @@ async function generatePrepAnswers(input: {
   maxQuestions: number;
   responseQualityMode: 'standard' | 'premium';
 }): Promise<z.infer<typeof generatedAnswerSchema>[]> {
-  const env = getEnv();
-  if (!env.OPENAI_API_KEY) {
-    throw new ValidationError('OPENAI_API_KEY is not configured on the server.');
-  }
+  const provider = resolveChatProvider();
 
   const quality = input.responseQualityMode === 'premium' ? 'PREMIUM' : 'STANDARD';
   const modelChoice = selectModel(quality, 'default');
 
-  const response = await fetch('https://api.openai.com/v1/chat/completions', {
+  const response = await fetch(`${provider.baseUrl}/chat/completions`, {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${env.OPENAI_API_KEY}`,
+      Authorization: `Bearer ${provider.apiKey}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
       model: modelChoice.model,
-      max_completion_tokens: 4000,
+      [maxTokensField(provider.name)]: 4000,
       temperature: modelChoice.temperature,
       frequency_penalty: 0.15,
       messages: [
@@ -251,13 +248,13 @@ async function generatePrepAnswers(input: {
 
   if (!response.ok) {
     throw new ValidationError(
-      payload.error?.message || `OpenAI request failed (${response.status})`
+      payload.error?.message || `AI request failed (${response.status})`
     );
   }
 
   const content = payload.choices?.[0]?.message?.content?.trim();
   if (!content) {
-    throw new ValidationError('OpenAI returned an empty answer bank response.');
+    throw new ValidationError('AI provider returned an empty answer bank response.');
   }
 
   return parseGeneratedAnswers(content).map((item) => generatedAnswerSchema.parse(item));

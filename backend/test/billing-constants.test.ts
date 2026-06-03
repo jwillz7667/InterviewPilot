@@ -1,8 +1,19 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+
+// selectModel/getModelByQuality now read AI_CHAT_PROVIDER via getEnv(); mock it
+// so this unit test never needs the full (DB/JWT) env to be present, and so we
+// can flip the provider to assert the DeepSeek mapping.
+const { envState } = vi.hoisted(() => ({
+  envState: { AI_CHAT_PROVIDER: 'openai' as 'openai' | 'deepseek' },
+}));
+
+vi.mock('../src/config/env.js', () => ({
+  getEnv: () => envState,
+}));
 
 import {
   TIER_QUOTA,
-  MODEL_BY_QUALITY,
+  getModelByQuality,
   selectModel,
   isUnlimitedQuota,
   TIER_FEATURES,
@@ -37,32 +48,57 @@ describe('TIER_QUOTA', () => {
   });
 });
 
-describe('MODEL_BY_QUALITY', () => {
+describe('getModelByQuality() — OpenAI provider (default)', () => {
   it('STANDARD uses gpt-4.1-mini for all routings', () => {
-    expect(MODEL_BY_QUALITY.STANDARD.primary).toBe('gpt-4.1-mini');
-    expect(MODEL_BY_QUALITY.STANDARD.technical).toBe('gpt-4.1-mini');
-    expect(MODEL_BY_QUALITY.STANDARD.coding).toBe('gpt-4.1-mini');
+    const models = getModelByQuality();
+    expect(models.STANDARD.primary).toBe('gpt-4.1-mini');
+    expect(models.STANDARD.technical).toBe('gpt-4.1-mini');
+    expect(models.STANDARD.coding).toBe('gpt-4.1-mini');
   });
 
   it('PREMIUM uses gpt-4.1 for default/technical and o4-mini for coding', () => {
-    expect(MODEL_BY_QUALITY.PREMIUM.primary).toBe('gpt-4.1');
-    expect(MODEL_BY_QUALITY.PREMIUM.technical).toBe('gpt-4.1');
-    expect(MODEL_BY_QUALITY.PREMIUM.coding).toBe('o4-mini');
+    const models = getModelByQuality();
+    expect(models.PREMIUM.primary).toBe('gpt-4.1');
+    expect(models.PREMIUM.technical).toBe('gpt-4.1');
+    expect(models.PREMIUM.coding).toBe('o4-mini');
   });
 
   it('STANDARD is capped at 320 tokens, PREMIUM at 600 tokens', () => {
-    expect(MODEL_BY_QUALITY.STANDARD.maxTokens).toBe(320);
-    expect(MODEL_BY_QUALITY.PREMIUM.maxTokens).toBe(600);
+    const models = getModelByQuality();
+    expect(models.STANDARD.maxTokens).toBe(320);
+    expect(models.PREMIUM.maxTokens).toBe(600);
   });
 
   it('PREMIUM pre-gen answer banks have 50 questions vs 25 for STANDARD', () => {
-    expect(MODEL_BY_QUALITY.STANDARD.preGenAnswerBank).toBe(25);
-    expect(MODEL_BY_QUALITY.PREMIUM.preGenAnswerBank).toBe(50);
+    const models = getModelByQuality();
+    expect(models.STANDARD.preGenAnswerBank).toBe(25);
+    expect(models.PREMIUM.preGenAnswerBank).toBe(50);
   });
 
   it('PREMIUM uses lower temperature (0.55) than STANDARD (0.7) for tighter answers', () => {
-    expect(MODEL_BY_QUALITY.STANDARD.temperature).toBe(0.7);
-    expect(MODEL_BY_QUALITY.PREMIUM.temperature).toBe(0.55);
+    const models = getModelByQuality();
+    expect(models.STANDARD.temperature).toBe(0.7);
+    expect(models.PREMIUM.temperature).toBe(0.55);
+  });
+});
+
+describe('getModelByQuality() — DeepSeek provider', () => {
+  it('routes every quality/routing to deepseek-chat while keeping token budgets', () => {
+    envState.AI_CHAT_PROVIDER = 'deepseek';
+    try {
+      const models = getModelByQuality();
+      expect(models.STANDARD.primary).toBe('deepseek-chat');
+      expect(models.STANDARD.coding).toBe('deepseek-chat');
+      expect(models.PREMIUM.primary).toBe('deepseek-chat');
+      // No deepseek-reasoner on the coding route — latency would break a live interview.
+      expect(models.PREMIUM.coding).toBe('deepseek-chat');
+      // Token/temperature budgets are product decisions, identical across providers.
+      expect(models.STANDARD.maxTokens).toBe(320);
+      expect(models.PREMIUM.maxTokens).toBe(600);
+      expect(selectModel('PREMIUM', 'coding').model).toBe('deepseek-chat');
+    } finally {
+      envState.AI_CHAT_PROVIDER = 'openai';
+    }
   });
 });
 
@@ -93,7 +129,7 @@ describe('selectModel(quality, routing)', () => {
   });
 
   it('routing defaults to "default" when omitted', () => {
-    expect(selectModel('PREMIUM').model).toBe(MODEL_BY_QUALITY.PREMIUM.primary);
+    expect(selectModel('PREMIUM').model).toBe(getModelByQuality().PREMIUM.primary);
   });
 });
 

@@ -24,6 +24,14 @@ const envSchema = z.object({
   DEEPGRAM_PROJECT_ID: z.string().optional(),
   OPENAI_API_KEY: z.string().default(''),
   OPENAI_REALTIME_MODEL: z.string().default('gpt-realtime'),
+  // Chat-completion provider for live answers, answer-bank pre-gen, and
+  // post-session analysis. DeepSeek is OpenAI-compatible, so switching is a
+  // base-URL + key + model-name change only (see ai.provider.ts and the
+  // provider-aware maps in billing.constants.ts). Transcription stays on
+  // Deepgram and the realtime voice path stays on OpenAI regardless.
+  AI_CHAT_PROVIDER: z.enum(['openai', 'deepseek']).default('openai'),
+  DEEPSEEK_API_KEY: z.string().default(''),
+  DEEPSEEK_BASE_URL: z.string().default('https://api.deepseek.com'),
   APPLE_SIGN_IN_TEAM_ID: z.string().default('487LC4H9U4'),
   APPLE_SIGN_IN_KEY_ID: z.string().default('H539ZPGG3B'),
   APPLE_SIGN_IN_PRIVATE_KEY: z.string().optional(),

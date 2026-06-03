@@ -13,6 +13,7 @@ import {
   getBillingSummary,
 } from '../billing/billing.service.js';
 
+import { maxTokensField, resolveChatProvider, type ChatProviderName } from './ai.provider.js';
 import type {
   ChatInput,
   ChatStreamInput,
@@ -582,15 +583,16 @@ export async function probeDeepgramKeyScopes(): Promise<void> {
   );
 }
 
-function buildOpenAIBody(
+function buildChatBody(
   input: ChatInput | ChatStreamInput,
   model: ModelChoice,
-  stream: boolean
+  stream: boolean,
+  provider: ChatProviderName
 ): Record<string, unknown> {
   const body: Record<string, unknown> = {
     model: model.model,
     messages: input.messages,
-    max_completion_tokens: model.maxTokens,
+    [maxTokensField(provider)]: model.maxTokens,
   };
   // Server-resolved temperature wins. Client-supplied temperature is allowed for fine control
   // but capped to the quality's ceiling so a Standard caller cannot run a Premium-temperature
@@ -618,14 +620,14 @@ function buildOpenAIBody(
 export async function chatCompletion(userId: string, input: ChatInput): Promise<unknown> {
   const authorized = await authorizeAiCall(userId, input.sessionClientId, input.routing);
   await ensureBillingAccess(userId);
-  const apiKey = requireOpenAIKey();
+  const provider = resolveChatProvider();
 
-  const body = buildOpenAIBody(input, authorized.model, false);
+  const body = buildChatBody(input, authorized.model, false, provider.name);
 
-  const response = await fetch(`${OPENAI_BASE}/chat/completions`, {
+  const response = await fetch(`${provider.baseUrl}/chat/completions`, {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${apiKey}`,
+      Authorization: `Bearer ${provider.apiKey}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(body),
@@ -635,10 +637,16 @@ export async function chatCompletion(userId: string, input: ChatInput): Promise<
   const text = await response.text();
   if (!response.ok) {
     // Log the upstream body server-side for debugging, but never forward it to
-    // the client — OpenAI error payloads can echo org/account/quota internals.
+    // the client — provider error payloads can echo org/account/quota internals.
     log.warn(
-      { event: 'ai.upstream_error', surface: 'chat', status: response.status, body: text.slice(0, 500) },
-      'OpenAI chat completion failed'
+      {
+        event: 'ai.upstream_error',
+        surface: 'chat',
+        provider: provider.name,
+        status: response.status,
+        body: text.slice(0, 500),
+      },
+      'Chat completion failed'
     );
     throw new AppError(
       response.status >= 500 ? 502 : response.status,
@@ -653,6 +661,7 @@ export async function chatCompletion(userId: string, input: ChatInput): Promise<
       userId,
       sessionClientId: input.sessionClientId,
       surface: 'chat',
+      provider: provider.name,
       quality: authorized.quality,
       tier: authorized.tier,
       routing: input.routing,
@@ -665,7 +674,7 @@ export async function chatCompletion(userId: string, input: ChatInput): Promise<
   try {
     return JSON.parse(text);
   } catch {
-    throw new AppError(502, 'OpenAI returned non-JSON response', 'AI_UPSTREAM_ERROR');
+    throw new AppError(502, 'AI provider returned non-JSON response', 'AI_UPSTREAM_ERROR');
   }
 }
 
@@ -676,17 +685,17 @@ export async function chatCompletionStream(
 ): Promise<{ upstream: Response; resolvedQuality: InterviewQuality; resolvedModel: string }> {
   const authorized = await authorizeAiCall(userId, input.sessionClientId, input.routing);
   await ensureBillingAccess(userId);
-  const apiKey = requireOpenAIKey();
+  const provider = resolveChatProvider();
 
-  const body = buildOpenAIBody(input, authorized.model, true);
+  const body = buildChatBody(input, authorized.model, true, provider.name);
 
   // Pass the caller's abort signal so a client disconnect tears down the
-  // upstream OpenAI request. Cancelling only the downstream reader leaves OpenAI
+  // upstream request. Cancelling only the downstream reader leaves the provider
   // generating (and billing) the full completion for an abandoned stream.
-  const response = await fetch(`${OPENAI_BASE}/chat/completions`, {
+  const response = await fetch(`${provider.baseUrl}/chat/completions`, {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${apiKey}`,
+      Authorization: `Bearer ${provider.apiKey}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(body),
@@ -696,8 +705,14 @@ export async function chatCompletionStream(
   if (!response.ok || !response.body) {
     const text = await response.text().catch(() => '');
     log.warn(
-      { event: 'ai.upstream_error', surface: 'chat_stream', status: response.status, body: text.slice(0, 500) },
-      'OpenAI chat stream failed'
+      {
+        event: 'ai.upstream_error',
+        surface: 'chat_stream',
+        provider: provider.name,
+        status: response.status,
+        body: text.slice(0, 500),
+      },
+      'Chat stream failed'
     );
     throw new AppError(
       response.status >= 500 ? 502 : response.status,
@@ -712,6 +727,7 @@ export async function chatCompletionStream(
       userId,
       sessionClientId: input.sessionClientId,
       surface: 'chat_stream',
+      provider: provider.name,
       quality: authorized.quality,
       tier: authorized.tier,
       routing: input.routing,
