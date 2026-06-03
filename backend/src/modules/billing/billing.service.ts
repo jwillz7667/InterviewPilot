@@ -34,6 +34,7 @@ import {
   ValidationError,
 } from '../../utils/errors.js';
 import { getLogger } from '../../utils/logger.js';
+import type { ChatProviderName } from '../ai/ai.provider.js';
 import { ensureAppAccountToken } from '../users/app-account-token.js';
 
 import {
@@ -1150,13 +1151,14 @@ export async function getSessionAccessGrant(
 export async function authorizeAiCall(
   userId: string,
   sessionClientId: string,
-  routing: QuestionRouting = 'default'
+  routing: QuestionRouting = 'default',
+  provider?: ChatProviderName
 ): Promise<{ model: ModelChoice; quality: InterviewQuality; tier: SubscriptionTier }> {
   return withSpan(
     'billing.authorize_ai_call',
     async () => {
       const grant = await getSessionAccessGrant(userId, sessionClientId);
-      const model = selectModel(grant.quality, routing);
+      const model = selectModel(grant.quality, routing, provider);
       return {
         model,
         quality: grant.quality,

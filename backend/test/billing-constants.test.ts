@@ -2,10 +2,14 @@ import { describe, expect, it, vi } from 'vitest';
 
 // selectModel/getModelByQuality now read AI_CHAT_PROVIDER via getEnv(); mock it
 // so this unit test never needs the full (DB/JWT) env to be present, and so we
-// can flip the provider to assert the DeepSeek mapping.
-const { envState } = vi.hoisted(() => ({
-  envState: { AI_CHAT_PROVIDER: 'openai' as 'openai' | 'deepseek' },
-}));
+// can flip the provider to assert the DeepSeek / Groq mappings.
+const { envState } = vi.hoisted(() => {
+  const envState: { AI_CHAT_PROVIDER: 'openai' | 'deepseek' | 'groq'; GROQ_MODEL: string } = {
+    AI_CHAT_PROVIDER: 'openai',
+    GROQ_MODEL: '',
+  };
+  return { envState };
+});
 
 vi.mock('../src/config/env.js', () => ({
   getEnv: () => envState,
@@ -99,6 +103,41 @@ describe('getModelByQuality() — DeepSeek provider', () => {
     } finally {
       envState.AI_CHAT_PROVIDER = 'openai';
     }
+  });
+});
+
+describe('getModelByQuality() — Groq provider', () => {
+  it('routes every quality/routing to the env GROQ_MODEL (default when unset)', () => {
+    envState.AI_CHAT_PROVIDER = 'groq';
+    try {
+      const models = getModelByQuality();
+      expect(models.STANDARD.primary).toBe('llama-3.3-70b-versatile');
+      expect(models.STANDARD.coding).toBe('llama-3.3-70b-versatile');
+      expect(models.PREMIUM.primary).toBe('llama-3.3-70b-versatile');
+      expect(models.PREMIUM.coding).toBe('llama-3.3-70b-versatile');
+      expect(models.STANDARD.maxTokens).toBe(320);
+      expect(models.PREMIUM.maxTokens).toBe(600);
+    } finally {
+      envState.AI_CHAT_PROVIDER = 'openai';
+    }
+  });
+
+  it('honors a GROQ_MODEL override without a code change', () => {
+    envState.AI_CHAT_PROVIDER = 'groq';
+    envState.GROQ_MODEL = 'openai/gpt-oss-120b';
+    try {
+      expect(getModelByQuality().PREMIUM.primary).toBe('openai/gpt-oss-120b');
+      expect(selectModel('STANDARD', 'coding').model).toBe('openai/gpt-oss-120b');
+    } finally {
+      envState.AI_CHAT_PROVIDER = 'openai';
+      envState.GROQ_MODEL = '';
+    }
+  });
+
+  it('an explicit provider arg overrides the env default', () => {
+    // env says openai, but a per-user override asks for groq
+    expect(getModelByQuality('groq').STANDARD.primary).toBe('llama-3.3-70b-versatile');
+    expect(selectModel('PREMIUM', 'default', 'deepseek').model).toBe('deepseek-chat');
   });
 });
 

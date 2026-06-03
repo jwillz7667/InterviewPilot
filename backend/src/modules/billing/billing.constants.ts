@@ -7,6 +7,7 @@ import {
 } from '@prisma/client';
 
 import { getEnv } from '../../config/env.js';
+import type { ChatProviderName } from '../ai/ai.provider.js';
 
 export const FEATURE_KEYS = [
   'live_interview',
@@ -90,15 +91,13 @@ export interface QualityModelConfig {
   preGenAnswerBank: number;
 }
 
-type ChatProviderName = 'openai' | 'deepseek';
-
 // Model names differ per provider; token budgets and temperatures are shared
 // because they are product decisions, not provider capabilities. DeepSeek has no
 // low-latency reasoning model fit for a live interview, so the coding route uses
 // the fast chat model rather than deepseek-reasoner (which streams only after a
 // multi-second thinking phase).
 const MODELS_BY_PROVIDER: Record<
-  ChatProviderName,
+  Exclude<ChatProviderName, 'groq'>,
   Record<InterviewQuality, QualityModelConfig>
 > = {
   openai: {
@@ -139,23 +138,54 @@ const MODELS_BY_PROVIDER: Record<
   },
 };
 
-function activeChatProvider(): ChatProviderName {
-  return getEnv().AI_CHAT_PROVIDER === 'deepseek' ? 'deepseek' : 'openai';
+// Groq rotates its hosted catalog, so its model name is env-driven (GROQ_MODEL)
+// rather than hardcoded. One fast model serves every routing — Groq's latency is
+// low enough that a separate "coding" model buys nothing for a live interview.
+function groqModelMap(): Record<InterviewQuality, QualityModelConfig> {
+  const model = getEnv().GROQ_MODEL || 'llama-3.3-70b-versatile';
+  return {
+    STANDARD: {
+      primary: model,
+      technical: model,
+      coding: model,
+      maxTokens: 320,
+      temperature: 0.7,
+      preGenAnswerBank: 25,
+    },
+    PREMIUM: {
+      primary: model,
+      technical: model,
+      coding: model,
+      maxTokens: 600,
+      temperature: 0.55,
+      preGenAnswerBank: 50,
+    },
+  };
 }
 
-// Resolved per call rather than memoized so flipping AI_CHAT_PROVIDER takes
-// effect on the next restart with no other change. getEnv() is process-cached.
-export function getModelByQuality(): Record<InterviewQuality, QualityModelConfig> {
-  return MODELS_BY_PROVIDER[activeChatProvider()];
+function activeChatProvider(): ChatProviderName {
+  const provider = getEnv().AI_CHAT_PROVIDER;
+  return provider === 'deepseek' || provider === 'groq' ? provider : 'openai';
+}
+
+// Resolved per call rather than memoized so flipping the provider (server env or
+// a per-user override) takes effect with no other change. getEnv() is
+// process-cached. `provider` lets a per-user menu selection pick its own models.
+export function getModelByQuality(
+  provider: ChatProviderName = activeChatProvider()
+): Record<InterviewQuality, QualityModelConfig> {
+  if (provider === 'groq') return groqModelMap();
+  return MODELS_BY_PROVIDER[provider];
 }
 
 export type QuestionRouting = 'coding' | 'technical' | 'default';
 
 export function selectModel(
   quality: InterviewQuality,
-  routing: QuestionRouting = 'default'
+  routing: QuestionRouting = 'default',
+  provider?: ChatProviderName
 ): ModelChoice {
-  const cfg = getModelByQuality()[quality];
+  const cfg = getModelByQuality(provider)[quality];
   const model =
     routing === 'coding' ? cfg.coding : routing === 'technical' ? cfg.technical : cfg.primary;
 
@@ -175,8 +205,11 @@ export interface ModelConfig {
   maxTokens: number;
 }
 
-function modelConfigForQuality(quality: InterviewQuality): ModelConfig {
-  const cfg = getModelByQuality()[quality];
+function modelConfigForQuality(
+  quality: InterviewQuality,
+  provider?: ChatProviderName
+): ModelConfig {
+  const cfg = getModelByQuality(provider)[quality];
   return {
     defaultModel: cfg.primary,
     technicalModel: cfg.technical,
@@ -187,10 +220,13 @@ function modelConfigForQuality(quality: InterviewQuality): ModelConfig {
 
 // Computed per call (not a module-eval const) because the model names depend on
 // the active provider, and so the displayed config stays honest after a swap.
-export function getTierModelConfig(tier: SubscriptionTier): ModelConfig {
+export function getTierModelConfig(
+  tier: SubscriptionTier,
+  provider?: ChatProviderName
+): ModelConfig {
   const quality: InterviewQuality =
     tier === 'PREMIUM' || tier === 'SANDBOX' ? 'PREMIUM' : 'STANDARD';
-  return modelConfigForQuality(quality);
+  return modelConfigForQuality(quality, provider);
 }
 
 export type ResponseQuality = 'standard' | 'enhanced' | 'premium';
