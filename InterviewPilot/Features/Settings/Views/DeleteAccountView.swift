@@ -2,7 +2,7 @@ import SwiftUI
 
 struct DeleteAccountView: View {
     @State private var authService = AuthService.shared
-    @State private var password = ""
+    @State private var confirmationText = ""
     @State private var isDeleting = false
     @State private var errorMessage: String?
     @State private var showFinalConfirm = false
@@ -47,18 +47,19 @@ struct DeleteAccountView: View {
 
                         IAPanel(tone: .primary, padding: 22, cornerRadius: 30) {
                             VStack(alignment: .leading, spacing: 16) {
-                                Text("Confirm your identity")
+                                Text("Confirm deletion")
                                     .font(IATypography.headlineSmall)
                                     .foregroundStyle(IATheme.textPrimary)
 
-                                Text("Enter your password to proceed with account deletion.")
+                                Text("Type DELETE to proceed with account deletion.")
                                     .font(IATypography.bodySmall)
                                     .foregroundStyle(IATheme.textSecondary)
 
-                                SecureField("Password", text: $password)
+                                TextField("DELETE", text: $confirmationText)
                                     .font(IATypography.bodyMedium)
                                     .foregroundStyle(IATheme.textPrimary)
                                     .autocorrectionDisabled()
+                                    .textInputAutocapitalization(.characters)
                                     .padding(.horizontal, 14)
                                     .padding(.vertical, 14)
                                     .iaInsetSurface(cornerRadius: 20)
@@ -111,15 +112,15 @@ struct DeleteAccountView: View {
     }
 
     private var canDelete: Bool {
-        password.count >= 8
+        confirmationText.trimmingCharacters(in: .whitespaces).uppercased() == "DELETE"
     }
 
     private func deleteAccount() {
         isDeleting = true
         Task {
             do {
-                try await authService.deleteAccount(password: password)
-                await authService.logout()
+                // deleteAccount() signs out locally after the server confirms.
+                try await authService.deleteAccount()
                 dismiss()
             } catch {
                 errorMessage = error.localizedDescription
