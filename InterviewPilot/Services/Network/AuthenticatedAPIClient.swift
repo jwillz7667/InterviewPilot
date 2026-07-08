@@ -63,7 +63,7 @@ final class AuthenticatedAPIClient {
         self.encoder = encoder
 
         let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
+        decoder.dateDecodingStrategy = .backendISO8601
         self.decoder = decoder
     }
 
