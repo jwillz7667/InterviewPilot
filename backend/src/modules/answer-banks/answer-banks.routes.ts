@@ -175,16 +175,16 @@ export async function answerBanksRoutes(app: FastifyInstance) {
   app.delete(
     '/api/v1/answer-banks/:id',
     async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
-      const bank = await withDatabaseRetry((prisma) =>
-        prisma.answerBank.findFirst({
-          where: { id: request.params.id, userId: request.user.sub },
+      // Conditional updateMany: ownership check and soft-delete in one atomic
+      // statement, with the userId in the write predicate (tenant isolation at
+      // the query layer, not just the preceding lookup).
+      const result = await withDatabaseRetry((prisma) =>
+        prisma.answerBank.updateMany({
+          where: { id: request.params.id, userId: request.user.sub, deletedAt: null },
+          data: { deletedAt: new Date() },
         })
       );
-      if (!bank) return reply.status(404).send({ error: 'Answer bank not found' });
-
-      await withDatabaseRetry((prisma) =>
-        prisma.answerBank.deleteMany({ where: { id: request.params.id } })
-      );
+      if (result.count === 0) return reply.status(404).send({ error: 'Answer bank not found' });
       reply.send({ success: true });
     }
   );

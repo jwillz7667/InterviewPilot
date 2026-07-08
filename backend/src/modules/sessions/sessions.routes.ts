@@ -212,18 +212,15 @@ export async function sessionsRoutes(app: FastifyInstance) {
   app.delete(
     '/api/v1/sessions/:id',
     async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
-      const existing = await withDatabaseRetry((prisma) =>
-        prisma.interviewSession.findFirst({
-          where: { id: request.params.id, userId: request.user.sub },
+      // Conditional updateMany: ownership check and soft-delete in one atomic
+      // statement (no lookup-then-delete TOCTOU), scoped to the caller's rows.
+      const result = await withDatabaseRetry((prisma) =>
+        prisma.interviewSession.updateMany({
+          where: { id: request.params.id, userId: request.user.sub, deletedAt: null },
+          data: { deletedAt: new Date() },
         })
       );
-      if (!existing) return reply.status(404).send({ error: 'Session not found' });
-
-      await withDatabaseRetry((prisma) =>
-        prisma.interviewSession.deleteMany({
-          where: { id: request.params.id, userId: request.user.sub },
-        })
-      );
+      if (result.count === 0) return reply.status(404).send({ error: 'Session not found' });
       reply.send({ success: true });
     }
   );

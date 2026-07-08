@@ -83,7 +83,7 @@ describe('attest replay protection', () => {
   afterAll(async () => {
     const prisma = getTestPrisma();
     await prisma.appAttestKey.deleteMany({ where: { userId } });
-    await prisma.user.delete({ where: { id: userId } });
+    await prisma.$executeRaw`DELETE FROM users WHERE id = ${userId}`;
   });
 
   it('accepts an assertion with counter > stored counter', async () => {
@@ -186,7 +186,7 @@ describe('attest replay protection', () => {
         })
       ).rejects.toMatchObject({ statusCode: 401, code: 'ATTEST_KEY_MISMATCH' });
     } finally {
-      await prisma.user.delete({ where: { id: otherUser.id } });
+      await prisma.$executeRaw`DELETE FROM users WHERE id = ${otherUser.id}`;
     }
   });
 });

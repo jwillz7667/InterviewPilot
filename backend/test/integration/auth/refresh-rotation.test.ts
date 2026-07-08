@@ -29,7 +29,7 @@ describe('refresh-token rotation + revocation', () => {
   afterEach(async () => {
     const prisma = getTestPrisma();
     await prisma.refreshToken.deleteMany({ where: { userId } });
-    await prisma.user.delete({ where: { id: userId } });
+    await prisma.$executeRaw`DELETE FROM users WHERE id = ${userId}`;
   });
 
   it('marks the old token revoked and issues a new one', async () => {

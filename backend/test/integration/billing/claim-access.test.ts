@@ -30,7 +30,7 @@ describe('claim-access concurrency', () => {
     const prisma = getTestPrisma();
     await prisma.sessionAccessGrant.deleteMany({ where: { userId } });
     await prisma.userEntitlement.deleteMany({ where: { userId } });
-    await prisma.user.delete({ where: { id: userId } });
+    await prisma.$executeRaw`DELETE FROM users WHERE id = ${userId}`;
   });
 
   it('grants exactly the FREE limit when 20 claims race in parallel', async () => {
