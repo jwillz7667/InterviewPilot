@@ -573,9 +573,24 @@ final class SubscriptionService {
             request.httpBody = try JSONEncoder().encode(body)
         }
 
-        let (data, response) = try await URLSession.shared.data(for: request)
-        guard let httpResponse = response as? HTTPURLResponse else {
+        var (data, response) = try await URLSession.shared.data(for: request)
+        guard var httpResponse = response as? HTTPURLResponse else {
             throw BillingClientError.invalidResponse
+        }
+
+        // Access tokens live 15 minutes; entitlement refreshes and access
+        // claims are often the first calls after idle time, so a 401 here must
+        // refresh and retry once rather than silently wiping the entitlement.
+        if httpResponse.statusCode == 401 {
+            guard let refreshed = await AuthService.shared.refreshTokenIfNeeded() else {
+                throw BillingClientError.unauthenticated
+            }
+            request.setValue("Bearer \(refreshed)", forHTTPHeaderField: "Authorization")
+            (data, response) = try await URLSession.shared.data(for: request)
+            guard let retriedResponse = response as? HTTPURLResponse else {
+                throw BillingClientError.invalidResponse
+            }
+            httpResponse = retriedResponse
         }
 
         if httpResponse.statusCode >= 400 {

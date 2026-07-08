@@ -246,13 +246,17 @@ final class AuthService {
                 // once connectivity recovers.
                 _ = urlError
                 return nil
-            } catch {
-                // Server explicitly rejected the refresh token (e.g. expired,
-                // revoked, or 401/403). Clear all auth data and force re-login.
+            } catch AuthError.http(let statusCode, _) where statusCode == 401 || statusCode == 403 {
+                // Server explicitly rejected the refresh token (expired, revoked,
+                // or reuse-detected). Clear all auth data and force re-login.
                 self.clearAuthData()
                 SubscriptionService.shared.reset()
                 self.isAuthenticated = false
                 self.currentUser = nil
+                return nil
+            } catch {
+                // 5xx, decode failures, and other non-auth errors are transient:
+                // keep the session so the next call can retry the refresh.
                 return nil
             }
         }
@@ -260,18 +264,38 @@ final class AuthService {
         return await task.value
     }
 
-    func updateProfile(displayName: String) async throws {
-        guard let token = KeychainService.load(key: .accessToken) else {
-            throw AuthError.serverError("Not authenticated")
+    /// Returns an access token that is (best-effort) not expired: decodes the
+    /// JWT `exp` claim and refreshes when the token is missing, expired, or
+    /// within 60s of expiry. Access tokens live 15 minutes, so any client that
+    /// attaches a stored token without this check will 401 after idle time —
+    /// this is the single choke point that prevents that.
+    func validAccessToken() async -> String? {
+        if let stored = KeychainService.load(key: .accessToken),
+           !Self.isExpiringSoon(jwt: stored) {
+            return stored
         }
+        // Refresh failed on a transient error? Fall back to the stored token so
+        // the request still goes out; callers retry on 401 as a backstop.
+        return await refreshTokenIfNeeded() ?? KeychainService.load(key: .accessToken)
+    }
 
-        let _: [String: String] = try await post(
-            path: "/api/v1/auth/profile",
-            body: ["displayName": displayName],
-            token: token
-        )
+    /// Decodes the JWT payload's `exp`. Treats undecodable tokens as expiring
+    /// so they get refreshed rather than sent stale.
+    static func isExpiringSoon(jwt: String, leeway: TimeInterval = 60) -> Bool {
+        let segments = jwt.split(separator: ".")
+        guard segments.count == 3 else { return true }
 
-        updateCachedDisplayName(displayName)
+        var base64 = String(segments[1])
+            .replacingOccurrences(of: "-", with: "+")
+            .replacingOccurrences(of: "_", with: "/")
+        while base64.count % 4 != 0 { base64 += "=" }
+
+        guard let payloadData = Data(base64Encoded: base64),
+              let payload = try? JSONSerialization.jsonObject(with: payloadData) as? [String: Any],
+              let exp = payload["exp"] as? TimeInterval else {
+            return true
+        }
+        return Date(timeIntervalSince1970: exp) <= Date().addingTimeInterval(leeway)
     }
 
     /// Reconciles the in-memory `currentUser.displayName` with the Keychain copy.
@@ -298,24 +322,36 @@ final class AuthService {
         )
     }
 
-    func deleteAccount(password: String) async throws {
-        guard let token = KeychainService.load(key: .accessToken) else {
+    /// Soft-deletes the account server-side (DELETE /api/v1/users/me revokes
+    /// all refresh tokens too), then clears local state.
+    func deleteAccount() async throws {
+        guard let token = await validAccessToken() else {
             throw AuthError.serverError("Not authenticated")
         }
 
-        let _: [String: String] = try await post(
-            path: "/api/v1/auth/delete-account",
-            body: ["password": password],
-            token: token
-        )
+        guard let url = URL(string: "\(baseURL)/api/v1/users/me") else {
+            throw AuthError.invalidConfiguration
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = "DELETE"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw AuthError.serverError("Invalid server response")
+        }
+        guard httpResponse.statusCode < 400 else {
+            throw AuthError.http(
+                statusCode: httpResponse.statusCode,
+                message: serverMessage(from: data, fallback: "Account deletion failed (\(httpResponse.statusCode))")
+            )
+        }
+
+        await logout()
     }
 
     func authenticatedRequest(url: URL) async -> URLRequest? {
-        var token = KeychainService.load(key: .accessToken)
-        if token == nil {
-            token = await refreshTokenIfNeeded()
-        }
-        guard let token else { return nil }
+        guard let token = await validAccessToken() else { return nil }
 
         var request = URLRequest(url: url)
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
@@ -395,8 +431,9 @@ final class AuthService {
                 throw AuthError.serverError(routeError)
             }
 
-            throw AuthError.serverError(
-                serverMessage(from: data, fallback: "Request failed (\(httpResponse.statusCode))")
+            throw AuthError.http(
+                statusCode: httpResponse.statusCode,
+                message: serverMessage(from: data, fallback: "Request failed (\(httpResponse.statusCode))")
             )
         }
 
@@ -449,11 +486,14 @@ final class AuthService {
 
 enum AuthError: LocalizedError {
     case serverError(String)
+    case http(statusCode: Int, message: String)
     case invalidConfiguration
 
     var errorDescription: String? {
         switch self {
         case .serverError(let message):
+            return message
+        case .http(_, let message):
             return message
         case .invalidConfiguration:
             return "Authentication is misconfigured. Update the app and try again."

@@ -103,10 +103,21 @@ final class AIClient {
         guard let httpResponse = response as? HTTPURLResponse else {
             throw AIClientError.invalidResponse
         }
-        if httpResponse.statusCode == 401 {
+        guard httpResponse.statusCode == 401 else {
+            return (bytes, httpResponse)
+        }
+
+        // Access tokens live 15 minutes; a stream opened after idle time must
+        // transparently re-authenticate instead of bouncing the user to login.
+        let retried = try await requestWithRefreshedToken(request)
+        let (retriedBytes, retriedResponse) = try await session.bytes(for: retried)
+        guard let retriedHTTP = retriedResponse as? HTTPURLResponse else {
+            throw AIClientError.invalidResponse
+        }
+        if retriedHTTP.statusCode == 401 {
             throw AIClientError.unauthenticated
         }
-        return (bytes, httpResponse)
+        return (retriedBytes, retriedHTTP)
     }
 
     /// Non-streaming variant of /api/v1/ai/chat. Returns parsed JSON.
@@ -117,13 +128,7 @@ final class AIClient {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
 
-        let (data, response) = try await session.data(for: request)
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw AIClientError.invalidResponse
-        }
-        if httpResponse.statusCode == 401 {
-            throw AIClientError.unauthenticated
-        }
+        let (data, httpResponse) = try await dataRetryingUnauthorized(for: request)
         guard httpResponse.statusCode == 200 else {
             let parsed = parseErrorPayload(from: data)
             throw AIClientError.server(
@@ -152,13 +157,7 @@ final class AIClient {
         request.httpBody = try JSONSerialization.data(withJSONObject: ["resumeText": resumeText])
         request.timeoutInterval = 90
 
-        let (data, response) = try await session.data(for: request)
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw AIClientError.invalidResponse
-        }
-        if httpResponse.statusCode == 401 {
-            throw AIClientError.unauthenticated
-        }
+        let (data, httpResponse) = try await dataRetryingUnauthorized(for: request)
         guard httpResponse.statusCode == 200 else {
             let parsed = parseErrorPayload(from: data)
             throw AIClientError.server(
@@ -214,13 +213,7 @@ final class AIClient {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
 
-        let (data, response) = try await session.data(for: request)
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw AIClientError.invalidResponse
-        }
-        if httpResponse.statusCode == 401 {
-            throw AIClientError.unauthenticated
-        }
+        let (data, httpResponse) = try await dataRetryingUnauthorized(for: request)
         guard httpResponse.statusCode == 200 else {
             let parsed = parseErrorPayload(from: data)
             throw AIClientError.server(
@@ -247,13 +240,7 @@ final class AIClient {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
 
-        let (data, response) = try await session.data(for: request)
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw AIClientError.invalidResponse
-        }
-        if httpResponse.statusCode == 401 {
-            throw AIClientError.unauthenticated
-        }
+        let (data, httpResponse) = try await dataRetryingUnauthorized(for: request)
         guard httpResponse.statusCode == 200 else {
             let parsed = parseErrorPayload(from: data)
             throw AIClientError.server(
@@ -316,6 +303,40 @@ final class AIClient {
             throw AIClientError.unauthenticated
         }
         return request
+    }
+
+    /// Performs the request, retrying exactly once with a freshly refreshed
+    /// token when the backend answers 401. Access tokens live 15 minutes, so
+    /// the first AI call after idle time routinely carries a stale token; the
+    /// retry keeps that invisible to the user instead of surfacing
+    /// "Please sign in again." mid-interview.
+    private func dataRetryingUnauthorized(for request: URLRequest) async throws -> (Data, HTTPURLResponse) {
+        let (data, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw AIClientError.invalidResponse
+        }
+        guard httpResponse.statusCode == 401 else {
+            return (data, httpResponse)
+        }
+
+        let retried = try await requestWithRefreshedToken(request)
+        let (retriedData, retriedResponse) = try await session.data(for: retried)
+        guard let retriedHTTP = retriedResponse as? HTTPURLResponse else {
+            throw AIClientError.invalidResponse
+        }
+        if retriedHTTP.statusCode == 401 {
+            throw AIClientError.unauthenticated
+        }
+        return (retriedData, retriedHTTP)
+    }
+
+    private func requestWithRefreshedToken(_ request: URLRequest) async throws -> URLRequest {
+        guard let refreshed = await authService.refreshTokenIfNeeded() else {
+            throw AIClientError.unauthenticated
+        }
+        var retried = request
+        retried.setValue("Bearer \(refreshed)", forHTTPHeaderField: "Authorization")
+        return retried
     }
 
     private func parseErrorPayload(from data: Data) -> (code: String?, message: String?) {
