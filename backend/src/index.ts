@@ -112,7 +112,7 @@ await app.register(entitlementPlugin);
 await app.register(idempotencyPlugin);
 
 // Health check
-app.get('/health', async () => {
+app.get('/health', async (_request, reply) => {
   const [dbStatus, redisStatus] = await Promise.all([
     (async () => {
       try {
@@ -139,7 +139,11 @@ app.get('/health', async () => {
   ]);
 
   // Redis is non-critical (cache only) — degraded but not failing if down.
+  // The database is critical: answer 503 so the platform healthcheck refuses
+  // to route traffic to (or promote a deploy of) an instance that cannot
+  // reach Postgres.
   const status = dbStatus === 'connected' ? 'ok' : 'degraded';
+  reply.code(status === 'ok' ? 200 : 503);
   return {
     status,
     timestamp: new Date().toISOString(),

@@ -59,6 +59,16 @@ const envSchema = z.object({
   SENDGRID_API_KEY: z.string().optional(),
   SENDGRID_FROM_EMAIL: z.string().email().default('noreply@interviewpilot.app'),
   APP_URL: z.string().url().default('https://interviewpilot.app'),
+  // Force-update kill switch for the iOS client. When IOS_FORCE_UPDATE is true,
+  // app versions below IOS_MIN_SUPPORTED_VERSION show a blocking update screen.
+  IOS_MIN_SUPPORTED_VERSION: z
+    .string()
+    .regex(/^\d+(\.\d+){0,2}$/, 'semver-ish, e.g. 1.2 or 1.2.3')
+    .default('1.0'),
+  IOS_FORCE_UPDATE: z
+    .string()
+    .default('false')
+    .transform((v) => v === 'true'),
   R2_ACCOUNT_ID: z.string().optional(),
   R2_ACCESS_KEY_ID: z.string().optional(),
   R2_SECRET_ACCESS_KEY: z.string().optional(),

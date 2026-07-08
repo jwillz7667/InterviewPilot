@@ -1,6 +1,7 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
 import { withDatabaseRetry } from '../../config/database.js';
+import { getEnv } from '../../config/env.js';
 
 import {
   appleLoginSchema,
@@ -24,7 +25,15 @@ const ACCESS_TOKEN_TTL = '15m';
 
 export function buildAuthHandlers(app: FastifyInstance) {
   function issueAccessToken(user: { id: string; email: string }) {
-    return app.jwt.sign({ sub: user.id, email: user.email }, { expiresIn: ACCESS_TOKEN_TTL });
+    // iss/aud must be restated here: per-call sign options REPLACE the
+    // registration-time defaults in @fastify/jwt, so passing only expiresIn
+    // silently drops the issuer/audience binding (verified against prod
+    // tokens, which carried neither claim).
+    const env = getEnv();
+    return app.jwt.sign(
+      { sub: user.id, email: user.email },
+      { expiresIn: ACCESS_TOKEN_TTL, iss: env.JWT_ISSUER, aud: env.JWT_AUDIENCE }
+    );
   }
 
   function userAgentOf(request: FastifyRequest): string | undefined {
