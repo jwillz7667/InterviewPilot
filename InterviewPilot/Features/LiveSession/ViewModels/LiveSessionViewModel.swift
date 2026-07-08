@@ -422,6 +422,10 @@ final class LiveSessionViewModel {
         let keywords = JobDescriptionService.extractKeywords(from: jobDescription)
 
         do {
+            // Permission first: the system dialog should appear before we hold
+            // an open WSS, and a denied mic must fail loudly here rather than
+            // leave the session "listening" to silence.
+            try await audioCapture.ensureMicrophonePermission()
             try await deepgram.connect(keywords: keywords)
             try audioCapture.startCapture()
         } catch {
@@ -624,7 +628,11 @@ final class LiveSessionViewModel {
         resetForNewQuestion()
 
         if !audioCapture.isCapturing {
-            try? audioCapture.startCapture()
+            do {
+                try audioCapture.startCapture()
+            } catch {
+                errorMessage = error.localizedDescription
+            }
         }
     }
 

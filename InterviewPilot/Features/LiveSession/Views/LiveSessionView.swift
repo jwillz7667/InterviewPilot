@@ -348,7 +348,11 @@ struct LiveSessionView: View {
             if viewModel.audioCapture.isCapturing {
                 viewModel.audioCapture.stopCapture()
             } else {
-                try? viewModel.audioCapture.startCapture()
+                do {
+                    try viewModel.audioCapture.startCapture()
+                } catch {
+                    viewModel.errorMessage = error.localizedDescription
+                }
             }
         }
     }

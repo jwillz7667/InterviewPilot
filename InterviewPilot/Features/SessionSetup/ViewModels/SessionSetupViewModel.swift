@@ -642,19 +642,26 @@ final class SessionSetupViewModel {
                 return nil
             }
 
-            // Attempt to load API keys — non-fatal so session can still start
+            // Attempt to pre-mint the transcription key — non-fatal because
+            // DeepgramService mints its own key at connect time; this is only
+            // a latency optimization. Still breadcrumb it: a failure here is
+            // an early signal the live session is about to fail the same way.
             do {
                 try await ensureRuntimeKeys()
             } catch {
-                // Keys may already be in Keychain from a prior session
+                CrashReportingService.breadcrumb(
+                    category: "session-setup",
+                    message: "runtime-key-premint.failed",
+                    data: ["error": error.localizedDescription]
+                )
             }
 
             let sessionId = UUID()
 
-            // Claim interview slot — non-fatal in debug builds. Backend
-            // enforces per-quality quota (FREE: 3 std + 1 prem, PRO: 25 + 10,
-            // PREMIUM: unlimited) and locks the chosen quality into the
-            // SessionAccessGrant so every downstream AI call inherits it.
+            // Claim interview slot — fatal when it fails. The backend requires
+            // a SessionAccessGrant for this sessionClientId on every AI call;
+            // proceeding without one means chat/stream 404s on every question,
+            // which reads as "the app is broken" with no visible cause.
             do {
                 _ = try await subscriptionService.claimInterviewAccess(
                     sessionClientId: sessionId,
@@ -662,7 +669,6 @@ final class SessionSetupViewModel {
                     quality: selectedQuality
                 )
             } catch {
-                #if !DEBUG
                 if let billingError = error as? BillingClientError {
                     errorMessage = billingError.localizedDescription
                     if billingError.shouldPresentPaywall {
@@ -672,7 +678,6 @@ final class SessionSetupViewModel {
                     errorMessage = error.localizedDescription
                 }
                 return nil
-                #endif
             }
 
             return sessionId

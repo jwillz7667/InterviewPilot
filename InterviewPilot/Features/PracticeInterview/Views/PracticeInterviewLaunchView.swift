@@ -766,7 +766,9 @@ struct PracticeInterviewLaunchView: View {
                     quality: .premium
                 )
             } catch {
-                #if !DEBUG
+                // Fatal in all configs: without a SessionAccessGrant the backend
+                // rejects every AI call for this sessionClientId, so proceeding
+                // just moves the failure somewhere invisible.
                 if let billingError = error as? BillingClientError {
                     errorMessage = billingError.localizedDescription
                     switch billingError {
@@ -786,7 +788,6 @@ struct PracticeInterviewLaunchView: View {
                     errorMessage = error.localizedDescription
                 }
                 return
-                #endif
             }
 
             preparedSessionId = sessionId

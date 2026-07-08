@@ -331,6 +331,7 @@ final class PracticeInterviewViewModel {
         )
 
         do {
+            try await audioCapture.ensureMicrophonePermission()
             try audioPlayback.start()
             try await realtimeService.connect(instructions: instructions)
             try audioCapture.startCapture()
@@ -384,7 +385,11 @@ final class PracticeInterviewViewModel {
         if isMuted {
             audioCapture.stopCapture()
         } else {
-            try? audioCapture.startCapture()
+            do {
+                try audioCapture.startCapture()
+            } catch {
+                errorMessage = error.localizedDescription
+            }
         }
     }
 

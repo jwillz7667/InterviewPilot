@@ -102,7 +102,15 @@ final class DeepgramService: NSObject {
         intentionalDisconnect = false
         reconnectAttempts = 0
         lastConnectKeywords = keywords
-        try await connectInternal(keywords: keywords)
+        do {
+            try await connectInternal(keywords: keywords)
+        } catch {
+            // The cached ephemeral key may have been revoked or expired since
+            // it was minted (e.g. a prior session's key). One retry with a
+            // freshly minted key covers that without waiting for the reconnect
+            // budget; a second failure is a real error worth surfacing.
+            try await connectInternal(keywords: keywords, forceKeyRefresh: true)
+        }
     }
 
     private func connectInternal(keywords: [String], forceKeyRefresh: Bool = false) async throws {

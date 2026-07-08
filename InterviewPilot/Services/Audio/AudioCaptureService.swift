@@ -1,5 +1,19 @@
 import AVFoundation
 
+enum AudioCaptureError: LocalizedError {
+    case microphonePermissionDenied
+    case engineSetupFailed(String)
+
+    var errorDescription: String? {
+        switch self {
+        case .microphonePermissionDenied:
+            return "Microphone access is required for live transcription. Enable it in Settings > InterviewPilot > Microphone."
+        case .engineSetupFailed(let detail):
+            return "Audio capture failed to start: \(detail)"
+        }
+    }
+}
+
 @Observable
 final class AudioCaptureService {
     private var audioEngine: AVAudioEngine?
@@ -153,7 +167,29 @@ final class AudioCaptureService {
         try session.setActive(true, options: .notifyOthersOnDeactivation)
     }
 
+    /// Requests microphone permission when undetermined; throws when denied.
+    /// Without this gate, a denied mic yields a running engine with zero audio
+    /// — the UI sits on "Listening…" forever with no error.
+    func ensureMicrophonePermission() async throws {
+        switch AVAudioApplication.shared.recordPermission {
+        case .granted:
+            return
+        case .denied:
+            throw AudioCaptureError.microphonePermissionDenied
+        case .undetermined:
+            let granted = await AVAudioApplication.requestRecordPermission()
+            if !granted {
+                throw AudioCaptureError.microphonePermissionDenied
+            }
+        @unknown default:
+            return
+        }
+    }
+
     func startCapture() throws {
+        guard AVAudioApplication.shared.recordPermission != .denied else {
+            throw AudioCaptureError.microphonePermissionDenied
+        }
         try configureSession()
         try buildAndStartEngine()
         isCapturing = true
@@ -168,14 +204,27 @@ final class AudioCaptureService {
         let inputNode = engine.inputNode
         let inputFormat = inputNode.outputFormat(forBus: 0)
 
+        // A zero sample rate means the input node has no usable input (mic
+        // permission missing or no input route) — the engine would "run"
+        // while producing silence.
+        guard inputFormat.sampleRate > 0 else {
+            throw AudioCaptureError.engineSetupFailed("no audio input available")
+        }
+
         guard let outputFormat = AVAudioFormat(
             commonFormat: .pcmFormatInt16,
             sampleRate: targetSampleRate,
             channels: 1,
             interleaved: true
-        ) else { return }
+        ) else {
+            throw AudioCaptureError.engineSetupFailed("unsupported output format")
+        }
 
-        guard let converter = AVAudioConverter(from: inputFormat, to: outputFormat) else { return }
+        guard let converter = AVAudioConverter(from: inputFormat, to: outputFormat) else {
+            throw AudioCaptureError.engineSetupFailed(
+                "cannot convert \(Int(inputFormat.sampleRate))Hz input to \(Int(targetSampleRate))Hz PCM16"
+            )
+        }
 
         let onBuffer = self.onAudioBuffer
         let sampleRateRatio = outputFormat.sampleRate / inputFormat.sampleRate
