@@ -251,9 +251,7 @@ async function generatePrepAnswers(input: {
   };
 
   if (!response.ok) {
-    throw new ValidationError(
-      payload.error?.message || `AI request failed (${response.status})`
-    );
+    throw new ValidationError(payload.error?.message || `AI request failed (${response.status})`);
   }
 
   const content = payload.choices?.[0]?.message?.content?.trim();

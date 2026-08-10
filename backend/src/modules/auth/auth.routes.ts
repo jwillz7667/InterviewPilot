@@ -68,7 +68,11 @@ export async function authRoutes(app: FastifyInstance) {
 
       for (const key of BRIDGE_ALLOWED_PARAMS) {
         const value = query[key];
-        if (typeof value === 'string' && value.length > 0 && value.length <= BRIDGE_PARAM_MAX_LENGTH) {
+        if (
+          typeof value === 'string' &&
+          value.length > 0 &&
+          value.length <= BRIDGE_PARAM_MAX_LENGTH
+        ) {
           params.set(key, value);
         }
       }

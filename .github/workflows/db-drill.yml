@@ -14,22 +14,47 @@ jobs:
       run:
         working-directory: backend
     steps:
+      - name: Check scheduled-job configuration
+        id: config
+        working-directory: ${{ github.workspace }}
+        env:
+          PROD_DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
+          SLACK_OPS_WEBHOOK: ${{ secrets.SLACK_OPS_WEBHOOK }}
+        run: |
+          if [ -n "$PROD_DATABASE_URL" ]; then
+            echo "database_configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "database_configured=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::PROD_DATABASE_URL is not configured; skipping the database drill."
+            echo "### Database drill skipped" >> "$GITHUB_STEP_SUMMARY"
+            echo "The repository secret \`PROD_DATABASE_URL\` is not configured." >> "$GITHUB_STEP_SUMMARY"
+          fi
+          if [ -n "$SLACK_OPS_WEBHOOK" ]; then
+            echo "slack_configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "slack_configured=false" >> "$GITHUB_OUTPUT"
+          fi
       - uses: actions/checkout@v4
+        if: steps.config.outputs.database_configured == 'true'
       - uses: actions/setup-node@v4
+        if: steps.config.outputs.database_configured == 'true'
         with:
           node-version: 22
           cache: npm
           cache-dependency-path: backend/package-lock.json
       - run: npm ci
+        if: steps.config.outputs.database_configured == 'true'
       - run: npx prisma generate
+        if: steps.config.outputs.database_configured == 'true'
       - name: Run DR drill
+        if: steps.config.outputs.database_configured == 'true'
         env:
           DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
         run: |
           chmod +x scripts/backup-restore-drill.sh
           ./scripts/backup-restore-drill.sh
       - name: Notify Slack on failure
-        if: failure()
+        if: failure() && steps.config.outputs.slack_configured == 'true'
         uses: slackapi/slack-github-action@v1
         with:
           payload: |
@@ -39,3 +64,9 @@ jobs:
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_OPS_WEBHOOK }}
           SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
+      - name: Record unavailable Slack alerting
+        if: failure() && steps.config.outputs.slack_configured != 'true'
+        working-directory: ${{ github.workspace }}
+        run: |
+          echo "::warning::SLACK_OPS_WEBHOOK is not configured; failure notification was not sent."
+          echo "Slack alerting is unavailable because \`SLACK_OPS_WEBHOOK\` is not configured." >> "$GITHUB_STEP_SUMMARY"

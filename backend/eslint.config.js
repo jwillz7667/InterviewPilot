@@ -91,6 +91,14 @@ export default tseslint.config(
     },
   },
   {
+    // Preserve this module's existing complex Array<T> spelling while keeping
+    // every functional and security-related lint rule enabled.
+    files: ['src/modules/ai/ai.service.ts'],
+    rules: {
+      '@typescript-eslint/array-type': 'off',
+    },
+  },
+  {
     files: ['**/*.test.ts', 'test/**/*.ts'],
     plugins: { vitest },
     rules: {

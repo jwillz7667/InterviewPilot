@@ -11,7 +11,7 @@ export default defineConfig({
     globals: false,
     include: ['test/integration/**/*.test.ts'],
     environment: 'node',
-    setupFiles: ['test/integration/setup.ts'],
+    setupFiles: ['test/setup-env.ts', 'test/integration/setup.ts'],
     // Migrations + container boot can be slow on cold start.
     testTimeout: 30_000,
     hookTimeout: 60_000,

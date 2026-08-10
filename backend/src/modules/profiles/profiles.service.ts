@@ -151,9 +151,12 @@ export async function createProfile(userId: string, data: CreateProfileInput) {
   // leave free users with no context at all. Additional profiles remain behind
   // the paid resume_personalization entitlement.
   if (!isFirst && !billing.featureFlags.resume_personalization) {
-    throw new PaymentRequiredError('Additional interview profiles require an active subscription.', {
-      requiredFeature: 'resume_personalization',
-    });
+    throw new PaymentRequiredError(
+      'Additional interview profiles require an active subscription.',
+      {
+        requiredFeature: 'resume_personalization',
+      }
+    );
   }
 
   if (billing.profilesUsed >= billing.profileLimit) {

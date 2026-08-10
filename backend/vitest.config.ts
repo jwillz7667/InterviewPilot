@@ -8,6 +8,7 @@ export default defineConfig({
     include: ['test/**/*.test.ts', 'src/**/*.test.ts'],
     exclude: ['node_modules/**', 'dist/**', 'test/integration/**'],
     environment: 'node',
+    setupFiles: ['test/setup-env.ts'],
     testTimeout: 10_000,
   },
   resolve: {

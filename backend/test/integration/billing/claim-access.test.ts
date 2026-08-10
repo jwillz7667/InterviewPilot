@@ -39,7 +39,12 @@ describe('claim-access concurrency', () => {
 
     const settled = await Promise.allSettled(
       sessionIds.map((sessionClientId) =>
-        claimInterviewAccess(userId, sessionClientId, SessionMode.LIVE_INTERVIEW, InterviewQuality.STANDARD)
+        claimInterviewAccess(
+          userId,
+          sessionClientId,
+          SessionMode.LIVE_INTERVIEW,
+          InterviewQuality.STANDARD
+        )
       )
     );
 
@@ -64,8 +69,18 @@ describe('claim-access concurrency', () => {
   it('returns the same grant when the same sessionClientId is replayed', async () => {
     const sessionClientId = randomUUID();
 
-    const first = await claimInterviewAccess(userId, sessionClientId, SessionMode.LIVE_INTERVIEW, InterviewQuality.STANDARD);
-    const replay = await claimInterviewAccess(userId, sessionClientId, SessionMode.LIVE_INTERVIEW, InterviewQuality.STANDARD);
+    const first = await claimInterviewAccess(
+      userId,
+      sessionClientId,
+      SessionMode.LIVE_INTERVIEW,
+      InterviewQuality.STANDARD
+    );
+    const replay = await claimInterviewAccess(
+      userId,
+      sessionClientId,
+      SessionMode.LIVE_INTERVIEW,
+      InterviewQuality.STANDARD
+    );
 
     expect(replay.sessionClientId).toBe(first.sessionClientId);
     expect(replay.accessTier).toBe(first.accessTier);
@@ -85,10 +100,20 @@ describe('claim-access concurrency', () => {
 
   it('rejects a quality switch on an existing grant with 409', async () => {
     const sessionClientId = randomUUID();
-    await claimInterviewAccess(userId, sessionClientId, SessionMode.LIVE_INTERVIEW, InterviewQuality.STANDARD);
+    await claimInterviewAccess(
+      userId,
+      sessionClientId,
+      SessionMode.LIVE_INTERVIEW,
+      InterviewQuality.STANDARD
+    );
 
     await expect(
-      claimInterviewAccess(userId, sessionClientId, SessionMode.LIVE_INTERVIEW, InterviewQuality.PREMIUM)
+      claimInterviewAccess(
+        userId,
+        sessionClientId,
+        SessionMode.LIVE_INTERVIEW,
+        InterviewQuality.PREMIUM
+      )
     ).rejects.toMatchObject({ statusCode: 409 });
   });
 });

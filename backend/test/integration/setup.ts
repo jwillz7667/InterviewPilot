@@ -19,11 +19,6 @@ export function getTestRedis(): RedisClientType {
   return redis;
 }
 
-// Required by the env schema even when unused at the boundary under test.
-// Tests assert on logic, not on env-loading; treat these as harness defaults.
-process.env.JWT_SECRET ||= 'integration-test-secret-do-not-deploy-this-value';
-process.env.NODE_ENV ||= 'test';
-
 beforeAll(async () => {
   const databaseUrl = process.env.DATABASE_URL;
   const redisUrl = process.env.REDIS_URL;

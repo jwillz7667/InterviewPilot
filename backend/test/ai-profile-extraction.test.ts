@@ -145,7 +145,13 @@ describe('sanitizeExtractedProfile — other collections', () => {
   it('ignores a project url field that the client DTO does not carry', () => {
     const dto = sanitizeExtractedProfile({
       projects: [
-        { name: 'Pilot', description: 'Does things', techStack: 'Swift', url: 'https://x', year: 2024 },
+        {
+          name: 'Pilot',
+          description: 'Does things',
+          techStack: 'Swift',
+          url: 'https://x',
+          year: 2024,
+        },
       ],
     });
     expect(dto.projects).toHaveLength(1);

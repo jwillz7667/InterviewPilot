@@ -199,11 +199,7 @@ export async function sessionsRoutes(app: FastifyInstance) {
     async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
       await request.requireFeature('post_session_analysis');
       const preferredProvider = await getUserChatProvider(request.user.sub);
-      const analysis = await analyzeSession(
-        request.params.id,
-        request.user.sub,
-        preferredProvider
-      );
+      const analysis = await analyzeSession(request.params.id, request.user.sub, preferredProvider);
       reply.send({ analysis });
     }
   );

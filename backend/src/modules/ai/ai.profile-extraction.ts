@@ -77,7 +77,7 @@ CRITICAL RULES:
 
 export function buildExtractionMessages(
   resumeText: string
-): Array<{ role: 'system' | 'user'; content: string }> {
+): { role: 'system' | 'user'; content: string }[] {
   return [
     { role: 'system', content: EXTRACTION_SYSTEM_PROMPT },
     { role: 'user', content: resumeText },

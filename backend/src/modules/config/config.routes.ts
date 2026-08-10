@@ -41,14 +41,11 @@ export async function configRoutes(app: FastifyInstance): Promise<void> {
   // Consumed by the iOS VersionService force-update check at launch. Kept as
   // its own tiny endpoint (rather than folded into /config) because the client
   // already polls this exact path unauthenticated before any other setup.
-  app.get(
-    '/api/v1/config/app-version',
-    async (_request: FastifyRequest, reply: FastifyReply) => {
-      const env = getEnv();
-      reply.send({
-        minVersion: env.IOS_MIN_SUPPORTED_VERSION,
-        forceUpdate: env.IOS_FORCE_UPDATE,
-      });
-    }
-  );
+  app.get('/api/v1/config/app-version', async (_request: FastifyRequest, reply: FastifyReply) => {
+    const env = getEnv();
+    reply.send({
+      minVersion: env.IOS_MIN_SUPPORTED_VERSION,
+      forceUpdate: env.IOS_FORCE_UPDATE,
+    });
+  });
 }

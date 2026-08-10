@@ -11,9 +11,7 @@ import type { LinkedInLoginInput } from './auth.schema.js';
 const LINKEDIN_ISSUER = 'https://www.linkedin.com';
 const LINKEDIN_TOKEN_ENDPOINT = 'https://www.linkedin.com/oauth/v2/accessToken';
 const LINKEDIN_USERINFO_ENDPOINT = 'https://api.linkedin.com/v2/userinfo';
-const linkedinJwks = createRemoteJWKSet(
-  new URL('https://www.linkedin.com/oauth/openid/jwks')
-);
+const linkedinJwks = createRemoteJWKSet(new URL('https://www.linkedin.com/oauth/openid/jwks'));
 
 const authUserSelect = {
   id: true,
@@ -63,7 +61,11 @@ function isEmailVerified(value: LinkedInIdTokenClaims['email_verified']): boolea
   return value === true || value === 'true';
 }
 
-function ensureLinkedInConfigured(): { clientId: string; clientSecret: string; redirectUri: string } {
+function ensureLinkedInConfigured(): {
+  clientId: string;
+  clientSecret: string;
+  redirectUri: string;
+} {
   const env = getEnv();
   if (!env.LINKEDIN_CLIENT_ID || !env.LINKEDIN_CLIENT_SECRET) {
     throw new ValidationError('Sign in with LinkedIn is not configured on this server');

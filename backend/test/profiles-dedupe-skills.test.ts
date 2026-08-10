@@ -7,11 +7,7 @@ import { dedupeSkills } from '../src/modules/profiles/profiles.service.js';
 // case-variant and whitespace-variant duplicates before the write.
 describe('dedupeSkills', () => {
   it('collapses case-insensitive duplicates, first spelling wins', () => {
-    const result = dedupeSkills([
-      { name: 'React' },
-      { name: 'react' },
-      { name: 'REACT' },
-    ]);
+    const result = dedupeSkills([{ name: 'React' }, { name: 'react' }, { name: 'REACT' }]);
     expect(result).toEqual([{ name: 'React', category: null }]);
   });
 
@@ -38,11 +34,7 @@ describe('dedupeSkills', () => {
   });
 
   it('keeps distinct skills and preserves their order', () => {
-    const result = dedupeSkills([
-      { name: 'Swift' },
-      { name: 'SwiftUI' },
-      { name: 'Combine' },
-    ]);
+    const result = dedupeSkills([{ name: 'Swift' }, { name: 'SwiftUI' }, { name: 'Combine' }]);
     expect(result.map((s) => s.name)).toEqual(['Swift', 'SwiftUI', 'Combine']);
   });
 

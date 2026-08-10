@@ -101,9 +101,7 @@ const envSchema = z.object({
   LINKEDIN_REDIRECT_URI: z
     .string()
     .default('https://interviewpilot-production.up.railway.app/auth/linkedin/callback'),
-  LINKEDIN_NATIVE_CALLBACK_URI: z
-    .string()
-    .default('com.res.jobhopperAI://oauth/linkedin/callback'),
+  LINKEDIN_NATIVE_CALLBACK_URI: z.string().default('com.res.jobhopperAI://oauth/linkedin/callback'),
 });
 
 export type Env = z.infer<typeof envSchema>;
