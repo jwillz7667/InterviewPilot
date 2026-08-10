@@ -3,6 +3,7 @@ import { randomBytes } from 'node:crypto';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
+import { disconnectRedis, getRedis } from '../../../src/config/redis.js';
 import { idempotencyPlugin } from '../../../src/plugins/idempotency.js';
 import { getTestRedis } from '../setup.js';
 
@@ -26,6 +27,15 @@ describe('idempotency plugin', () => {
   let counter = 0;
 
   beforeAll(async () => {
+    // Production intentionally connects Redis in the background. Warm that
+    // singleton before exercising the strong idempotency contract so the test
+    // does not assert against the documented cold-start fail-open path.
+    const deadline = Date.now() + 5_000;
+    while (!(await getRedis())) {
+      if (Date.now() >= deadline) throw new Error('Runtime Redis client did not become ready');
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    }
+
     app = Fastify();
 
     app.addHook('onRequest', async (request) => {
@@ -49,6 +59,7 @@ describe('idempotency plugin', () => {
     const keys = await redis.keys(`idem:${userId}:*`);
     if (keys.length > 0) await redis.del(keys);
     await app.close();
+    await disconnectRedis();
   });
 
   it('executes the handler once and replays the cached response on retry', async () => {

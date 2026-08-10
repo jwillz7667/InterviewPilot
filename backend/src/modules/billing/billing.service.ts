@@ -240,8 +240,10 @@ async function ensureBillingContext(
     const tier = isPromotedTester ? SubscriptionTier.SANDBOX : SubscriptionTier.FREE;
     const status = isPromotedTester ? SubscriptionStatus.SANDBOX : SubscriptionStatus.FREE;
     const quota = TIER_QUOTA[tier];
-    entitlement = await prisma.userEntitlement.create({
-      data: {
+    entitlement = await prisma.userEntitlement.upsert({
+      where: { userId },
+      update: {},
+      create: {
         userId,
         tier,
         status,
