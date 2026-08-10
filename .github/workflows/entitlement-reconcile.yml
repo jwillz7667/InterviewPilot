@@ -1,6 +1,10 @@
 name: Entitlement reconciliation
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/entitlement-reconcile.yml'
   schedule:
     # Hourly at minute 17 — offset from common :00/:30 cron times so we don't
     # collide with other scheduled jobs.
