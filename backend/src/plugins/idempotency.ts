@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+import fp from 'fastify-plugin';
 
 import { getRedis } from '../config/redis.js';
 
@@ -32,7 +33,7 @@ declare module 'fastify' {
   }
 }
 
-export async function idempotencyPlugin(app: FastifyInstance) {
+async function registerIdempotencyHooks(app: FastifyInstance) {
   app.addHook('preHandler', async (request: FastifyRequest, reply: FastifyReply) => {
     if (!request.routeOptions?.config?.idempotent) return;
 
@@ -128,5 +129,12 @@ export async function idempotencyPlugin(app: FastifyInstance) {
     return payload;
   });
 }
+
+// Hooks must escape Fastify's registration scope so they protect sibling route
+// plugins in production. Without fastify-plugin, registering this plugin on the
+// root app creates an encapsulated child scope and no application route sees it.
+export const idempotencyPlugin = fp(registerIdempotencyHooks, {
+  name: 'idempotency',
+});
 
 export default idempotencyPlugin;

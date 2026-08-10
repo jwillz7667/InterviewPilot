@@ -240,10 +240,12 @@ async function ensureBillingContext(
     const tier = isPromotedTester ? SubscriptionTier.SANDBOX : SubscriptionTier.FREE;
     const status = isPromotedTester ? SubscriptionStatus.SANDBOX : SubscriptionStatus.FREE;
     const quota = TIER_QUOTA[tier];
-    entitlement = await prisma.userEntitlement.upsert({
-      where: { userId },
-      update: {},
-      create: {
+    // `upsert({ update: {} })` is emulated as SELECT + INSERT by Prisma and can
+    // still raise P2002 when several first requests arrive together. createMany
+    // with skipDuplicates becomes INSERT ... ON CONFLICT DO NOTHING on Postgres,
+    // so the transaction remains usable and every contender reads the same row.
+    await prisma.userEntitlement.createMany({
+      data: {
         userId,
         tier,
         status,
@@ -256,6 +258,10 @@ async function ensureBillingContext(
         quotaPeriodStartedAt: now,
         quotaPeriodEndsAt: new Date(now.getTime() + QUOTA_PERIOD_MS),
       },
+      skipDuplicates: true,
+    });
+    entitlement = await prisma.userEntitlement.findUniqueOrThrow({
+      where: { userId },
     });
   }
 
