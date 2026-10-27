@@ -4,7 +4,7 @@ import XCTest
 
 final class JobDescriptionExtractorTests: XCTestCase {
     private let source = URL(string: "https://careers.acme.com/jobs/42")!
-    private let description = """
+    private let fixtureDescription = """
     Responsibilities
     Build and maintain reliable software used by customers every day. Work with product managers and designers to understand requirements, review code, improve automated testing, investigate production issues, and document technical decisions.
     Qualifications
@@ -20,7 +20,7 @@ final class JobDescriptionExtractorTests: XCTestCase {
                     "@type": ["Thing", "JobPosting"],
                     "title": "Software Engineer &amp; Mentor",
                     "hiringOrganization": ["name": "Acme &amp; Co"],
-                    "description": "<h2>Responsibilities</h2><p>\(description)</p><ul><li>R&amp;D projects</li></ul>"
+                    "description": "<h2>Responsibilities</h2><p>\(fixtureDescription)</p><ul><li>R&amp;D projects</li></ul>"
                 ]
             ]
         ]
@@ -37,7 +37,7 @@ final class JobDescriptionExtractorTests: XCTestCase {
     func testJSONLDTopLevelArrayAndMalformedBlockFallback() throws {
         let json: [[String: Any]] = [
             ["@type": "BreadcrumbList"],
-            ["@type": "https://schema.org/JobPosting", "title": "Developer", "description": description]
+            ["@type": "https://schema.org/JobPosting", "title": "Developer", "description": fixtureDescription]
         ]
         let body = String(decoding: try JSONSerialization.data(withJSONObject: json), as: UTF8.self)
         let html = "<script type=\"application/ld+json\">broken json</script><script type=\"application/ld+json\">\(body)</script>"
@@ -51,7 +51,7 @@ final class JobDescriptionExtractorTests: XCTestCase {
         let html = """
         <html><head><title>Acme Careers</title><style>.fake { content: "wrong"; }</style></head>
         <body><nav>Home Products Contact</nav><main><h1>Senior Engineer</h1>
-        <p>\(description)</p><script>steal("SECRET SCRIPT");</script>
+        <p>\(fixtureDescription)</p><script>steal("SECRET SCRIPT");</script>
         <div aria-hidden="true">HIDDEN ADVERTISEMENT</div>
         <ul><li>Salary: &#36;100,000 &ndash; &#x24;130,000</li></ul></main>
         <footer>Legal newsletter unrelated jobs</footer></body></html>
@@ -72,9 +72,9 @@ final class JobDescriptionExtractorTests: XCTestCase {
 
     func testBlockedAndSignInPagesDoNotBecomeContext() {
         for html in [
-            "<html><title>Just a moment...</title><body>Verify you are human. \(description)</body></html>",
-            "<html><title>Sign in to LinkedIn</title><body>\(description)</body></html>",
-            "<html><title>Careers</title><body>Please enable JavaScript to continue. \(description)</body></html>"
+            "<html><title>Just a moment...</title><body>Verify you are human. \(fixtureDescription)</body></html>",
+            "<html><title>Sign in to LinkedIn</title><body>\(fixtureDescription)</body></html>",
+            "<html><title>Careers</title><body>Please enable JavaScript to continue. \(fixtureDescription)</body></html>"
         ] {
             XCTAssertThrowsError(try JobDescriptionExtractor.extract(html: html, sourceURL: source)) {
                 XCTAssertEqual($0 as? JobDescriptionImportError, .blockedPage)

@@ -78,3 +78,12 @@ Use at least 20 representative spoken questions, including a long question, a sh
 Also check whether each suggestion answers the actual question, reflects the candidate's facts, uses a conversational form and avoids unsupported claims. Lower latency with incorrect or premature answers is not a successful result.
 
 No live latency percentile or universal reliability guarantee is asserted by this document. Device and live-provider checks remain required even when CI passes.
+
+
+## Verification on 2026-10-26
+
+- All 35 core tests passed together: protocol framing and queue limits, job HTML/JSON-LD extraction and rejection cases, resume/job prompt grounding and Unicode limits, serialized persistence, checkpoint upserts and backup recovery.
+- All app Swift sources passed native iOS 26.1 typechecking together with Swift 6 and MainActor default isolation.
+- The supplied Deepgram credential authenticated successfully without storing it in this repository.
+- A live managed-model typed-input smoke test returned first text in 767 ms. A synthetic spoken-question test streamed mono PCM16 at 16 kHz in 20 ms frames, transcribed the question exactly, and returned first text 957 ms after the last spoken frame was sent. These are two single samples, not percentile benchmarks, latency guarantees, or tests of the physical device microphone.
+- Local full simulator packaging was blocked by unavailable CoreSimulator runtimes. GitHub CI performs the complete simulator build. Physical-device microphone, interruptions, route changes, adverse networks and long-session acceptance checks above remain necessary.

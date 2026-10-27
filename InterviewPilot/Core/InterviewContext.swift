@@ -117,7 +117,7 @@ nonisolated struct InterviewConfiguration: Codable, Equatable, Sendable {
     }
 
     private func bounded(_ text: String, _ limit: Int) -> String {
-        String(text.trimmingCharacters(in: .whitespacesAndNewlines).prefix(limit))
+        String(String.UnicodeScalarView(text.trimmingCharacters(in: .whitespacesAndNewlines).unicodeScalars.prefix(limit)))
     }
 }
 

@@ -9,12 +9,13 @@ import Glibc
 #endif
 
 /// A separate ephemeral session per import; no app/provider credentials or cookies are forwarded.
-struct JobDescriptionURLService: Sendable {
+nonisolated struct JobDescriptionURLService: Sendable {
     func importJob(from rawURL: String) async throws -> ImportedJobDescription {
         let url = try JobDescriptionExtractor.validatedURL(from: rawURL)
         let result = try await JobPageFetch().fetch(url)
+        try Task.checkCancellation()
         // Parsing runs off the caller's actor so even a large page never blocks audio/UI work.
-        return try await Task.detached(priority: .utility) {
+        let imported = try await Task.detached(priority: .utility) {
             let html: String?
             if result.charset?.lowercased() == "iso-8859-1" || result.charset?.lowercased() == "windows-1252" {
                 html = String(data: result.data, encoding: .windowsCP1252)
@@ -25,17 +26,19 @@ struct JobDescriptionURLService: Sendable {
             guard let html else { throw JobDescriptionImportError.unsupportedContent }
             return try JobDescriptionExtractor.extract(html: html, sourceURL: result.url)
         }.value
+        try Task.checkCancellation()
+        return imported
     }
 }
 
-private struct JobPageResponse: Sendable {
+private nonisolated struct JobPageResponse: Sendable {
     let data: Data
     let url: URL
     let charset: String?
 }
 
 /// All mutable state is confined to queue; delegate callbacks and cancellation hop onto it.
-private final class JobPageFetch: NSObject, URLSessionDataDelegate, @unchecked Sendable {
+private nonisolated final class JobPageFetch: NSObject, URLSessionDataDelegate, @unchecked Sendable {
     private let queue = DispatchQueue(label: "InterviewPilot.job-import")
     private var session: URLSession?
     private var dataTask: URLSessionDataTask?
@@ -147,7 +150,8 @@ private final class JobPageFetch: NSObject, URLSessionDataDelegate, @unchecked S
     }
 
     func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive chunk: Data) {
-        queue.async {
+        // Back-pressure this delegate callback instead of retaining an unbounded queue of chunks.
+        queue.sync {
             guard !self.complete else { return }
             guard chunk.count <= JobDescriptionExtractor.maximumPageBytes - self.data.count else {
                 self.finish(.failure(JobDescriptionImportError.tooLarge))

@@ -35,6 +35,16 @@ final class InterviewContextTests: XCTestCase {
         XCTAssertTrue(configuration.systemPrompt.contains("NOTE_CONTEXT_SENTINEL"))
     }
 
+    func testMultiScalarTextStillFitsProviderCharacterBudget() {
+        var configuration = InterviewConfiguration()
+        let expandedText = String(repeating: "👩🏽‍💻", count: 30_000)
+        configuration.resume = expandedText
+        configuration.projects = expandedText
+        configuration.jobDescription = expandedText
+        configuration.notes = expandedText
+        XCTAssertLessThan(configuration.systemPrompt.unicodeScalars.count, 25_000)
+    }
+
     func testPracticeAndAssistanceHaveDifferentConversationRoles() {
         var configuration = InterviewConfiguration()
         XCTAssertTrue(configuration.systemPrompt.contains("first person"))

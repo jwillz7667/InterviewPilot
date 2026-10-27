@@ -219,11 +219,13 @@ final class LiveSessionViewModel {
             }
         case .connecting, .reconnecting:
             audio.stopCapture()
+            userIsSpeaking = false
             timeoutTask?.cancel()
             isThinking = false
             responseStartedAt = nil
         case .failed(let message):
             audio.stopCapture()
+            userIsSpeaking = false
             isRunning = false
             isStarting = false
             isThinking = false

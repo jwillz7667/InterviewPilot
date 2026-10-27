@@ -224,6 +224,7 @@ nonisolated private final class AudioBufferProcessor: @unchecked Sendable {
     private let writeIndex = Atomic<UInt64>(0)
     private let readIndex = Atomic<UInt64>(0)
     private let active = Atomic<Bool>(true)
+    private let inputWasProvided = Atomic<Bool>(false)
     private let level = Atomic<Float>(0)
     // Only the consumer queue touches this storage.
     private var pendingPCM = Data()
@@ -327,14 +328,16 @@ nonisolated private final class AudioBufferProcessor: @unchecked Sendable {
                 fail("microphone audio became delayed; tap Resume to restart")
                 return
             }
-            var fed = false
+            inputWasProvided.store(false, ordering: .relaxed)
             var error: NSError?
             output.frameLength = 0
             // Conversion is synchronous on this queue. The producer cannot reuse
             // this slot until readIndex advances after convert returns.
             let status = converter.convert(to: output, error: &error) { _, outStatus in
-                guard !fed else { outStatus.pointee = .noDataNow; return nil }
-                fed = true
+                guard !self.inputWasProvided.exchange(true, ordering: .relaxed) else {
+                    outStatus.pointee = .noDataNow
+                    return nil
+                }
                 outStatus.pointee = .haveData
                 return self.slots[index].buffer
             }

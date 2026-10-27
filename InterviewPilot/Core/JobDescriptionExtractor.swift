@@ -1,13 +1,13 @@
 import Foundation
 
-struct ImportedJobDescription: Sendable, Equatable {
+nonisolated struct ImportedJobDescription: Sendable, Equatable {
     let url: URL
     let title: String
     let company: String
     let text: String
 }
 
-enum JobDescriptionImportError: Error, LocalizedError, Sendable, Equatable {
+nonisolated enum JobDescriptionImportError: Error, LocalizedError, Sendable, Equatable {
     case invalidURL
     case unsafeURL
     case blockedPage
@@ -43,7 +43,7 @@ enum JobDescriptionImportError: Error, LocalizedError, Sendable, Equatable {
 }
 
 /// Foundation-only parsing. It never fetches linked resources or executes page scripts.
-enum JobDescriptionExtractor {
+nonisolated enum JobDescriptionExtractor {
     static let maximumPageBytes = 2 * 1_024 * 1_024
     static let maximumTextCharacters = 50_000
 
