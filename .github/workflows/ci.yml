@@ -9,123 +9,42 @@ on:
       - "codex/**"
       - "feat/**"
       - "fix/**"
+      - "refactor/**"
+      - "perf/**"
+      - "test/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  backend-typecheck:
-    name: Backend · typecheck
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: backend
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: backend/package-lock.json
-      - run: npm ci
-      - run: npx prisma generate
-      - run: npm run typecheck
-
-  backend-lint:
-    name: Backend · lint + format
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: backend
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: backend/package-lock.json
-      - run: npm ci
-      - run: npx prisma generate
-      - run: npm run lint
-      - run: npm run format
-
-  backend-unit:
-    name: Backend · unit tests
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: backend
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: backend/package-lock.json
-      - run: npm ci
-      - run: npx prisma generate
-      - run: npm test
-
-  backend-integration:
-    name: Backend · integration tests
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: backend
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: interviewpilot_test
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U postgres"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-      redis:
-        image: redis:7
-        ports:
-          - 6379:6379
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-    env:
-      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/interviewpilot_test
-      REDIS_URL: redis://localhost:6379
-      NODE_ENV: test
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: backend/package-lock.json
-      - run: npm ci
-      - run: npx prisma generate
-      - run: npx prisma migrate deploy
-      - name: Integration tests
-        run: npm run test:integration --if-present
-
   ios-build:
-    name: iOS · build
+    name: iOS build and core tests
     runs-on: macos-26
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
-      - name: Select latest Xcode
+      - name: Verify Apple toolchain
         run: |
-          ls /Applications | grep -i ^Xcode
-          XCODE=$(ls -d /Applications/Xcode*.app 2>/dev/null | sort -V | tail -1)
-          echo "Selecting $XCODE"
-          sudo xcode-select -s "$XCODE/Contents/Developer"
           xcodebuild -version
-      - name: List installed iOS runtimes
-        run: xcrun simctl list runtimes
-      - name: Build iOS App
-        run: xcodebuild -project InterviewPilot.xcodeproj -scheme InterviewPilot -configuration Debug -sdk iphonesimulator build CODE_SIGNING_ALLOWED=NO CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO ONLY_ACTIVE_ARCH=NO
+          xcrun --sdk iphonesimulator --show-sdk-version
+          python3 - <<'PY'
+          import subprocess
+          version = subprocess.check_output(["xcodebuild", "-version"], text=True).split()[1]
+          if tuple(int(part) for part in version.split(".")[:2]) < (26, 1):
+              raise SystemExit("Xcode 26.1 or later is required.")
+          PY
+      - name: Test core behavior
+        run: swift test
+      - name: Build iOS simulator app
+        run: |
+          xcodebuild -project InterviewPilot.xcodeproj \
+            -scheme InterviewPilot \
+            -configuration Debug \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath build/DerivedData \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build

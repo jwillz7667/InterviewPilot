@@ -1,20 +1,24 @@
-name: TestFlight
+name: TestFlight (manual)
 
 on:
-  push:
-    tags:
-      - 'v*'
   workflow_dispatch:
     inputs:
       changelog:
-        description: 'TestFlight changelog (overrides default)'
+        description: TestFlight changelog
         required: false
         type: string
 
+permissions:
+  contents: read
+
+concurrency:
+  group: testflight
+  cancel-in-progress: false
+
 jobs:
   testflight:
-    name: Build + upload to TestFlight
-    runs-on: macos-15
+    name: Build and upload to TestFlight
+    runs-on: macos-26
     timeout-minutes: 60
     env:
       LC_ALL: en_US.UTF-8
@@ -22,26 +26,32 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # fastlane needs git history for changelog generation
-
+          fetch-depth: 0
+      - name: Verify Apple toolchain
+        run: |
+          xcodebuild -version
+          xcrun --sdk iphonesimulator --show-sdk-version
+          python3 - <<'PY'
+          import subprocess
+          version = subprocess.check_output(["xcodebuild", "-version"], text=True).split()[1]
+          if tuple(int(part) for part in version.split(".")[:2]) < (26, 1):
+              raise SystemExit("Xcode 26.1 or later is required.")
+          PY
       - uses: ruby/setup-ruby@v1
         with:
           ruby-version: '3.3'
           bundler-cache: true
-
-      - name: Select Xcode
-        run: sudo xcode-select -s /Applications/Xcode_16.app/Contents/Developer
-
-      - name: Decode signing key
+      - name: Test core behavior
+        run: swift test
+      - name: Verify signing configuration
         env:
           API_KEY: ${{ secrets.APP_STORE_CONNECT_API_KEY_CONTENT }}
         run: |
           if [ -z "$API_KEY" ]; then
-            echo "::error::APP_STORE_CONNECT_API_KEY_CONTENT secret is not set"
+            echo "::error::Configure App Store Connect signing before running this optional workflow."
             exit 1
           fi
-
-      - name: Run fastlane beta
+      - name: Upload personal build
         env:
           APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
           APP_STORE_CONNECT_API_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_API_ISSUER_ID }}
@@ -51,10 +61,8 @@ jobs:
           MATCH_GIT_BASIC_AUTHORIZATION: ${{ secrets.MATCH_GIT_BASIC_AUTHORIZATION }}
           FASTLANE_HIDE_CHANGELOG: 1
           TESTFLIGHT_CHANGELOG: ${{ inputs.changelog }}
-          SLACK_OPS_WEBHOOK: ${{ secrets.SLACK_OPS_WEBHOOK }}
         run: bundle exec fastlane beta
-
-      - name: Upload artifacts
+      - name: Upload build artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:

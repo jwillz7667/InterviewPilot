@@ -1,155 +1,54 @@
 # Contributing to InterviewPilot
 
-Thank you for working on InterviewPilot. This document is for **internal contributors** at Viral Ventures LLC and approved external collaborators. The project is proprietary; please review the [LICENSE](./LICENSE) before contributing.
+This is proprietary software for authorized contributors. See [LICENSE](LICENSE).
 
-## Table of Contents
+## Development
 
-- [Code of Conduct](#code-of-conduct)
-- [Getting Set Up](#getting-set-up)
-- [Branching Strategy](#branching-strategy)
-- [Commit Messages](#commit-messages)
-- [Pull Requests](#pull-requests)
-- [Code Style](#code-style)
-- [Testing](#testing)
-- [Pre-commit Hooks](#pre-commit-hooks)
-- [Releases](#releases)
+Use Xcode 26.1 or later. Follow [README.md](README.md) to build the iOS app and run `swift test`. No backend services or provider credentials are required for the automated checks.
 
-## Code of Conduct
+Use short-lived `feat/`, `fix/`, `refactor/`, `perf/`, `test/` or `docs/` branches and Conventional Commit messages. Explain the user-visible problem, the resulting behavior and the verification in each pull request. Do not force-push `main`.
 
-Treat every contributor with respect. Disagreements happen — keep them about the work, not the person. Harassment of any kind is grounds for revoking repository access.
+## Design constraints
 
-## Getting Set Up
+- The app is personal and operates without accounts, subscription checks or a hosted application backend.
+- Keep candidate profiles and session history local. Do not add analytics or upload user data outside the explicit Deepgram request path.
+- Keep provider credentials in Keychain. No real secrets in fixtures, shared schemes, screenshots, logs or exported sessions.
+- Keep transport and audio work bounded and cancellable. A failed connection must produce a useful state, not an indefinite spinner.
+- Render received text immediately. Do not add a cosmetic typing delay to the interview flow.
+- Pure protocol, prompt and buffering logic belongs in code that can be exercised by `swift test`.
+- Use structured concurrency; isolate UI state on the main actor and keep audio callbacks light.
+- Xcode discovers new Swift files automatically. Edit project settings only when a real configuration change requires it.
 
-See the **Quick Start** section of [`README.md`](./README.md) for environment setup. Ensure both `xcodebuild` (iOS) and `npm run build` (backend) succeed locally before opening a PR.
+## Verification
 
-Activate the bundled gitleaks hook once per clone:
+Before submitting:
+
+```bash
+swift test
+xcodebuild -project InterviewPilot.xcodeproj \
+  -scheme InterviewPilot \
+  -configuration Debug \
+  -destination 'generic/platform=iOS Simulator' \
+  -derivedDataPath build/DerivedData \
+  CODE_SIGNING_ALLOWED=NO build
+```
+
+Test failure behavior as well as successful answers: malformed protocol messages, connection loss, cancellation, invalid credentials, and bounded history or audio queues. Use deterministic test doubles; do not make ordinary unit tests spend provider credit.
+
+Changes to microphone capture, interruption handling or session lifetime also require the relevant physical-device checks in [docs/RELIABILITY.md](docs/RELIABILITY.md). Record which checks were actually run and leave unperformed checks explicitly unverified.
+
+## Secret scanning
+
+The opt-in pre-commit hook runs a staged, redacted `gitleaks` scan when the tool is installed:
 
 ```bash
 ./.githooks/install.sh
 ```
 
-## Branching Strategy
+Never bypass a real credential finding. Remove the secret from the staged change and rotate it if it was committed.
 
-| Prefix       | Use case                                  | Example                                |
-|--------------|-------------------------------------------|----------------------------------------|
-| `feat/`      | New user-facing or developer-facing feature | `feat/practice-interview-bookmarks`  |
-| `fix/`       | Bug fix                                   | `fix/sse-reconnect-loop`               |
-| `refactor/`  | Internal restructuring, no behavior change | `refactor/promptbuilder-extract-rules` |
-| `perf/`      | Performance improvement                   | `perf/billing-cache-warmup`            |
-| `docs/`      | Documentation only                        | `docs/security-policy`                 |
-| `chore/`     | Tooling, CI, dependency bumps             | `chore/bump-prisma-6.20`               |
-| `test/`      | Test-only changes                         | `test/auth-rate-limit`                 |
+## Distribution
 
-Branches are short-lived. Rebase onto `main` before opening a PR.
+CI builds unsigned simulator code. Physical-device and distribution signing remain local Apple tooling concerns. The optional TestFlight workflow runs only when explicitly dispatched and requires the repository owner's signing setup. Neither merging a branch nor creating a tag should automatically publish this personal app.
 
-## Commit Messages
-
-Follow [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/):
-
-```
-<type>(<optional scope>): <subject>
-
-<optional body — explain WHY, not WHAT>
-
-<optional footer — refs, breaking changes, co-authors>
-```
-
-Rules:
-
-- **Subject** is imperative mood, ≤ 72 characters, no trailing period.
-- **One logical change per commit.** Refactors and behavior changes never share a commit.
-- **Body** wraps at 72 characters and explains motivation, constraints, and trade-offs.
-- **Type** is one of: `feat`, `fix`, `refactor`, `perf`, `test`, `docs`, `chore`, `build`, `ci`, `revert`.
-
-Example:
-
-```
-fix(auth): block password-reset replay across concurrent requests
-
-`updateMany` with `usedAt: null AND expiresAt > now` is the only
-predicate that lets exactly one caller win. Inside `$transaction`
-with the user update + refresh-token revocation, this turns a
-read-then-write race into a single atomic claim.
-```
-
-## Pull Requests
-
-A good PR is small, reviewable, and reversible. Before opening one:
-
-1. **Rebase** onto the latest `main`.
-2. **Run the full local check**:
-   ```bash
-   cd backend && npm run build && npx tsc --noEmit
-   xcodebuild -project ../InterviewPilot.xcodeproj -scheme InterviewPilot \
-     -configuration Debug -destination 'generic/platform=iOS Simulator' build
-   ```
-3. **Confirm CI passes** (`backend-build`, `ios-build`).
-4. **Fill in the PR template** — summary, test plan, screenshots for UI work.
-
-PRs require at least one [CODEOWNER](./.github/CODEOWNERS) approval before merging. Force-pushes to a PR branch are fine; force-pushes to `main` are not.
-
-### Merging
-
-- Default merge strategy: **squash**. The squash subject must follow Conventional Commits.
-- Reviewers should leave the squash body to the PR author or copy the most useful commit messages.
-
-## Code Style
-
-The repository follows the conventions captured in `CLAUDE.md` (agent-internal guidance, not committed). High-level rules:
-
-### Architecture
-
-- Feature-first directory layout (`features/auth/`), not type-first (`controllers/`, `models/`).
-- Dependencies flow inward: UI → application → domain → infrastructure. Domain code is framework-free.
-- Every feature exposes a single barrel (`index.ts`) as its public API; deep cross-feature imports are forbidden.
-
-### TypeScript / Backend
-
-- `strict: true`. No `any`, no unjustified `as` casts.
-- Validate all external input with `zod` at the boundary; trust internal types.
-- Errors are typed (`AppError`, discriminated unions). No `catch (e: any)` swallowing.
-- Pure functions where possible; isolate side effects at the edges.
-
-### Swift / iOS
-
-- Swift 6 concurrency (`async/await`, `@Observable`, structured concurrency).
-- All types are `@MainActor` by default via `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor` — do not annotate manually.
-- Use value types (`struct`, `enum`) unless reference semantics are required.
-- New `.swift` files are auto-discovered via `PBXFileSystemSynchronizedRootGroup` — never edit `project.pbxproj` directly.
-- All `@Observable` classes mark stored closure properties `@ObservationIgnored`.
-
-### Comments
-
-Default to writing **no comments**. Add one only when the *why* is non-obvious — a hidden constraint, a workaround for a specific bug, or behavior that would surprise a reader. Don't explain *what* the code does; well-named identifiers do that.
-
-## Testing
-
-We follow the [test pyramid](https://martinfowler.com/articles/practical-test-pyramid.html): many fast unit tests, fewer integration tests, fewest end-to-end.
-
-| Tier         | Hits                                  | Where                                   |
-|--------------|---------------------------------------|-----------------------------------------|
-| Unit         | Pure logic, no I/O                    | `*.test.ts` next to source              |
-| Integration  | Real DB, real Fastify, real Prisma    | `backend/test/integration/*.test.ts`    |
-| End-to-end   | Real device or simulator              | iOS `UITests/` target                   |
-
-Coverage target: **80%+** on `backend/src/domain/` and `backend/src/modules/*/service.ts`. Coverage is a smell-detector, not a goal — one meaningful test beats five trivial ones.
-
-## Pre-commit Hooks
-
-The repository ships a `gitleaks`-based pre-commit hook in `.githooks/`. After cloning, run:
-
-```bash
-./.githooks/install.sh
-```
-
-The hook scans only staged content (`gitleaks protect --staged --redact`) and is fast enough for routine commits. It warns and skips if `gitleaks` is not installed locally.
-
-## Releases
-
-1. Update `CHANGELOG.md`: move `[Unreleased]` entries under a new dated `[x.y.z]` section.
-2. Tag the release commit: `git tag -s v<x.y.z> -m "release: v<x.y.z>"`.
-3. Push tags: `git push origin v<x.y.z>`.
-4. The Railway production environment auto-deploys on `main`. Verify `/health` returns `{ "status": "ok" }` before announcing.
-5. iOS releases are submitted via App Store Connect; production builds use the App Store distribution scheme.
-
-If a release introduces a database migration, run `npx prisma migrate deploy` against production **before** the deploying build is promoted to traffic.
+There are no database migrations, entitlement jobs or backend deployment steps.

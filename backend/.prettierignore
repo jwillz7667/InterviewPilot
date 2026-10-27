@@ -1,3 +1,0 @@
-# Keep automated style-only changes out of the credential-management service.
-src/modules/ai/ai.service.ts
-test/ai-deepgram-fallback.test.ts
