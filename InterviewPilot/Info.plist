@@ -2,28 +2,21 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>BACKEND_BASE_URL</key>
-	<string>https://interviewpilot-production.up.railway.app</string>
-	<key>CFBundleDisplayName</key>
-	<string>Interview Ace AI</string>
-	<key>UIAppFonts</key>
-	<array>
-		<string>PublicSans-Variable.ttf</string>
-		<string>SourceSans3-Variable.ttf</string>
-		<string>PlusJakartaSans-Variable.ttf</string>
-	</array>
-	<key>NSMicrophoneUsageDescription</key>
-	<string>Interview Ace AI needs microphone access to hear and transcribe the interviewer's questions in real-time.</string>
-	<key>UIBackgroundModes</key>
-	<array>
-		<string>audio</string>
-	</array>
-	<key>NSAppTransportSecurity</key>
-	<dict>
-		<key>NSAllowsLocalNetworking</key>
-		<true/>
-	</dict>
-	<key>ITSAppUsesNonExemptEncryption</key>
-	<false/>
+    <key>CFBundleDisplayName</key>
+    <string>InterviewPilot</string>
+    <key>UIAppFonts</key>
+    <array>
+        <string>PublicSans-Variable.ttf</string>
+        <string>SourceSans3-Variable.ttf</string>
+        <string>PlusJakartaSans-Variable.ttf</string>
+    </array>
+    <key>NSMicrophoneUsageDescription</key>
+    <string>InterviewPilot sends microphone audio to Deepgram to transcribe questions and generate interview suggestions.</string>
+    <key>UIBackgroundModes</key>
+    <array>
+        <string>audio</string>
+    </array>
+    <key>ITSAppUsesNonExemptEncryption</key>
+    <false/>
 </dict>
 </plist>

@@ -2,9 +2,8 @@
 #
 # Lanes:
 #   beta         — build + upload to TestFlight (internal testers + external if configured)
-#   release      — build + submit to App Store Connect for review
-#   screenshots  — drive snapshot tests to capture screenshots for App Store
-#   tests        — run xcodebuild test suite (placeholder until Phase C2 ships XCTest target)
+#   release      — upload to App Store Connect without submitting for review
+#   tests        — run the provider-free Swift core tests
 #
 # Required env (CI):
 #   APP_STORE_CONNECT_API_KEY_ID
@@ -13,7 +12,7 @@
 #   MATCH_PASSWORD                      (for cert/profile decryption — once match is set up)
 #   MATCH_GIT_URL                       (private repo holding encrypted certs)
 #
-# See `docs/runbooks/testflight.md` for first-time setup.
+# See `fastlane/README.md` for signing and manual distribution setup.
 
 default_platform(:ios)
 
@@ -70,14 +69,9 @@ platform :ios do
       changelog: ENV['TESTFLIGHT_CHANGELOG'] || default_changelog
     )
 
-    commit_version_bump(
-      message: 'chore(ios): bump build number [skip ci]',
-      xcodeproj: XCODE_PROJECT,
-      force: true
-    ) unless ENV['CI'].nil?
   end
 
-  desc 'Submit a release to App Store Connect'
+  desc 'Upload a release to App Store Connect without submitting it'
   lane :release do
     api_key = app_store_connect_api_key_or_nil
 
@@ -101,30 +95,15 @@ platform :ios do
       force: true,
       skip_screenshots: true,
       skip_metadata: false,
-      precheck_include_in_app_purchases: true
+      precheck_include_in_app_purchases: false
     )
   end
 
-  desc 'Capture App Store screenshots via UI tests'
-  lane :screenshots do
-    capture_screenshots(
-      project: XCODE_PROJECT,
-      scheme: 'InterviewPilotUITests',
-      devices: [
-        'iPhone 15 Pro Max',
-        'iPhone 15',
-        'iPhone 8 Plus'
-      ]
-    )
-  end
-
-  desc 'Run the iOS unit test suite (requires Phase C2 XCTest target)'
+  desc 'Run the provider-free Swift core tests'
   lane :tests do
-    run_tests(
-      project: XCODE_PROJECT,
-      scheme: SCHEME,
-      devices: ['iPhone 15']
-    )
+    Dir.chdir(File.expand_path('..', __dir__)) do
+      sh('swift test')
+    end
   end
 
   def default_changelog
@@ -132,11 +111,4 @@ platform :ios do
     "Internal build #{sha}"
   end
 
-  error do |lane, exception|
-    slack(
-      message: "🚨 fastlane #{lane} failed: #{exception.message}",
-      success: false,
-      slack_url: ENV['SLACK_OPS_WEBHOOK']
-    ) if ENV['SLACK_OPS_WEBHOOK']
-  end
 end

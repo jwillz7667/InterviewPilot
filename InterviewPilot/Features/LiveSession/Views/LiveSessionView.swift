@@ -1,459 +1,199 @@
 import SwiftUI
+import UIKit
 
 struct LiveSessionView: View {
-    @State var viewModel: LiveSessionViewModel
-    @State private var showEndConfirmation = false
-    @State private var network = NetworkPathMonitor.shared
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.colorScheme) private var colorScheme
-    private let autoStartSession: Bool
+    @Environment(\.scenePhase) private var scenePhase
+    @State private var model: LiveSessionViewModel
+    @State private var question = ""
+    @State private var showingTranscript = false
+    @State private var closing = false
+    @State private var confirmCloseWithoutSave = false
 
-    init(viewModel: LiveSessionViewModel, autoStartSession: Bool = true) {
-        _viewModel = State(initialValue: viewModel)
-        self.autoStartSession = autoStartSession
+    init(configuration: InterviewConfiguration, store: LocalInterviewStore) {
+        _model = State(initialValue: LiveSessionViewModel(configuration: configuration, store: store))
     }
 
     var body: some View {
-        ZStack {
-            (colorScheme == .dark ? Color(UIColor.systemBackground) : Color.white)
-                .ignoresSafeArea()
-
-            VStack(spacing: 0) {
-                OfflineBanner(isOnline: network.isOnline)
-                headerBar
-                    .padding(.horizontal, 16)
-                    .padding(.top, 12)
-
-                ScrollViewReader { proxy in
-                    ScrollView {
-                        VStack(alignment: .leading, spacing: 16) {
-                            questionSection
-                            responseSection
-                                .id("responseTop")
-                            Color.clear.frame(height: 1).id("bottom")
-                        }
-                        .padding(.horizontal, 16)
-                        .padding(.top, 14)
-                        .padding(.bottom, 130)
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 20) {
+                    status
+                    contextCard
+                    if let notice = model.notice {
+                        Label(notice, systemImage: "info.circle")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .accessibilityIdentifier("sessionNotice")
                     }
-                    .onChange(of: viewModel.currentResponse) { oldValue, newValue in
-                        if oldValue.isEmpty && !newValue.isEmpty {
-                            withAnimation(IAAnimations.standard) {
-                                proxy.scrollTo("responseTop", anchor: .top)
-                            }
+                    if let error = model.saveError {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Label(error, systemImage: "exclamationmark.triangle.fill").foregroundStyle(.orange)
+                            ShareLink(item: model.transcriptText) { Label("Export transcript", systemImage: "square.and.arrow.up") }
                         }
                     }
-                    .accessibilityElement(children: .contain)
-                    .accessibilityLabel("Live transcript and AI suggestion")
-                    .accessibilityAddTraits(.updatesFrequently)
+                    answerCard
+                    controls
+                    typedQuestion
+                    if !model.messages.isEmpty {
+                        DisclosureGroup("Conversation (\(model.messages.count) messages)", isExpanded: $showingTranscript) {
+                            VStack(alignment: .leading, spacing: 16) {
+                                ForEach(model.messages) { message in
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text(message.role == .user ? "INPUT" : (model.configuration.mode == .practice ? "INTERVIEWER" : "SUGGESTION"))
+                                            .font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                                        Text(message.content).textSelection(.enabled)
+                                    }
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                }
+                            }.padding(.top, 12)
+                        }
+                    }
+                    Text("Audio comes from this device’s microphone. Place it where it can hear the interviewer. In assist mode, mute the mic while you answer to avoid treating your speech as another question.")
+                        .font(.footnote).foregroundStyle(.secondary)
+                }
+                .padding()
+            }
+            .background(Color(.systemGroupedBackground))
+            .navigationTitle(model.configuration.mode == .practice ? "Practice interview" : "Live interview")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("Close") { Task { await close() } }.disabled(closing)
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    ShareLink(item: model.transcriptText) { Image(systemName: "square.and.arrow.up") }
+                        .disabled(model.messages.isEmpty)
                 }
             }
-        }
-        .toolbar(.hidden, for: .navigationBar)
-        .safeAreaInset(edge: .bottom) {
-            controlDock
-                .padding(.horizontal, 16)
-                .padding(.bottom, 8)
-        }
-        .onAppear {
-            guard autoStartSession else { return }
-            Task {
-                do {
-                    try await viewModel.startSession()
-                } catch {
-                    viewModel.errorMessage = error.localizedDescription
-                }
+            .task { await model.start() }
+            .onChange(of: model.rejectedQuestion) { _, text in
+                if !text.isEmpty { question = text; model.rejectedQuestion = "" }
+            }
+            .onChange(of: scenePhase) { _, phase in
+                if phase == .background { model.pause(reason: "Session paused while the app is in the background. Resume when ready.") }
+            }
+            .onDisappear { model.pause() }
+            .confirmationDialog("The transcript has not been saved. Export it before closing.", isPresented: $confirmCloseWithoutSave, titleVisibility: .visible) {
+                Button("Keep session open", role: .cancel) {}
+                Button("Close without saving", role: .destructive) { dismiss() }
             }
         }
-        .onDisappear {
-            guard autoStartSession else { return }
-            viewModel.stopSession()
-        }
-        .alert("End Session?", isPresented: $showEndConfirmation) {
-            Button("End", role: .destructive) {
-                viewModel.stopSession()
-                dismiss()
-            }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("This will stop the live interview session.")
-        }
+        .interactiveDismissDisabled()
     }
 
-    // MARK: - Header
-
-    private var headerBar: some View {
-        HStack(spacing: 12) {
-            Button(action: { showEndConfirmation = true }) {
-                Image(systemName: "chevron.left")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(IATheme.textPrimary)
-                    .frame(width: 40, height: 40)
-                    .background(Circle().fill(IATheme.surface))
-            }
-            .buttonStyle(.plain)
-
+    private var status: some View {
+        HStack {
+            Circle().fill(model.audio.isCapturing ? Color.green : Color.orange).frame(width: 9, height: 9)
+            Text(model.connectionLabel).font(.subheadline.weight(.semibold))
             Spacer()
-
-            Text("Interview Ace")
-                .font(IATypography.labelLarge)
-                .foregroundStyle(IATheme.textPrimary)
-
-            Spacer()
-
-            HStack(spacing: 8) {
-                AnimatedStatusBadge(text: "Live", color: IATheme.live, isActive: true)
-
-                IAStatusPill(
-                    title: formatTime(viewModel.elapsedTime),
-                    symbol: "clock",
-                    tint: IATheme.textSecondary
-                )
-            }
+            Text(Duration.seconds(model.elapsedSeconds).formatted(.time(pattern: .minuteSecond)))
+                .font(.subheadline.monospacedDigit()).foregroundStyle(.secondary)
         }
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("connectionStatus")
     }
 
-    // MARK: - Interviewer Question Section
-
-    private var questionSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("INTERVIEWER QUESTION")
-                .font(IATypography.labelSmall)
-                .tracking(1.2)
-                .foregroundStyle(IATheme.textSecondary)
-
-            Text(interviewerText)
-                .font(IATypography.bodyLarge)
-                .foregroundStyle(IATheme.textPrimary)
-                .lineSpacing(4)
-                .frame(maxWidth: .infinity, alignment: .center)
-                .multilineTextAlignment(.center)
-                .padding(20)
-                .background(
-                    RoundedRectangle(cornerRadius: IATheme.radiusMedium, style: .continuous)
-                        .fill(colorScheme == .dark ? Color(UIColor.secondarySystemBackground) : Color.white)
-                )
-                .overlay {
-                    RoundedRectangle(cornerRadius: IATheme.radiusMedium, style: .continuous)
-                        .stroke(IATheme.outlineVariant, lineWidth: 1)
-                }
-
-            if viewModel.audioCapture.isCapturing &&
-                (viewModel.sessionState == .listening || viewModel.sessionState == .interviewerSpeaking) {
-                WaveformView(level: viewModel.audioCapture.audioLevel)
-                    .frame(height: 28)
-                    .padding(.top, 2)
-            }
-
-            if let questionType = viewModel.questionType {
-                QuestionTypeBadge(classification: questionType)
-            }
+    private var contextCard: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text(model.configuration.role.isEmpty ? "Interview context" : model.configuration.role)
+                .font(.headline)
+            if !model.configuration.company.isEmpty { Text(model.configuration.company).foregroundStyle(.secondary) }
+            HStack(spacing: 16) {
+                Label(model.configuration.resume.isEmpty ? "No resume" : "Resume included", systemImage: "doc.text")
+                Label(model.configuration.jobDescription.isEmpty ? "No job description" : "Role context included", systemImage: "briefcase")
+            }.font(.caption).foregroundStyle(.secondary)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding().background(.background, in: RoundedRectangle(cornerRadius: 16))
     }
 
-    // MARK: - Response Bubble (large blue rounded)
-
-    private var responseSection: some View {
-        VStack(alignment: .leading, spacing: 0) {
+    private var answerCard: some View {
+        VStack(alignment: .leading, spacing: 16) {
             HStack {
-                HStack(spacing: 6) {
-                    Circle()
-                        .fill(IATheme.live)
-                        .frame(width: 8, height: 8)
-                        .opacity(viewModel.sessionState == .generating ? 1 : 0.5)
-
-                    Text("LIVE SUGGESTION")
-                        .font(IATypography.labelSmall)
-                        .tracking(1.0)
-                        .foregroundStyle(.white.opacity(0.9))
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
-                .background(Capsule().fill(.white.opacity(0.15)))
-
+                Text(model.configuration.mode == .practice ? "INTERVIEWER" : "YOUR RESPONSE")
+                    .font(.caption.weight(.bold)).tracking(1).foregroundStyle(.secondary)
                 Spacer()
-
-                IAStatusPill(title: liveStateTitle, symbol: liveStateSymbol, tint: .white)
+                if model.isThinking { ProgressView().controlSize(.small).accessibilityLabel("Generating response") }
             }
-            .padding(.horizontal, 18)
-            .padding(.top, 18)
+            if !model.latestQuestion.isEmpty {
+                Text(model.latestQuestion).font(.subheadline).foregroundStyle(.secondary).lineLimit(5)
+            }
+            Text(model.latestAnswer.isEmpty
+                 ? "Your response will appear here as soon as Deepgram returns it."
+                 : model.latestAnswer)
+                .font(.title3).lineSpacing(5).textSelection(.enabled)
+                .foregroundStyle(model.latestAnswer.isEmpty ? .secondary : .primary)
+                .frame(maxWidth: .infinity, minHeight: 180, alignment: .topLeading)
+                .accessibilityIdentifier("latestAnswer")
+            if let latency = model.currentResponseLatencyMS {
+                Text(String(format: "First text: %.2f s after the confirmed input", latency / 1_000))
+                    .font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+            }
+        }
+        .padding(20)
+        .background(.background, in: RoundedRectangle(cornerRadius: 20))
+    }
 
-            Group {
-                if let error = viewModel.errorMessage {
-                    Label(error, systemImage: "exclamationmark.triangle.fill")
-                        .font(IATypography.bodySmall)
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 18)
-                        .padding(.top, 12)
-                }
-
-                if viewModel.currentResponse.isEmpty && viewModel.sessionState == .generating {
-                    VStack(alignment: .leading, spacing: 10) {
-                        ForEach(0..<3, id: \.self) { index in
-                            RoundedRectangle(cornerRadius: 7, style: .continuous)
-                                .fill(Color.white.opacity(0.2))
-                                .frame(height: 16)
-                                .frame(maxWidth: index == 2 ? 180 : .infinity)
-                                .shimmer()
-                        }
+    private var controls: some View {
+        VStack(spacing: 12) {
+            if model.isRunning {
+                HStack {
+                    Button {
+                        Task { await model.setMicrophoneEnabled(!model.microphoneEnabled) }
+                    } label: {
+                        Label(model.microphoneEnabled ? "Mute mic" : "Enable mic",
+                              systemImage: model.microphoneEnabled ? "mic.slash" : "mic")
+                            .frame(maxWidth: .infinity)
                     }
-                    .padding(.horizontal, 18)
-                    .padding(.top, 16)
-                } else if viewModel.currentResponse.isEmpty {
-                    Text(responsePlaceholder)
-                        .font(IATypography.bodyMedium)
-                        .foregroundStyle(.white.opacity(0.6))
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.horizontal, 18)
-                        .padding(.top, 16)
-                } else {
-                    Text(viewModel.currentResponse)
-                        .font(IATypography.responseText)
-                        .foregroundStyle(.white)
-                        .lineSpacing(6)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .textSelection(.enabled)
-                        .padding(.horizontal, 18)
-                        .padding(.top, 16)
+                    .buttonStyle(.borderedProminent)
+                    .disabled(!model.isReady)
+                    Button { model.pause(reason: "Paused. Resume keeps your interview context.") } label: {
+                        Label("Pause", systemImage: "pause.fill").frame(maxWidth: .infinity)
+                    }.buttonStyle(.bordered)
                 }
-            }
-
-            HStack(spacing: 10) {
-                Button(action: {
-                    viewModel.resumeListeningForNextQuestion()
-                }) {
-                    Label("Regenerate", systemImage: "arrow.counterclockwise")
-                        .font(IATypography.labelLarge)
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 10)
-                        .background(Capsule().fill(.white.opacity(0.15)))
-                }
-                .buttonStyle(.plain)
-                .opacity(viewModel.currentResponse.isEmpty ? 0.4 : 1)
-                .disabled(viewModel.currentResponse.isEmpty)
-
-                Button(action: {
-                    withAnimation(IAAnimations.standard) {
-                        viewModel.resumeListeningForNextQuestion()
-                    }
-                }) {
-                    Label("Next", systemImage: "forward.fill")
-                        .font(IATypography.labelLarge)
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 10)
-                        .background(Capsule().fill(.white.opacity(0.15)))
-                }
-                .buttonStyle(.plain)
-
-                Spacer()
-            }
-            .padding(.horizontal, 18)
-            .padding(.top, 16)
-            .padding(.bottom, 18)
-        }
-        .background(
-            RoundedRectangle(cornerRadius: 28, style: .continuous)
-                .fill(
-                    LinearGradient(
-                        colors: [IATheme.primaryContainer, IATheme.primary],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
-        )
-        .shadow(color: IATheme.accent.opacity(0.2), radius: 16, y: 8)
-    }
-
-    // MARK: - Controls
-
-    private var controlDock: some View {
-        IABottomDock {
-            HStack(spacing: 10) {
-                muteButton
-                endButton
-            }
-        }
-    }
-
-    // MARK: - Text Helpers
-
-    private var interviewerText: String {
-        if !viewModel.interviewerTranscript.isEmpty {
-            return viewModel.interviewerTranscript
-        }
-
-        if viewModel.errorMessage != nil {
-            return "Waiting for connection\u{2026}"
-        }
-
-        return "Listening for the interviewer\u{2026}"
-    }
-
-    private var responsePlaceholder: String {
-        switch viewModel.sessionState {
-        case .generating:
-            return ""
-        case .responseReady, .postResponseSpeech:
-            return ""
-        case .idle, .listening, .interviewerSpeaking:
-            return "Waiting for question\u{2026}"
-        }
-    }
-
-    private var liveStateTitle: String {
-        switch viewModel.sessionState {
-        case .idle:
-            return "Idle"
-        case .listening:
-            return "Ready"
-        case .interviewerSpeaking:
-            return "Listening"
-        case .generating:
-            return "Drafting"
-        case .responseReady:
-            return "Ready"
-        case .postResponseSpeech:
-            return "Waiting"
-        }
-    }
-
-    private var liveStateSymbol: String {
-        switch viewModel.sessionState {
-        case .idle:
-            return "pause.circle"
-        case .listening:
-            return "ear"
-        case .interviewerSpeaking:
-            return "waveform"
-        case .generating:
-            return "sparkles"
-        case .responseReady:
-            return "checkmark.circle"
-        case .postResponseSpeech:
-            return "arrow.trianglehead.clockwise"
-        }
-    }
-
-    // MARK: - Buttons
-
-    private var muteButton: some View {
-        ControlButton(
-            icon: viewModel.audioCapture.isCapturing ? "mic.fill" : "mic.slash.fill",
-            label: viewModel.audioCapture.isCapturing ? "Mute" : "Unmute",
-            isActive: viewModel.audioCapture.isCapturing,
-            tint: IATheme.accent
-        ) {
-            if viewModel.audioCapture.isCapturing {
-                viewModel.audioCapture.stopCapture()
+                Button("Answer now") { Task { await model.answerNow() } }
+                    .disabled(!model.isReady || model.isThinking)
+                ProgressView(value: Double(model.audio.audioLevel), total: 1)
+                    .tint(.green).accessibilityLabel("Microphone input level")
             } else {
-                do {
-                    try viewModel.audioCapture.startCapture()
-                } catch {
-                    viewModel.errorMessage = error.localizedDescription
+                HStack {
+                    Button { Task { await model.start(useMicrophone: true) } } label: {
+                        Label("Resume listening", systemImage: "mic.fill").frame(maxWidth: .infinity)
+                    }.buttonStyle(.borderedProminent)
+                    Button { Task { await model.start(useMicrophone: false) } } label: {
+                        Text("Text only").frame(maxWidth: .infinity)
+                    }.buttonStyle(.bordered)
+                }.disabled(model.isStarting)
+            }
+        }
+    }
+
+    private var typedQuestion: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(model.configuration.mode == .practice ? "Type your answer or request feedback" : "Type a question")
+                .font(.subheadline.weight(.semibold))
+            TextField("Enter text…", text: $question, axis: .vertical)
+                .lineLimit(2...6).textFieldStyle(.roundedBorder)
+                .accessibilityIdentifier("manualQuestion")
+            Button {
+                let submitted = question
+                Task {
+                    if await model.sendQuestion(submitted), question == submitted { question = "" }
                 }
+            } label: {
+                Label("Send", systemImage: "arrow.up.circle.fill").frame(maxWidth: .infinity)
             }
+            .buttonStyle(.bordered)
+            .disabled(!model.isReady || model.isThinking || model.userIsSpeaking || question.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         }
     }
 
-    private var endButton: some View {
-        ControlButton(
-            icon: "stop.fill",
-            label: "End",
-            isActive: false,
-            tint: IATheme.error
-        ) {
-            showEndConfirmation = true
-        }
-    }
-
-    private func formatTime(_ interval: TimeInterval) -> String {
-        let minutes = Int(interval) / 60
-        let seconds = Int(interval) % 60
-        return String(format: "%02d:%02d", minutes, seconds)
-    }
-}
-
-#Preview("Live Listening") {
-    LiveSessionView(viewModel: previewLiveViewModel(state: .interviewerSpeaking), autoStartSession: false)
-}
-
-#Preview("Live Generating") {
-    LiveSessionView(viewModel: previewLiveViewModel(state: .generating), autoStartSession: false)
-}
-
-#Preview("Live Response Ready") {
-    LiveSessionView(viewModel: previewLiveViewModel(state: .responseReady), autoStartSession: false)
-}
-
-@MainActor
-private func previewLiveViewModel(state: LiveSessionViewModel.SessionState) -> LiveSessionViewModel {
-    let viewModel = LiveSessionViewModel(
-        sessionId: UUID(),
-        resume: "Sample resume",
-        jobDescription: "Senior iOS Engineer role",
-        interviewType: .behavioral,
-        jobCategory: .softwareEngineering,
-        positionLevel: .seniorIndividualContributor,
-        responseFormat: .hybrid,
-        responseBehavior: .analytical,
-        responseTone: .confident,
-        responseEmphasis: .technicalDepth,
-        responseQualityMode: .standard,
-        preComputedAnswers: []
-    )
-    viewModel.sessionState = state
-    viewModel.elapsedTime = 387
-    viewModel.interviewerTranscript = "Tell me about a time you had to align a difficult team around a product decision."
-    viewModel.currentResponse = state == .generating ? "" : "I started by getting the disagreement out of Slack and into a live decision review, clarified the tradeoff we were actually debating, and aligned everyone on the success metric we were optimizing for."
-    viewModel.questionType = QuestionClassification(type: .behavioral, confidence: 0.92)
-    viewModel.syncState = .synced
-    return viewModel
-}
-
-struct ControlButton: View {
-    let icon: String
-    let label: String
-    let isActive: Bool
-    var tint: Color = IATheme.accent
-    var action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            VStack(spacing: 6) {
-                Image(systemName: icon)
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundStyle(isActive ? tint : tint.opacity(0.7))
-
-                Text(label)
-                    .font(IATypography.labelSmall)
-                    .foregroundStyle(IATheme.textPrimary)
-                    .lineLimit(1)
-            }
-            .frame(maxWidth: .infinity, minHeight: 54)
-        }
-        .buttonStyle(ControlButtonStyle(tint: tint))
-        .frame(maxWidth: .infinity)
-    }
-}
-
-struct ControlButtonStyle: ButtonStyle {
-    var tint: Color
-    @Environment(\.colorScheme) private var colorScheme
-
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .background(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .fill(colorScheme == .dark ? Color.white.opacity(0.08) : Color.white.opacity(0.92))
-            )
-            .overlay {
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .stroke(tint.opacity(configuration.isPressed ? 0.4 : 0.15), lineWidth: 1)
-            }
-            .scaleEffect(configuration.isPressed ? 0.94 : 1.0)
-            .opacity(configuration.isPressed ? 0.8 : 1.0)
-            .animation(.snappy(duration: 0.15), value: configuration.isPressed)
+    private func close() async {
+        closing = true
+        await model.finish()
+        closing = false
+        if model.saveError != nil { confirmCloseWithoutSave = true }
+        else { dismiss() }
     }
 }

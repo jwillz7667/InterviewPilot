@@ -1,4 +1,6 @@
 import AVFoundation
+import Observation
+import Synchronization
 
 enum AudioCaptureError: LocalizedError {
     case microphonePermissionDenied
@@ -7,304 +9,356 @@ enum AudioCaptureError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .microphonePermissionDenied:
-            return "Microphone access is required for live transcription. Enable it in Settings > InterviewPilot > Microphone."
+            return "Enable microphone access in Settings to start listening."
         case .engineSetupFailed(let detail):
-            return "Audio capture failed to start: \(detail)"
+            return "Audio capture stopped: \(detail)"
         }
     }
 }
 
-@Observable
+/// Owns the microphone. Interruption and route changes require explicit resume;
+/// the app must never silently switch to a different microphone while listening.
+@MainActor @Observable
 final class AudioCaptureService {
-    private var audioEngine: AVAudioEngine?
     private(set) var isCapturing = false
-    private(set) var audioLevel: Float = 0.0
+    private(set) var audioLevel: Float = 0
 
+    /// Runs on the audio processing queue. The consumer must enqueue without blocking.
     @ObservationIgnored var onAudioBuffer: (@Sendable (Data) -> Void)?
-    @ObservationIgnored var onInterruption: ((Bool) -> Void)?  // true = interrupted, false = resumed
+    @ObservationIgnored var onInterruption: ((Bool) -> Void)?
     @ObservationIgnored var onRouteChange: (() -> Void)?
+    @ObservationIgnored var onError: ((Error) -> Void)?
 
-    // Target format for downstream speech services.
+    @ObservationIgnored private var audioEngine: AVAudioEngine?
+    @ObservationIgnored private var processor: AudioBufferProcessor?
+    @ObservationIgnored private var levelTask: Task<Void, Never>?
+    @ObservationIgnored private var notificationTokens: [NSObjectProtocol] = []
+    private var tapInstalled = false
+    private var captureGeneration = UUID()
     private let targetSampleRate: Double
     private let sessionMode: AVAudioSession.Mode
     private let categoryOptions: AVAudioSession.CategoryOptions
     private let bufferDurationSeconds: Double
-    private var isInterrupted = false
 
     init(
-        targetSampleRate: Double = 16000,
+        targetSampleRate: Double = 16_000,
         sessionMode: AVAudioSession.Mode = .measurement,
-        categoryOptions: AVAudioSession.CategoryOptions = [
-            .allowBluetoothHFP,
-            .defaultToSpeaker
-        ],
-        bufferDurationSeconds: Double = 0.1
+        categoryOptions: AVAudioSession.CategoryOptions = [.allowBluetoothHFP, .defaultToSpeaker],
+        bufferDurationSeconds: Double = 0.02
     ) {
         self.targetSampleRate = targetSampleRate
         self.sessionMode = sessionMode
         self.categoryOptions = categoryOptions
-        self.bufferDurationSeconds = bufferDurationSeconds
+        self.bufferDurationSeconds = min(max(bufferDurationSeconds, 0.02), 0.05)
         registerNotifications()
     }
 
     deinit {
-        NotificationCenter.default.removeObserver(self)
-    }
-
-    private var bufferSize: AVAudioFrameCount {
-        AVAudioFrameCount(targetSampleRate * bufferDurationSeconds)
-    }
-
-    // MARK: - Audio Session Notifications
-
-    private func registerNotifications() {
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(handleInterruption(_:)),
-            name: AVAudioSession.interruptionNotification,
-            object: AVAudioSession.sharedInstance()
-        )
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(handleRouteChange(_:)),
-            name: AVAudioSession.routeChangeNotification,
-            object: AVAudioSession.sharedInstance()
-        )
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(handleMediaServicesReset),
-            name: AVAudioSession.mediaServicesWereResetNotification,
-            object: AVAudioSession.sharedInstance()
-        )
-    }
-
-    @objc nonisolated private func handleInterruption(_ notification: Notification) {
-        guard let userInfo = notification.userInfo,
-              let typeValue = userInfo[AVAudioSessionInterruptionTypeKey] as? UInt,
-              let type = AVAudioSession.InterruptionType(rawValue: typeValue) else { return }
-
-        Task { @MainActor [weak self] in
-            guard let self else { return }
-            switch type {
-            case .began:
-                self.isInterrupted = true
-                self.onInterruption?(true)
-
-            case .ended:
-                self.isInterrupted = false
-                let shouldResume: Bool
-                if let optionsValue = userInfo[AVAudioSessionInterruptionOptionKey] as? UInt {
-                    shouldResume = AVAudioSession.InterruptionOptions(rawValue: optionsValue)
-                        .contains(.shouldResume)
-                } else {
-                    shouldResume = true
-                }
-
-                if shouldResume && self.isCapturing {
-                    self.restartEngine()
-                }
-                self.onInterruption?(false)
-
-            @unknown default:
-                break
-            }
-        }
-    }
-
-    @objc nonisolated private func handleRouteChange(_ notification: Notification) {
-        guard let userInfo = notification.userInfo,
-              let reasonValue = userInfo[AVAudioSessionRouteChangeReasonKey] as? UInt,
-              let reason = AVAudioSession.RouteChangeReason(rawValue: reasonValue) else { return }
-
-        Task { @MainActor [weak self] in
-            guard let self, self.isCapturing else { return }
-
-            switch reason {
-            case .oldDeviceUnavailable, .newDeviceAvailable, .override, .routeConfigurationChange:
-                // Audio route changed — restart engine to bind to new input device
-                self.restartEngine()
-                self.onRouteChange?()
-            default:
-                break
-            }
-        }
-    }
-
-    @objc nonisolated private func handleMediaServicesReset() {
-        Task { @MainActor [weak self] in
-            guard let self, self.isCapturing else { return }
-            // Media services were reset (rare but fatal) — full restart
-            self.stopEngineOnly()
-            self.restartEngine()
-        }
-    }
-
-    /// Restart the audio engine without tearing down the full capture pipeline.
-    private func restartEngine() {
-        stopEngineOnly()
-
-        do {
-            try configureSession()
-            try buildAndStartEngine()
-        } catch {
-            // If restart fails, notify via interruption callback
-            onInterruption?(true)
-        }
-    }
-
-    private func stopEngineOnly() {
-        audioEngine?.inputNode.removeTap(onBus: 0)
+        notificationTokens.forEach(NotificationCenter.default.removeObserver)
+        levelTask?.cancel()
+        processor?.stop()
         audioEngine?.stop()
-        audioEngine = nil
+    }
+
+    func ensureMicrophonePermission() async throws {
+        switch AVAudioApplication.shared.recordPermission {
+        case .granted: return
+        case .undetermined:
+            guard await AVAudioApplication.requestRecordPermission() else {
+                throw AudioCaptureError.microphonePermissionDenied
+            }
+        case .denied:
+            throw AudioCaptureError.microphonePermissionDenied
+        @unknown default:
+            throw AudioCaptureError.microphonePermissionDenied
+        }
     }
 
     func configureSession() throws {
+        guard targetSampleRate.isFinite, targetSampleRate > 0 else {
+            throw AudioCaptureError.engineSetupFailed("invalid sample rate")
+        }
         let session = AVAudioSession.sharedInstance()
         try session.setCategory(.playAndRecord, mode: sessionMode, options: categoryOptions)
         try session.setPreferredSampleRate(targetSampleRate)
         try session.setPreferredIOBufferDuration(bufferDurationSeconds)
-        // .notifyOthersOnDeactivation ensures we reclaim audio after other apps
-        try session.setActive(true, options: .notifyOthersOnDeactivation)
-    }
-
-    /// Requests microphone permission when undetermined; throws when denied.
-    /// Without this gate, a denied mic yields a running engine with zero audio
-    /// — the UI sits on "Listening…" forever with no error.
-    func ensureMicrophonePermission() async throws {
-        switch AVAudioApplication.shared.recordPermission {
-        case .granted:
-            return
-        case .denied:
-            throw AudioCaptureError.microphonePermissionDenied
-        case .undetermined:
-            let granted = await AVAudioApplication.requestRecordPermission()
-            if !granted {
-                throw AudioCaptureError.microphonePermissionDenied
-            }
-        @unknown default:
-            return
-        }
+        try session.setActive(true)
     }
 
     func startCapture() throws {
-        guard AVAudioApplication.shared.recordPermission != .denied else {
+        guard !isCapturing else { return }
+        guard AVAudioApplication.shared.recordPermission == .granted else {
             throw AudioCaptureError.microphonePermissionDenied
         }
-        try configureSession()
-        try buildAndStartEngine()
-        isCapturing = true
-        isInterrupted = false
-        CrashReportingService.breadcrumb(category: "audio", message: "capture.started")
-    }
-
-    private func buildAndStartEngine() throws {
-        let engine = AVAudioEngine()
-        self.audioEngine = engine
-
-        let inputNode = engine.inputNode
-        let inputFormat = inputNode.outputFormat(forBus: 0)
-
-        // A zero sample rate means the input node has no usable input (mic
-        // permission missing or no input route) — the engine would "run"
-        // while producing silence.
-        guard inputFormat.sampleRate > 0 else {
-            throw AudioCaptureError.engineSetupFailed("no audio input available")
-        }
-
-        guard let outputFormat = AVAudioFormat(
-            commonFormat: .pcmFormatInt16,
-            sampleRate: targetSampleRate,
-            channels: 1,
-            interleaved: true
-        ) else {
-            throw AudioCaptureError.engineSetupFailed("unsupported output format")
-        }
-
-        guard let converter = AVAudioConverter(from: inputFormat, to: outputFormat) else {
-            throw AudioCaptureError.engineSetupFailed(
-                "cannot convert \(Int(inputFormat.sampleRate))Hz input to \(Int(targetSampleRate))Hz PCM16"
-            )
-        }
-
-        let onBuffer = self.onAudioBuffer
-        let sampleRateRatio = outputFormat.sampleRate / inputFormat.sampleRate
-        // Throttle waveform-level updates: the tap fires ~30x/sec, but the UI
-        // only needs ~10Hz. Spawning a MainActor Task per buffer floods the
-        // main actor and re-renders the waveform far more than necessary.
-        var levelUpdateCounter = 0
-
-        inputNode.installTap(onBus: 0, bufferSize: bufferSize, format: inputFormat) {
-            [weak self] buffer, _ in
-
-            levelUpdateCounter &+= 1
-            if levelUpdateCounter % 3 == 0 {
-                let level = AudioCaptureService.calculateRMS(buffer: buffer)
-                Task { @MainActor in
-                    self?.audioLevel = level
-                }
+        captureGeneration = UUID()
+        let generation = captureGeneration
+        do {
+            try configureSession()
+            let engine = AVAudioEngine()
+            audioEngine = engine
+            let input = engine.inputNode
+            let inputFormat = input.outputFormat(forBus: 0)
+            guard inputFormat.sampleRate.isFinite, inputFormat.sampleRate > 0,
+                  inputFormat.channelCount > 0 else {
+                throw AudioCaptureError.engineSetupFailed("no microphone input is available")
             }
 
-            // Convert to 16kHz PCM16 mono. Size the output buffer from the
-            // actual input frame count and the sample-rate ratio (input is the
-            // device's native rate, e.g. 48kHz → 16kHz is 3:1) so resampling
-            // isn't truncated.
-            let outputCapacity = AVAudioFrameCount(
-                (Double(buffer.frameLength) * sampleRateRatio).rounded(.up)
-            ) + 16
-            guard outputCapacity > 0, let convertedBuffer = AVAudioPCMBuffer(
-                pcmFormat: outputFormat,
-                frameCapacity: outputCapacity
-            ) else { return }
-
-            // Feed the captured buffer exactly ONCE, then report end-of-input.
-            // AVAudioConverter pulls input repeatedly until its output buffer is
-            // full; returning the same buffer with `.haveData` every time would
-            // re-process the same samples and emit duplicated/garbled audio to
-            // Deepgram. The one-shot flag + `.noDataNow` is the correct pull idiom.
-            var didFeedInput = false
-            var conversionError: NSError?
-            let status = converter.convert(to: convertedBuffer, error: &conversionError) { _, outStatus in
-                if didFeedInput {
-                    outStatus.pointee = .noDataNow
-                    return nil
+            let processor = try AudioBufferProcessor(
+                inputFormat: inputFormat,
+                sampleRate: targetSampleRate,
+                onAudio: onAudioBuffer ?? { _ in },
+                onFailure: { [weak self] detail in
+                    Task { @MainActor [weak self] in
+                        guard let self, self.captureGeneration == generation, self.isCapturing else { return }
+                        self.stopCapture()
+                        self.onError?(AudioCaptureError.engineSetupFailed(detail))
+                    }
                 }
-                didFeedInput = true
-                outStatus.pointee = .haveData
-                return buffer
-            }
-
-            guard status != .error, conversionError == nil,
-                  convertedBuffer.frameLength > 0,
-                  let channelData = convertedBuffer.int16ChannelData else { return }
-
-            let data = Data(
-                bytes: channelData[0],
-                count: Int(convertedBuffer.frameLength) * 2
             )
-            onBuffer?(data)
+            self.processor = processor
+            // Tap frame counts use the device's actual sample rate, not 16 kHz.
+            let nativeFrames = AVAudioFrameCount(inputFormat.sampleRate * bufferDurationSeconds)
+            input.installTap(onBus: 0, bufferSize: max(256, nativeFrames), format: inputFormat) {
+                buffer, _ in processor.enqueue(buffer)
+            }
+            tapInstalled = true
+            engine.prepare()
+            try engine.start()
+            isCapturing = true
+            // One long-lived task, at 10 Hz; never create UI tasks from the render callback.
+            levelTask = Task { @MainActor [weak self, weak processor] in
+                while !Task.isCancelled {
+                    do { try await Task.sleep(for: .milliseconds(100)) }
+                    catch { break }
+                    guard let self, let processor, self.captureGeneration == generation else { break }
+                    self.audioLevel = processor.currentLevel
+                }
+            }
+        } catch {
+            stopCapture()
+            throw error
         }
-
-        engine.prepare()
-        try engine.start()
     }
 
     func stopCapture() {
-        stopEngineOnly()
-        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+        // Invalidate pending processing/error callbacks before releasing the microphone.
+        captureGeneration = UUID()
         isCapturing = false
-        isInterrupted = false
-        audioLevel = 0.0
+        levelTask?.cancel()
+        levelTask = nil
+        processor?.stop()
+        processor = nil
+        if tapInstalled {
+            audioEngine?.inputNode.removeTap(onBus: 0)
+            tapInstalled = false
+        }
+        audioEngine?.stop()
+        audioEngine = nil
+        audioLevel = 0
+        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
     }
 
-    nonisolated private static func calculateRMS(buffer: AVAudioPCMBuffer) -> Float {
-        guard let channelData = buffer.floatChannelData else { return 0 }
-        let frames = Int(buffer.frameLength)
-        guard frames > 0 else { return 0 }
-        var sum: Float = 0
-        for i in 0..<frames {
-            let sample = channelData[0][i]
-            sum += sample * sample
+    private func registerNotifications() {
+        let center = NotificationCenter.default
+        notificationTokens.append(center.addObserver(
+            forName: AVAudioSession.interruptionNotification, object: nil, queue: .main
+        ) { [weak self] notification in
+            guard let raw = notification.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt,
+                  let type = AVAudioSession.InterruptionType(rawValue: raw) else { return }
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                if type == .began {
+                    guard self.isCapturing else { return }
+                    self.stopCapture()
+                    self.onInterruption?(true)
+                } else if type == .ended {
+                    // Readiness notification only. The owner decides when to resume.
+                    self.onInterruption?(false)
+                }
+            }
+        })
+        notificationTokens.append(center.addObserver(
+            forName: AVAudioSession.routeChangeNotification, object: nil, queue: .main
+        ) { [weak self] notification in
+            guard let raw = notification.userInfo?[AVAudioSessionRouteChangeReasonKey] as? UInt,
+                  let reason = AVAudioSession.RouteChangeReason(rawValue: raw) else { return }
+            guard [.oldDeviceUnavailable, .newDeviceAvailable, .override,
+                   .routeConfigurationChange, .noSuitableRouteForCategory].contains(reason) else { return }
+            MainActor.assumeIsolated {
+                guard let self, self.isCapturing else { return }
+                self.stopCapture()
+                self.onRouteChange?()
+            }
+        })
+        notificationTokens.append(center.addObserver(
+            forName: AVAudioSession.mediaServicesWereResetNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self, self.isCapturing else { return }
+                self.stopCapture()
+                self.onError?(AudioCaptureError.engineSetupFailed("audio services restarted; tap Resume to reconnect"))
+            }
+        })
+    }
+}
+
+/// The render callback is the sole producer and the processing queue the sole
+/// consumer. Acquire/release indices transfer ownership of preallocated slots;
+/// no lock, conversion, network operation or Data allocation runs in the tap.
+nonisolated private final class AudioBufferProcessor: @unchecked Sendable {
+    private final class Slot {
+        let buffer: AVAudioPCMBuffer
+        var queuedAt = ContinuousClock.now
+        init(_ buffer: AVAudioPCMBuffer) { self.buffer = buffer }
+    }
+
+    private let queue = DispatchQueue(label: "InterviewPilot.audio.processing", qos: .userInteractive)
+    private let converter: AVAudioConverter
+    private let output: AVAudioPCMBuffer
+    private let slots: [Slot]
+    private let signal: DispatchSourceUserDataAdd
+    private let overflowSignal: DispatchSourceUserDataAdd
+    private let onAudio: @Sendable (Data) -> Void
+    private let onFailure: @Sendable (String) -> Void
+    private let chunkBytes: Int
+    private let writeIndex = Atomic<UInt64>(0)
+    private let readIndex = Atomic<UInt64>(0)
+    private let active = Atomic<Bool>(true)
+    private let level = Atomic<Float>(0)
+    // Only the consumer queue touches this storage.
+    private var pendingPCM = Data()
+
+    init(
+        inputFormat: AVAudioFormat,
+        sampleRate: Double,
+        onAudio: @escaping @Sendable (Data) -> Void,
+        onFailure: @escaping @Sendable (String) -> Void
+    ) throws {
+        guard let format = AVAudioFormat(commonFormat: .pcmFormatInt16, sampleRate: sampleRate,
+                                         channels: 1, interleaved: true),
+              let converter = AVAudioConverter(from: inputFormat, to: format) else {
+            throw AudioCaptureError.engineSetupFailed("the microphone format cannot be converted to PCM16")
         }
-        return min(sqrt(sum / Float(frames)) * 3.0, 1.0)
+        let capacity: AVAudioFrameCount = 8_192
+        let outputCapacity = AVAudioFrameCount(ceil(Double(capacity) * sampleRate / inputFormat.sampleRate)) + 64
+        guard let output = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: outputCapacity) else {
+            throw AudioCaptureError.engineSetupFailed("could not allocate audio conversion storage")
+        }
+        var slots: [Slot] = []
+        for _ in 0..<8 {
+            guard let buffer = AVAudioPCMBuffer(pcmFormat: inputFormat, frameCapacity: capacity) else {
+                throw AudioCaptureError.engineSetupFailed("could not allocate microphone buffers")
+            }
+            slots.append(Slot(buffer))
+        }
+        self.converter = converter
+        self.output = output
+        self.slots = slots
+        self.chunkBytes = Int(sampleRate * 0.02) * MemoryLayout<Int16>.size
+        self.onAudio = onAudio
+        self.onFailure = onFailure
+        signal = DispatchSource.makeUserDataAddSource(queue: queue)
+        overflowSignal = DispatchSource.makeUserDataAddSource(queue: queue)
+        pendingPCM.reserveCapacity(Int(outputCapacity) * 2)
+        signal.setEventHandler { [weak self] in self?.drain() }
+        overflowSignal.setEventHandler { [weak self] in
+            self?.fail("audio processing could not keep up; tap Resume to restart")
+        }
+        signal.activate()
+        overflowSignal.activate()
+    }
+
+    var currentLevel: Float { level.load(ordering: .relaxed) }
+
+    func enqueue(_ input: AVAudioPCMBuffer) {
+        guard active.load(ordering: .acquiring), input.frameLength > 0 else { return }
+        let write = writeIndex.load(ordering: .relaxed)
+        let read = readIndex.load(ordering: .acquiring)
+        guard write &- read < UInt64(slots.count) else {
+            overflowSignal.add(data: 1)
+            return
+        }
+        let slot = slots[Int(write % UInt64(slots.count))]
+        let destination = slot.buffer
+        guard input.frameLength <= destination.frameCapacity else {
+            overflowSignal.add(data: 1)
+            return
+        }
+        destination.frameLength = input.frameLength
+        let sourceBuffers = UnsafeMutableAudioBufferListPointer(input.mutableAudioBufferList)
+        let destinationBuffers = UnsafeMutableAudioBufferListPointer(destination.mutableAudioBufferList)
+        guard sourceBuffers.count == destinationBuffers.count else {
+            overflowSignal.add(data: 1)
+            return
+        }
+        for channel in sourceBuffers.indices {
+            guard let source = sourceBuffers[channel].mData,
+                  let target = destinationBuffers[channel].mData,
+                  sourceBuffers[channel].mDataByteSize <= destinationBuffers[channel].mDataByteSize else {
+                overflowSignal.add(data: 1)
+                return
+            }
+            memcpy(target, source, Int(sourceBuffers[channel].mDataByteSize))
+        }
+        slot.queuedAt = .now
+        writeIndex.store(write &+ 1, ordering: .releasing)
+        signal.add(data: 1)
+    }
+
+    func stop() {
+        active.store(false, ordering: .releasing)
+        level.store(0, ordering: .relaxed)
+        signal.cancel()
+        overflowSignal.cancel()
+    }
+
+    private func fail(_ detail: String) {
+        if active.exchange(false, ordering: .acquiringAndReleasing) {
+            onFailure(detail)
+        }
+    }
+
+    private func drain() {
+        while active.load(ordering: .acquiring) {
+            let read = readIndex.load(ordering: .relaxed)
+            guard read != writeIndex.load(ordering: .acquiring) else { return }
+            let index = Int(read % UInt64(slots.count))
+            guard slots[index].queuedAt.duration(to: .now) < .milliseconds(250) else {
+                fail("microphone audio became delayed; tap Resume to restart")
+                return
+            }
+            var fed = false
+            var error: NSError?
+            output.frameLength = 0
+            // Conversion is synchronous on this queue. The producer cannot reuse
+            // this slot until readIndex advances after convert returns.
+            let status = converter.convert(to: output, error: &error) { _, outStatus in
+                guard !fed else { outStatus.pointee = .noDataNow; return nil }
+                fed = true
+                outStatus.pointee = .haveData
+                return self.slots[index].buffer
+            }
+            readIndex.store(read &+ 1, ordering: .releasing)
+            guard active.load(ordering: .acquiring) else { return }
+            guard status != .error, error == nil else {
+                fail("microphone audio conversion failed; tap Resume to restart")
+                return
+            }
+            guard output.frameLength > 0, let samples = output.int16ChannelData?[0] else { continue }
+            let count = Int(output.frameLength)
+            var squared: Float = 0
+            for index in 0..<count {
+                let sample = Float(samples[index]) / 32_768
+                squared += sample * sample
+            }
+            level.store(min(sqrt(squared / Float(count)) * 3, 1), ordering: .relaxed)
+            pendingPCM.append(UnsafeBufferPointer(start: UnsafeRawPointer(samples).assumingMemoryBound(to: UInt8.self),
+                                                 count: count * MemoryLayout<Int16>.size))
+            while pendingPCM.count >= chunkBytes {
+                guard active.load(ordering: .acquiring) else { return }
+                onAudio(Data(pendingPCM.prefix(chunkBytes)))
+                pendingPCM.removeFirst(chunkBytes)
+            }
+        }
     }
 }

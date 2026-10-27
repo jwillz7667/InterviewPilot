@@ -1,65 +1,23 @@
 import SwiftUI
-import SwiftData
 
 @main
-struct InterviewAceApp: App {
-    @State private var versionService = VersionService.shared
-    @State private var showSplash = true
-
-    init() {
-        NetworkPathMonitor.shared.start()
-        Task { @MainActor in
-            if let config = await RemoteConfigService.shared.refresh(),
-               let dsn = config.sentry.dsn, !dsn.isEmpty {
-                CrashReportingService.start(
-                    dsn: dsn,
-                    environment: config.sentry.environment,
-                    tracesSampleRate: config.sentry.tracesSampleRate
-                )
-            }
-        }
-    }
-
-    var sharedModelContainer: ModelContainer = {
-        let schema = Schema(versionedSchema: SchemaV1.self)
-        let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
-
-        do {
-            return try ModelContainer(
-                for: schema,
-                migrationPlan: InterviewPilotMigrationPlan.self,
-                configurations: [modelConfiguration]
-            )
-        } catch {
-            fatalError("Could not create ModelContainer: \(error)")
-        }
-    }()
+struct InterviewPilotApp: App {
+    @State private var store = LocalInterviewStore()
+    @State private var activeSession: SessionLaunch?
 
     var body: some Scene {
         WindowGroup {
-            ZStack {
-                Group {
-                    if versionService.requiresUpdate {
-                        ForceUpdateView()
-                    } else {
-                        ContentView()
-                    }
-                }
-                .task { await versionService.checkVersion() }
-
-                if showSplash {
-                    SplashScreenView()
-                        .transition(.opacity)
-                        .zIndex(1)
-                }
+            PersonalWorkspaceView(store: store) { configuration in
+                activeSession = SessionLaunch(configuration: configuration)
             }
-            .task {
-                try? await Task.sleep(for: .seconds(1.8))
-                withAnimation(.easeOut(duration: 0.4)) {
-                    showSplash = false
-                }
+            .fullScreenCover(item: $activeSession) { launch in
+                LiveSessionView(configuration: launch.configuration, store: store)
             }
         }
-        .modelContainer(sharedModelContainer)
     }
+}
+
+private struct SessionLaunch: Identifiable {
+    let id = UUID()
+    let configuration: InterviewConfiguration
 }
